@@ -61,7 +61,7 @@ final class TwoFactorSetupController
 
         // Shown once, on the next page. They are not retrievable afterwards.
         Inertia::flash('recoveryCodes', $user->recoveryCodes());
-        Toast::success(__('Two-factor authentication is on.'));
+        Toast::success(__('Two-step verification is on.'));
 
         return redirect()->route('platform.dashboard');
     }

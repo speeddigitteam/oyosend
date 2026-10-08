@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Platform\Http\Controllers;
 
+use App\Core\Support\Like;
 use App\Core\Tenancy\Enums\TenantStatus;
 use App\Core\Tenancy\Models\Tenant;
 use App\Core\Tenancy\Support\TenantHost;
@@ -30,8 +31,8 @@ final class TenantController
         $tenants = Tenant::query()
             ->withCount('memberships')
             ->when($search !== '', fn ($query) => $query->where(fn ($match) => $match
-                ->where('name', 'like', "%{$search}%")
-                ->orWhere('slug', 'like', "%{$search}%")))
+                ->where('name', 'like', Like::contains($search))
+                ->orWhere('slug', 'like', Like::contains($search))))
             ->when($filters['status'] ?? null, fn ($query, string $status) => $query->where('status', $status))
             ->latest()
             ->paginate(20)
@@ -46,7 +47,7 @@ final class TenantController
                 'currency' => $tenant->currency,
                 'timezone' => $tenant->timezone,
                 'members' => (int) $tenant->getAttribute('memberships_count'),
-                'createdAt' => $tenant->created_at?->toIso8601String(),
+                'createdAt' => $tenant->created_at->toIso8601String(),
             ]);
 
         return Inertia::render('Platform/Pages/Tenants/Index', [

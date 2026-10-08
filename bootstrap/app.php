@@ -10,6 +10,7 @@ use App\Core\Tenancy\Http\Middleware\EnsureCentralContext;
 use App\Core\Tenancy\Http\Middleware\EnsureTenantIsActive;
 use App\Core\Tenancy\Http\Middleware\InitializeTenancy;
 use App\Core\Tenancy\Support\TenantHost;
+use App\Platform\Console\CreatePlatformAdminCommand;
 use App\Platform\Http\Middleware\EnsurePlatformTwoFactor;
 use App\Platform\Http\Middleware\HandlePlatformInertia;
 use App\Platform\Http\Middleware\InitializePlatformContext;
@@ -44,6 +45,9 @@ return Application::configure(basePath: dirname(__DIR__))
             // module providers - see App\Core\Modules\ModuleServiceProvider.
         },
     )
+    ->withCommands([
+        CreatePlatformAdminCommand::class,
+    ])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->group('tenant', [
             InitializeTenancy::class,

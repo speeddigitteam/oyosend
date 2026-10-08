@@ -56,7 +56,7 @@ final class TwoFactorChallengeController
             }
 
             throw ValidationException::withMessages([
-                isset($input['recovery_code']) ? 'recovery_code' : 'code' => __('That code is not valid. Check your authenticator app and try again.'),
+                isset($input['recovery_code']) ? 'recovery_code' : 'code' => $challenge->failureMessage($user, isset($input['recovery_code'])),
             ]);
         }
 

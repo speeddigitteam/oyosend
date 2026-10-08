@@ -47,7 +47,7 @@ final class DashboardController
                     'slug' => $tenant->slug,
                     'status' => $tenant->status->value,
                     'members' => (int) $tenant->getAttribute('memberships_count'),
-                    'createdAt' => $tenant->created_at?->toIso8601String(),
+                    'createdAt' => $tenant->created_at->toIso8601String(),
                 ])
                 ->all(),
             // Platform-level entries only (no tenant): sign-ins to this panel and system events.
