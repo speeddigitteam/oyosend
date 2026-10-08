@@ -6,9 +6,11 @@ namespace App\Core\Tenancy;
 
 use App\Core\Tenancy\Jobs\EnforceTenantContextOnJobs;
 use App\Core\Tenancy\Storage\TenantStorage;
+use App\Core\Tenancy\Support\TenantAwareRateLimiter;
 use App\Core\Tenancy\Support\TenantConnectionResolver;
 use App\Core\Tenancy\Support\TenantHost;
 use Illuminate\Cache\CacheManager;
+use Illuminate\Cache\RateLimiter;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Support\Facades\Event;
@@ -34,6 +36,16 @@ final class TenancyServiceProvider extends ServiceProvider
         $this->app->singleton('cache.central', static function ($app): Repository {
             return (new CacheManager($app))->store();
         });
+
+        // The one rate limiter of the application. It answers for the
+        // framework's class through extend(), not a binding of that name: the
+        // framework registers its own from a deferred provider, which would
+        // replace one.
+        $this->app->singleton(TenantAwareRateLimiter::class, static fn ($app): TenantAwareRateLimiter => new TenantAwareRateLimiter(
+            $app->make('cache')->driver($app['config']->get('cache.limiter')),
+        ));
+
+        $this->app->extend(RateLimiter::class, static fn (RateLimiter $limiter, $app): TenantAwareRateLimiter => $app->make(TenantAwareRateLimiter::class));
     }
 
     public function boot(): void

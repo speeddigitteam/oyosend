@@ -58,7 +58,8 @@ final class TenantHost
             return null;
         }
 
-        return preg_match('/^'.self::LABEL_PATTERN.'$/', $label) === 1 ? $label : null;
+        // `D`: without it `$` would also accept a label that ends in a line break.
+        return preg_match('/^'.self::LABEL_PATTERN.'$/D', $label) === 1 ? $label : null;
     }
 
     public function isReserved(string $label): bool

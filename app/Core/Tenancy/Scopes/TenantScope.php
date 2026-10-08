@@ -14,11 +14,13 @@ use Illuminate\Database\Eloquent\Scope;
  *
  * It fails closed: with no active tenant the query throws instead of
  * silently returning every tenant's rows.
+ *
+ * @implements Scope<Model>
  */
 final class TenantScope implements Scope
 {
     /**
-     * @param  Builder<Model>  $builder
+     * @param  Builder<covariant Model>  $builder
      */
     public function apply(Builder $builder, Model $model): void
     {

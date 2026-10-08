@@ -58,6 +58,11 @@ final class TenantContext
     /**
      * Run a callback as the given tenant, then restore the previous context.
      *
+     * The previous context is restored when the callback throws as well. The
+     * package's own `Tenant::run()` does not do that, which would leave a
+     * long-lived process (worker, command) inside the tenant whose work just
+     * failed - so application code switches tenant through here.
+     *
      * @template T
      *
      * @param  Closure(Tenant): T  $callback
@@ -65,11 +70,20 @@ final class TenantContext
      */
     public function run(Tenant $tenant, Closure $callback): mixed
     {
-        return $tenant->run($callback);
+        $previous = $this->tenant();
+
+        $this->tenancy->initialize($tenant);
+
+        try {
+            return $callback($tenant);
+        } finally {
+            $this->restore($previous);
+        }
     }
 
     /**
-     * Run a callback with no tenant at all (the central context), then restore.
+     * Run a callback with no tenant at all (the central context), then
+     * restore - also when the callback throws.
      *
      * @template T
      *
@@ -78,7 +92,15 @@ final class TenantContext
      */
     public function central(Closure $callback): mixed
     {
-        return $this->tenancy->central(fn () => $callback());
+        $previous = $this->tenant();
+
+        $this->restore(null);
+
+        try {
+            return $callback();
+        } finally {
+            $this->restore($previous);
+        }
     }
 
     /**
@@ -107,5 +129,14 @@ final class TenantContext
     public function scopeBypassed(): bool
     {
         return $this->scopeBypassDepth > 0;
+    }
+
+    private function restore(?Tenant $tenant): void
+    {
+        if ($tenant !== null) {
+            $this->tenancy->initialize($tenant);
+        } elseif ($this->tenancy->initialized) {
+            $this->tenancy->end();
+        }
     }
 }

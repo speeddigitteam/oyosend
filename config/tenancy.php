@@ -9,6 +9,7 @@ use App\Core\Tenancy\Models\Domain;
 use App\Core\Tenancy\Models\Tenant;
 use App\Core\Tenancy\Support\UlidGenerator;
 use Stancl\Tenancy\Bootstrappers\QueueTenancyBootstrapper;
+use Stancl\Tenancy\TenantDatabaseManagers\MySQLDatabaseManager;
 
 /*
 |--------------------------------------------------------------------------
@@ -59,15 +60,13 @@ return [
         'prefix' => 'tenant',
         'suffix' => '',
         'managers' => [
-            'mysql' => Stancl\Tenancy\TenantDatabaseManagers\MySQLDatabaseManager::class,
+            'mysql' => MySQLDatabaseManager::class,
         ],
     ],
 
     'cache' => [
-        // Stores whose keys are prefixed per tenant by CachePrefixBootstrapper.
-        'stores' => array_values(array_unique(array_filter([
-            env('CACHE_STORE', 'database'),
-        ]))),
+        // CachePrefixBootstrapper appends `{prefix_base}{tenant_id}_` to the
+        // prefix of every store in config/cache.php while a tenant is active.
         'prefix_base' => 'tenant_',
     ],
 

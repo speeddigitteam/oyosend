@@ -21,7 +21,7 @@ use Illuminate\Database\Eloquent\Model;
  * The table must have an indexed `tenant_id`, and every unique index on it
  * must lead with `tenant_id`.
  *
- * @phpstan-require-extends \Illuminate\Database\Eloquent\Model
+ * @phpstan-require-extends Model
  */
 trait BelongsToTenant
 {

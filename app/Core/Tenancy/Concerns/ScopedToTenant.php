@@ -7,13 +7,14 @@ namespace App\Core\Tenancy\Concerns;
 use App\Core\Tenancy\Models\Tenant;
 use App\Core\Tenancy\Scopes\TenantScope;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * Read-side tenant isolation: the global scope plus the two explicit ways out
  * of it. Most models want {@see BelongsToTenant}, which adds the write guards.
  *
- * @phpstan-require-extends \Illuminate\Database\Eloquent\Model
+ * @phpstan-require-extends Model
  */
 trait ScopedToTenant
 {
