@@ -14,6 +14,7 @@ use App\Core\Support\Toast;
 use App\Core\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -44,7 +45,7 @@ final class InvitationAcceptanceController
         return Inertia::render('Core/Pages/Auth/AcceptInvitation', [
             'workspace' => $workspace,
             'state' => match (true) {
-                $current instanceof User && $current->email !== $invitation->email => 'wrong_account',
+                $current instanceof User && Str::lower($current->email) !== $invitation->email => 'wrong_account',
                 $current instanceof User => 'confirm',
                 $account !== null => 'existing_account',
                 default => 'new_account',

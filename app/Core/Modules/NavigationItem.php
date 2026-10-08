@@ -14,7 +14,7 @@ namespace App\Core\Modules;
 final readonly class NavigationItem
 {
     /**
-     * @param  string  $key  Unique, also the translation key suffix: `nav.{key}`.
+     * @param  string  $key  Unique, also the client translation key: `shell.nav.{key}`.
      * @param  string  $route  Named route the entry links to.
      * @param  string  $icon  Icon name from the client icon set.
      * @param  string|null  $permission  Permission required to see the entry.

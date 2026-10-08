@@ -77,8 +77,13 @@ final class TwoFactorService
     }
 
     /**
-     * Verify a 6-digit code. A code is accepted once: the time step of the
-     * last accepted code is remembered so it cannot be replayed.
+     * Verify a 6-digit code.
+     *
+     * A code is accepted once: the time step of the last accepted code is
+     * remembered so it cannot be replayed. And an account that keeps entering
+     * wrong codes is refused for a while, whatever it enters: with only a
+     * million possible codes, anyone holding the password could otherwise
+     * guess their way past the second factor.
      */
     public function verify(TwoFactorAuthenticatable $account, string $code): bool
     {
@@ -89,23 +94,52 @@ final class TwoFactorService
             return false;
         }
 
+        $failuresKey = $this->failuresKey($account);
+
+        if ($this->isLockedOut($account)) {
+            return false;
+        }
+
         $cacheKey = 'two-factor:last-step:'.$account->twoFactorKey();
 
+        // Always pass a previous step. Given null the library skips the
+        // "newer than" comparison and answers `true` instead of the step, and
+        // then there is nothing to remember: the first code would stay
+        // replayable for as long as its window lasts.
+        $lastStep = (int) $this->cache->get($cacheKey, 0);
+
         try {
-            $step = $this->engine->verifyKeyNewer($secret, $code, $this->cache->get($cacheKey));
+            $step = $this->engine->verifyKeyNewer($secret, $code, $lastStep);
         } catch (Throwable) {
             return false;
         }
 
-        if ($step === false) {
+        if (! is_int($step)) {
+            // The window starts with the first wrong code and is not extended by later ones.
+            $this->cache->add($failuresKey, 0, (int) config('platform.two_factor.lockout_seconds', 900));
+            $this->cache->increment($failuresKey);
+
             return false;
         }
 
-        if (is_int($step)) {
-            $this->cache->put($cacheKey, $step, 300);
-        }
+        $this->cache->put($cacheKey, $step, 300);
+        $this->cache->forget($failuresKey);
 
         return true;
+    }
+
+    /**
+     * Whether codes are being refused after too many wrong ones. Recovery
+     * codes are not affected.
+     */
+    public function isLockedOut(TwoFactorAuthenticatable $account): bool
+    {
+        return (int) $this->cache->get($this->failuresKey($account), 0) >= (int) config('platform.two_factor.max_failed_codes', 10);
+    }
+
+    private function failuresKey(TwoFactorAuthenticatable $account): string
+    {
+        return 'two-factor:failures:'.$account->twoFactorKey();
     }
 
     public function provisioningUri(TwoFactorAuthenticatable $account): ?string

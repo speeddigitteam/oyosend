@@ -41,7 +41,7 @@ return [
         'team_foreign_key' => 'tenant_id',
     ],
 
-    // Our own Gate::before (AccessServiceProvider) is the only check path.
+    // Our own Gate::before (CoreServiceProvider::registerGate) is the only check path.
     'register_permission_check_method' => false,
 
     'register_octane_reset_listener' => false,

@@ -19,13 +19,32 @@ use Illuminate\Validation\ValidationException;
  *
  * The owner can never be changed from here, and nobody can change, suspend or
  * remove themselves - that prevents both lock-outs and self-promotion.
+ *
+ * Nor can anyone act on a member who holds a permission they lack. Without
+ * that rule "manage members" alone would be enough to demote, suspend or
+ * remove an Admin, which is the same escalation the role editor refuses.
  */
 final class MemberManager
 {
+    /** @var array<string, bool> "actor:role" => whether the actor holds everything the role grants */
+    private array $outranked = [];
+
     public function __construct(
         private readonly RoleManager $roles,
         private readonly AuditLogger $audit,
     ) {}
+
+    /**
+     * Whether `$actor` may change, suspend or remove this member. This is the
+     * rule the list uses to decide which rows get an actions menu; holding
+     * `core.members.manage` is checked separately, on the route.
+     */
+    public function canManage(User $actor, TenantMembership $membership): bool
+    {
+        return ! $membership->is_owner
+            && $membership->user_id !== $actor->getKey()
+            && $this->holdsEverythingOf($actor, $membership);
+    }
 
     public function changeRole(User $actor, TenantMembership $membership, Role $role): void
     {
@@ -91,5 +110,34 @@ final class MemberManager
                 'member' => __('You cannot change your own membership.'),
             ]);
         }
+
+        if (! $this->holdsEverythingOf($actor, $membership)) {
+            throw ValidationException::withMessages([
+                'member' => __('You cannot manage a member who holds permissions you do not.'),
+            ]);
+        }
+    }
+
+    private function holdsEverythingOf(User $actor, TenantMembership $membership): bool
+    {
+        // The list eager-loads the roles; a single change looks them up.
+        $roles = $membership->relationLoaded('user') && $membership->user->relationLoaded('roles')
+            ? $membership->user->roles
+            : $membership->user()->firstOrFail()->roles()->get();
+
+        foreach ($roles as $role) {
+            // Anything that is not one of our roles is not something the actor can vouch for.
+            if (! $role instanceof Role) {
+                return false;
+            }
+
+            $key = $actor->getKey().':'.$role->getKey();
+
+            if (! ($this->outranked[$key] ??= $this->roles->canAssign($actor, $role))) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

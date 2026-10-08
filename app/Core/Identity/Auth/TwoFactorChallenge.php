@@ -40,4 +40,16 @@ final class TwoFactorChallenge
 
         return null;
     }
+
+    /**
+     * What to tell someone whose response attempt() just refused.
+     */
+    public function failureMessage(TwoFactorAuthenticatable $account, bool $usedRecoveryCode): string
+    {
+        return match (true) {
+            $usedRecoveryCode => __('That recovery code is not valid, or has already been used.'),
+            $this->twoFactor->isLockedOut($account) => __('Too many wrong codes. Use a recovery code, or try again later.'),
+            default => __('That code is not valid. Check your authenticator app and try again.'),
+        };
+    }
 }

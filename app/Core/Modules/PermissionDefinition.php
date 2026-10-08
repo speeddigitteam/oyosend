@@ -29,12 +29,4 @@ final readonly class PermissionDefinition
     {
         return strstr($this->name, '.', true) ?: $this->name;
     }
-
-    /**
-     * Translation key for the permission's label, resolved on the client.
-     */
-    public function labelKey(): string
-    {
-        return 'permissions.'.$this->name;
-    }
 }

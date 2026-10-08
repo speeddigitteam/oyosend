@@ -52,7 +52,7 @@ final class TwoFactorController
 
         // Shown once, right now. They are not retrievable afterwards.
         Inertia::flash('recoveryCodes', $user->recoveryCodes());
-        Toast::success(__('Two-factor authentication is on.'));
+        Toast::success(__('Two-step verification is on.'));
 
         return back();
     }
@@ -76,10 +76,17 @@ final class TwoFactorController
     {
         $user = $this->confirmedUser($request);
 
-        $this->twoFactor->disable($user);
-        $this->audit->record('auth.two_factor_disabled', $user);
+        // Backing out of a setup that was never confirmed is not "turning it off".
+        $wasOn = $user->hasEnabledTwoFactor();
 
-        Toast::success(__('Two-factor authentication is off.'));
+        $this->twoFactor->disable($user);
+
+        if ($wasOn) {
+            $this->audit->record('auth.two_factor_disabled', $user);
+            Toast::success(__('Two-step verification is off.'));
+        } else {
+            Toast::info(__('Two-step verification setup cancelled.'));
+        }
 
         return back();
     }

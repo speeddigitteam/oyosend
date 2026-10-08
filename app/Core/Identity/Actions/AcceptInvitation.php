@@ -13,6 +13,7 @@ use App\Core\Identity\Models\TenantMembership;
 use App\Core\Identity\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use SensitiveParameter;
 
@@ -48,7 +49,8 @@ final class AcceptInvitation
 
             $user = $existing ?? $this->createUser($invitation, $newAccount);
 
-            if ($user->email !== $invitation->email) {
+            // Invitations store the address in lower case; an account may not.
+            if (Str::lower($user->email) !== Str::lower($invitation->email)) {
                 throw ValidationException::withMessages([
                     'invitation' => __('This invitation was sent to a different email address.'),
                 ]);

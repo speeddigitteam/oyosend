@@ -11,6 +11,7 @@ use App\Core\Identity\Enums\MembershipStatus;
 use App\Core\Identity\Models\Invitation;
 use App\Core\Identity\Models\TenantMembership;
 use App\Core\Identity\Models\User;
+use App\Core\Support\Like;
 use App\Core\Support\Toast;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,19 +21,24 @@ use Inertia\Response;
 
 final class MemberController
 {
-    public function index(Request $request, RoleManager $roles): Response
+    public function index(Request $request, RoleManager $roles, MemberManager $manager): Response
     {
         /** @var User $actor */
         $actor = $request->user('web');
-        $search = trim((string) $request->query('search', ''));
+        $managesMembers = $actor->can('core.members.manage');
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $search = trim((string) ($filters['search'] ?? ''));
 
         $members = TenantMembership::query()
             ->with(['user:id,name,email,two_factor_confirmed_at,last_login_at', 'user.roles'])
             ->when($search !== '', fn ($query) => $query->whereHas(
                 'user',
                 fn ($user) => $user->where(fn ($match) => $match
-                    ->where('name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%")),
+                    ->where('name', 'like', Like::contains($search))
+                    ->orWhere('email', 'like', Like::contains($search))),
             ))
             ->orderByDesc('is_owner')
             ->orderBy('joined_at')
@@ -47,6 +53,8 @@ final class MemberController
                 'status' => $membership->status->value,
                 'isOwner' => $membership->is_owner,
                 'isSelf' => $membership->user_id === $actor->id,
+                // Whether this viewer gets an actions menu on the row; the same rule is enforced on every change.
+                'manageable' => $managesMembers && $manager->canManage($actor, $membership),
                 'twoFactorEnabled' => $membership->user->two_factor_confirmed_at !== null,
                 'joinedAt' => $membership->joined_at?->toIso8601String(),
                 'lastSeenAt' => $membership->last_seen_at?->toIso8601String(),

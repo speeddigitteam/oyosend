@@ -110,8 +110,6 @@ final class AuditLogger
             return null;
         }
 
-        $request = request();
-
-        return $request instanceof Request ? $request : null;
+        return request();
     }
 }

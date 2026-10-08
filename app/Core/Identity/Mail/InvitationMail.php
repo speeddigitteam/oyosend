@@ -45,15 +45,17 @@ final class InvitationMail extends Mailable implements RequiresTenantContext, Sh
     public function content(): Content
     {
         $this->invitation->loadMissing(['role', 'inviter']);
+        $tenant = app(TenantContext::class)->require();
 
         return new Content(
             markdown: 'mail.invitation',
             with: [
-                'workspace' => app(TenantContext::class)->require()->name,
+                'workspace' => $tenant->name,
                 'inviter' => $this->invitation->inviter?->name,
                 'role' => $this->invitation->role->name,
                 'url' => route('auth.invitations.show', ['token' => $this->token]),
-                'expiresAt' => $this->invitation->expires_at,
+                // The day as the workspace's clock has it; the view writes it in the mail's language.
+                'expiresAt' => $this->invitation->expires_at->copy()->timezone($tenant->timezone),
             ],
         );
     }

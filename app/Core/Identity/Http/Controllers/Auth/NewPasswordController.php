@@ -21,9 +21,11 @@ final class NewPasswordController
 {
     public function create(Request $request, string $token): Response
     {
+        $email = $request->query('email');
+
         return Inertia::render('Core/Pages/Auth/ResetPassword', [
             'token' => $token,
-            'email' => (string) $request->query('email', ''),
+            'email' => is_string($email) ? $email : '',
         ]);
     }
 

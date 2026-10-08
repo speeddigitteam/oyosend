@@ -11,6 +11,7 @@ use App\Core\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cookie;
 
 /**
  * The single place a workspace session is created, whichever way the person
@@ -30,6 +31,11 @@ final class CompleteWorkspaceLogin
         // New session id, then bind the session to this workspace.
         $request->session()->regenerate();
         $request->session()->put(EnsureTenantMember::SESSION_KEY, $this->context->requireId());
+
+        if ($remember) {
+            // Ties the "remember me" cookie to this workspace; see EnsureTenantMember.
+            Cookie::queue(Cookie::forever(EnsureTenantMember::REMEMBER_COOKIE, $this->context->requireId()));
+        }
 
         $user->timestamps = false;
         $user->forceFill(['last_login_at' => Carbon::now()])->saveQuietly();

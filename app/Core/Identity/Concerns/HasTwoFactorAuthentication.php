@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Core\Identity\Concerns;
 
+use Illuminate\Database\Eloquent\Model;
+
 /**
  * Storage side of two-factor authentication. The secret and recovery codes
  * are encrypted at rest (see the model's casts) and hidden from serialization.
  *
- * @phpstan-require-extends \Illuminate\Database\Eloquent\Model
+ * @phpstan-require-extends Model
  */
 trait HasTwoFactorAuthentication
 {
@@ -27,7 +29,7 @@ trait HasTwoFactorAuthentication
      */
     public function recoveryCodes(): array
     {
-        return array_values($this->two_factor_recovery_codes ?? []);
+        return $this->two_factor_recovery_codes ?? [];
     }
 
     public function twoFactorKey(): string

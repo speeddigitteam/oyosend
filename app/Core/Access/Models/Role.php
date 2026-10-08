@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Core\Access\Models;
 
+use App\Core\Access\PermissionResolver;
 use App\Core\Audit\Concerns\Auditable;
 use App\Core\Tenancy\Models\Tenant;
 use App\Core\Tenancy\TenantContext;
@@ -24,7 +25,7 @@ use Spatie\Permission\Models\Role as SpatieRole;
  *
  *  - {@see scopeForCurrentTenant()} for every listing;
  *  - {@see resolveRouteBinding()} for every `{role}` route parameter;
- *  - the `tenant_id` filters in {@see \App\Core\Access\PermissionResolver}.
+ *  - the `tenant_id` filters in {@see PermissionResolver}.
  *
  * @property string $id
  * @property string|null $tenant_id
@@ -45,6 +46,13 @@ class Role extends SpatieRole
     public const string MANAGER = 'Manager';
 
     public const string EMPLOYEE = 'Employee';
+
+    /**
+     * The system roles, from the most powerful down: the order to list them in.
+     *
+     * @var list<string>
+     */
+    public const array SYSTEM_ORDER = [self::OWNER, self::ADMIN, self::MANAGER, self::EMPLOYEE];
 
     public $incrementing = false;
 
@@ -70,6 +78,8 @@ class Role extends SpatieRole
 
     /**
      * Grants with the scope of each one.
+     *
+     * @return BelongsToMany<Permission, $this>
      */
     public function permissions(): BelongsToMany
     {

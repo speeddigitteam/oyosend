@@ -11,7 +11,7 @@
 {{ __('Accept invitation') }}
 </x-mail::button>
 
-{{ __('This invitation expires on :date. If you were not expecting it, you can ignore this email.', ['date' => $expiresAt->toFormattedDayDateString()]) }}
+{{ __('This invitation expires on :date. If you were not expecting it, you can ignore this email.', ['date' => $expiresAt->isoFormat('LL')]) }}
 
 {{ config('app.name') }}
 </x-mail::message>

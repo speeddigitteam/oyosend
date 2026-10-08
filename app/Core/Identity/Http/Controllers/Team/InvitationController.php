@@ -43,7 +43,7 @@ final class InvitationController
             $audit->record('member.invitation_revoked', $invitation, subjectLabel: $invitation->email);
         }
 
-        Toast::success(__('Invitation revoked.'));
+        Toast::success(__('Invitation withdrawn.'));
 
         return back();
     }

@@ -8,7 +8,6 @@ use App\Core\Access\AccessChecker;
 use App\Core\Identity\Models\TenantMembership;
 use App\Core\Identity\Models\User;
 use App\Core\Modules\NavigationBuilder;
-use App\Core\Tenancy\Support\TenantHost;
 use App\Core\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 
@@ -25,7 +24,6 @@ final class HandleTenantInertia extends HandleInertiaRequests
         private readonly TenantContext $context,
         private readonly AccessChecker $access,
         private readonly NavigationBuilder $navigation,
-        private readonly TenantHost $hosts,
     ) {}
 
     protected function area(): string
@@ -55,8 +53,8 @@ final class HandleTenantInertia extends HandleInertiaRequests
         $user = $request->user('web');
 
         return [
-            'timezone' => $tenant?->timezone ?? (string) config('platform.defaults.timezone'),
-            'currency' => $tenant?->currency ?? (string) config('platform.defaults.currency'),
+            'timezone' => $tenant->timezone ?? (string) config('platform.defaults.timezone'),
+            'currency' => $tenant->currency ?? (string) config('platform.defaults.currency'),
             'numerals' => $user instanceof User && $user->preference('numerals') === 'beng' ? 'beng' : 'latn',
         ];
     }
@@ -122,7 +120,8 @@ final class HandleTenantInertia extends HandleInertiaRequests
             ->activeMemberships()
             ->with('tenant:id,name,slug,status')
             ->get()
-            ->filter(fn (TenantMembership $membership): bool => $membership->tenant->isAccessible())
+            // A deleted workspace keeps its membership rows but no longer loads.
+            ->filter(fn (TenantMembership $membership): bool => $membership->tenant?->isAccessible() === true)
             ->map(fn (TenantMembership $membership): array => [
                 'name' => $membership->tenant->name,
                 'slug' => $membership->tenant->slug,

@@ -8,11 +8,13 @@ use App\Core\Audit\AuditLogger;
 use App\Core\Identity\Actions\CompleteWorkspaceLogin;
 use App\Core\Identity\Actions\VerifyWorkspaceCredentials;
 use App\Core\Identity\Auth\PendingTwoFactorLogin;
+use App\Core\Identity\Http\Middleware\EnsureTenantMember;
 use App\Core\Identity\Http\Requests\LoginRequest;
 use App\Core\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cookie;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -53,6 +55,7 @@ final class LoginController
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+        Cookie::queue(Cookie::forget(EnsureTenantMember::REMEMBER_COOKIE));
 
         return redirect()->route('auth.login');
     }

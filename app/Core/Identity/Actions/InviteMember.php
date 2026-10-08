@@ -12,6 +12,7 @@ use App\Core\Identity\Mail\InvitationMail;
 use App\Core\Identity\Models\Invitation;
 use App\Core\Identity\Models\TenantMembership;
 use App\Core\Identity\Models\User;
+use App\Core\Tenancy\TenantContext;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -23,6 +24,7 @@ final class InviteMember
     public function __construct(
         private readonly RoleManager $roles,
         private readonly AuditLogger $audit,
+        private readonly TenantContext $context,
     ) {}
 
     /**
@@ -77,7 +79,10 @@ final class InviteMember
             return $invitation;
         });
 
-        Mail::to($email)->queue(new InvitationMail($invitation, $token));
+        // In the language the invitee chose if they already have an account, otherwise the workspace's.
+        $locale = User::query()->where('email', $email)->value('locale') ?? $this->context->require()->locale;
+
+        Mail::to($email)->locale($locale)->queue(new InvitationMail($invitation, $token));
 
         MemberInvited::dispatch($invitation);
 

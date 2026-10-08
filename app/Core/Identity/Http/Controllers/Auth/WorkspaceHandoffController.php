@@ -72,10 +72,13 @@ final class WorkspaceHandoffController
         AccessChecker $access,
         CompleteWorkspaceLogin $login,
     ): RedirectResponse {
-        $token = (string) $request->query('token', '');
+        // Anything but a well-formed token (`?token[]=` included) is simply not a claim.
+        $token = $request->query('token');
 
         /** @var array{user_id: string, tenant_id: string}|null $claim */
-        $claim = preg_match('/^[A-Za-z0-9]{64}$/', $token) === 1 ? $this->cache->pull($this->key($token)) : null;
+        $claim = is_string($token) && preg_match('/^[A-Za-z0-9]{64}$/', $token) === 1
+            ? $this->cache->pull($this->key($token))
+            : null;
 
         if (! is_array($claim) || $claim['tenant_id'] !== $context->requireId()) {
             return redirect()->route('auth.login');

@@ -67,6 +67,13 @@ return [
             : (bool) env('PLATFORM_REQUIRE_2FA', true),
         'recovery_codes' => 8,
         'challenge_ttl' => 600, // seconds a password-verified login may wait for its code
+
+        // Wrong codes an account may enter before codes are refused for
+        // `lockout_seconds` (recovery codes keep working). Counted per account
+        // across every sign-in and workspace: a pending sign-in is discarded
+        // after five wrong codes, but the password step can simply be repeated.
+        'max_failed_codes' => 10,
+        'lockout_seconds' => 900,
     ],
 
     'invitations' => [

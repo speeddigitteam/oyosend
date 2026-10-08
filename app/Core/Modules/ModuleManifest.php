@@ -42,7 +42,8 @@ final readonly class ModuleManifest
         public array $actions = [],
         public array $morphMap = [],
     ) {
-        if (preg_match('/^[a-z][a-z0-9_]*$/', $key) !== 1) {
+        // `D`: without it `$` would also accept a key that ends in a line break.
+        if (preg_match('/^[a-z][a-z0-9_]*$/D', $key) !== 1) {
             throw new InvalidArgumentException("Invalid module key [{$key}].");
         }
 

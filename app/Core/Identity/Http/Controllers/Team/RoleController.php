@@ -45,9 +45,14 @@ final class RoleController
         return Inertia::render('Core/Pages/Team/Roles/Index', [
             'roles' => Role::query()
                 ->forCurrentTenant()
-                ->orderByDesc('is_system')
                 ->orderBy('name')
                 ->get()
+                // System roles first, from the most powerful down; then the workspace's own, by name.
+                ->sortBy(fn (Role $role): array => [
+                    $role->is_system ? 0 : 1,
+                    $role->is_system ? array_search($role->name, Role::SYSTEM_ORDER, true) : 0,
+                ])
+                ->values()
                 ->map(fn (Role $role): array => [
                     'id' => $role->id,
                     'name' => $role->name,
