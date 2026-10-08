@@ -2,24 +2,19 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Core\Access\PermissionSynchronizer;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
-    /**
-     * Seed the application's database.
-     */
-    public function run(): void
+    public function run(PermissionSynchronizer $permissions): void
     {
-        // User::factory(10)->create();
+        // Reference data every environment needs.
+        $permissions->sync();
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        // Demo accounts and workspaces: local development only.
+        if (app()->environment('local')) {
+            $this->call(DemoSeeder::class);
+        }
     }
 }
