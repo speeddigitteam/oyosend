@@ -1,0 +1,73 @@
+import type { MessageSchema } from '@/Core/i18n';
+
+const common: MessageSchema['common'] = {
+    actions: {
+        save: 'পরিবর্তন সংরক্ষণ করুন',
+        cancel: 'বাতিল করুন',
+        close: 'বন্ধ করুন',
+        confirm: 'নিশ্চিত করুন',
+        delete: 'মুছে ফেলুন',
+        remove: 'সরিয়ে দিন',
+        edit: 'সম্পাদনা করুন',
+        create: 'তৈরি করুন',
+        back: 'ফিরে যান',
+        continue: 'এগিয়ে যান',
+        search: 'খুঁজুন',
+        clear: 'মুছুন',
+        copy: 'কপি করুন',
+        copied: 'কপি হয়েছে',
+        retry: 'আবার চেষ্টা করুন',
+        more: 'আরও অ্যাকশন',
+        columns: 'কলাম',
+    },
+    status: {
+        active: 'সক্রিয়',
+        suspended: 'স্থগিত',
+        pending: 'অপেক্ষমাণ',
+        expired: 'মেয়াদোত্তীর্ণ',
+        enabled: 'চালু',
+        disabled: 'বন্ধ',
+        healthy: 'স্বাভাবিক',
+        failing: 'মনোযোগ প্রয়োজন',
+    },
+    table: {
+        empty: 'এখনো দেখানোর মতো কিছু নেই',
+        emptyFiltered: 'আপনার ফিল্টারের সঙ্গে কিছুই মিলছে না',
+        range: '{total}-এর মধ্যে {from}–{to}',
+        previous: 'পূর্ববর্তী',
+        next: 'পরবর্তী',
+        sortAscending: 'ঊর্ধ্বক্রমে সাজান',
+        sortDescending: 'অধঃক্রমে সাজান',
+        loading: 'লোড হচ্ছে…',
+        pagination: 'পৃষ্ঠা নেভিগেশন',
+    },
+    twoFactor: {
+        scan: 'Google Authenticator, Microsoft Authenticator বা 1Password-এর মতো কোনো অথেনটিকেটর অ্যাপ দিয়ে এই কোডটি স্ক্যান করুন।',
+        // "কী-টি" with the article, so that "key" is not read as the question word "কী".
+        manual: 'স্ক্যান করতে পারছেন না? এই সেটআপ কী-টি নিজে টাইপ করুন:',
+        code: 'ছয় অঙ্কের কোড',
+        codeHint: 'শেষ করতে অ্যাপে দেখানো কোডটি লিখুন।',
+        recoveryTitle: 'আপনার রিকভারি কোডগুলো সংরক্ষণ করুন',
+        recoveryBody: 'ডিভাইস হারিয়ে গেলে প্রতিটি কোড দিয়ে একবার সাইন ইন করা যাবে। কোডগুলো শুধু এখনই দেখানো হচ্ছে — নিরাপদ কোনো জায়গায় রেখে দিন।',
+        download: 'ডাউনলোড করুন',
+    },
+    theme: {
+        label: 'থিম',
+        light: 'লাইট',
+        dark: 'ডার্ক',
+        system: 'সিস্টেম',
+        switchToLight: 'লাইট থিম চালু করুন',
+        switchToDark: 'ডার্ক থিম চালু করুন',
+    },
+    language: {
+        label: 'ভাষা',
+    },
+    never: 'কখনো নয়',
+    you: 'আপনি',
+    system: 'সিস্টেম',
+    optional: 'ঐচ্ছিক',
+    skipToContent: 'মূল কনটেন্টে যান',
+    dismiss: 'বন্ধ করুন',
+};
+
+export default common;

@@ -1,0 +1,43 @@
+export default {
+    title: 'Dashboard',
+    greeting: {
+        morning: 'Good morning, {name}',
+        afternoon: 'Good afternoon, {name}',
+        evening: 'Good evening, {name}',
+    },
+    subtitle: 'Here is where {workspace} stands today.',
+    team: {
+        title: 'Team',
+        members: 'Active members',
+        pendingInvitations: 'Pending invitations',
+        roles: 'Roles',
+        joinedThisMonth: 'Joined this month',
+        suspended: '{count} suspended',
+        recent: 'Recently joined',
+        manage: 'Manage members',
+        joined: 'Joined {when}',
+    },
+    security: {
+        title: 'Your account',
+        twoFactor: 'Two-step verification',
+        twoFactorOn: 'On',
+        twoFactorOff: 'Off',
+        twoFactorPrompt: 'Add a second step so a stolen password is not enough to get in.',
+        recoveryCodes: '{count} recovery codes left',
+        recoveryLow: 'Generate new recovery codes soon',
+        lastLogin: 'Last sign-in',
+        review: 'Review security',
+        enable: 'Turn on',
+    },
+    activity: {
+        title: 'Recent activity',
+        empty: 'Activity in this workspace will appear here.',
+        viewAll: 'Open audit log',
+        by: 'by {actor}',
+    },
+    apps: {
+        title: 'Apps',
+        empty: 'No apps installed yet',
+        emptyBody: 'CRM, Projects, HRM, Invoicing and the other apps will be installable from the App Store once it opens.',
+    },
+};

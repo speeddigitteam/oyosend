@@ -1,0 +1,52 @@
+export default {
+    breadcrumb: 'Breadcrumb',
+    nav: {
+        // Sidebar section headings.
+        sections: {
+            workspace: 'Workspace',
+            apps: 'Apps',
+            manage: 'Manage',
+            platform: 'Platform',
+        },
+        // Sidebar entries, keyed by the NavigationItem key the server sends.
+        dashboard: 'Dashboard',
+        members: 'Members',
+        roles: 'Roles & permissions',
+        audit: 'Audit log',
+        tenants: 'Workspaces',
+        openMenu: 'Open navigation',
+        closeMenu: 'Close navigation',
+        primary: 'Primary',
+    },
+    workspace: {
+        switch: 'Switch workspace',
+        current: 'Current workspace',
+        yours: 'Your workspaces',
+        only: 'This is your only workspace',
+    },
+    account: {
+        menu: 'Account menu',
+        profile: 'Profile',
+        security: 'Security',
+        signOut: 'Sign out',
+        owner: 'Owner',
+    },
+    palette: {
+        open: 'Jump to…',
+        placeholder: 'Type a page or action',
+        hint: 'Search pages and actions',
+        empty: 'No page or action matches “{query}”',
+        groups: {
+            navigate: 'Go to',
+            actions: 'Actions',
+            workspaces: 'Switch workspace',
+        },
+        navigateHint: 'to move',
+        selectHint: 'to open',
+        closeHint: 'to close',
+    },
+    platform: {
+        badge: 'Super Admin',
+        queues: 'Queues',
+    },
+};
