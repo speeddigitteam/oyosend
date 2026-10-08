@@ -19,15 +19,32 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <!-- Error responses are rendered the way production renders them. -->
+        <env name="APP_DEBUG" value="false"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
+        <!-- Hosts are part of the behaviour under test: tenants live on
+             {tenant}.localhost and the Super Admin panel on admin.localhost. -->
+        <env name="APP_URL" value="http://localhost"/>
+        <env name="APP_DOMAIN" value="localhost"/>
+        <env name="ADMIN_SUBDOMAIN" value="admin"/>
+        <env name="APP_LOCALE" value="en"/>
+        <env name="APP_FALLBACK_LOCALE" value="en"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
-        <env name="DB_DATABASE" value="testing"/>
+        <env name="DB_CONNECTION" value="mysql"/>
+        <!-- Disposable. Tests\TestCase refuses to run against anything else. -->
+        <env name="DB_DATABASE" value="oyosend_testing"/>
         <env name="DB_URL" value=""/>
+        <!-- Expected failures (failed jobs, 500s under test) stay out of storage/logs. -->
+        <env name="LOG_CHANNEL" value="null"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <env name="SESSION_DOMAIN" value="null"/>
+        <env name="SCOUT_DRIVER" value="database"/>
+        <env name="TENANT_FILESYSTEM_DISK" value="local"/>
+        <env name="PLATFORM_REQUIRE_2FA" value="true"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>

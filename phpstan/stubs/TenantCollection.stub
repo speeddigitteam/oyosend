@@ -1,0 +1,24 @@
+<?php
+
+namespace Stancl\Tenancy\Database;
+
+use Illuminate\Database\Eloquent\Collection;
+
+/**
+ * stancl/tenancy ships this collection without generics, so every
+ * `Tenant::query()->get()` would lose its model type. The class itself adds
+ * nothing but `runForEach()`; this only restores the template parameters of
+ * the Eloquent collection it extends.
+ *
+ * @template TKey of array-key
+ * @template TModel of \Illuminate\Database\Eloquent\Model
+ *
+ * @extends Collection<TKey, TModel>
+ */
+class TenantCollection extends Collection
+{
+    /**
+     * @return $this
+     */
+    public function runForEach(callable $callable): self {}
+}
