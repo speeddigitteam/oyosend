@@ -19,6 +19,7 @@ export default {
         audit: 'Audit log',
         settings: 'Workspace settings',
         billing: 'Billing',
+        apps: 'Apps',
     },
     permissions: {
         'core.members.view': {
@@ -76,6 +77,14 @@ export default {
         'core.billing.manage': {
             label: 'Manage billing',
             description: 'Change or cancel the plan and pay invoices.',
+        },
+        'core.apps.view': {
+            label: 'View apps',
+            description: 'Browse the App Store and see apps installed in the workspace.',
+        },
+        'core.apps.manage': {
+            label: 'Manage apps',
+            description: 'Install, activate, deactivate and uninstall apps.',
         },
     },
     // How far a grant reaches, for permissions that can be narrowed.
@@ -153,6 +162,22 @@ export default {
         'billing.payment_recorded': 'Payment recorded by support',
         'billing.payment_failed': 'Payment failed',
         'billing.payment_unapplied': 'Payment received for a closed invoice',
+        'app_store.trial_started': 'Started an app trial',
+        'app_store.purchase_started': 'Started an app purchase',
+        'app_store.purchase_activated': 'Activated a purchased app',
+        'app_store.app_installed': 'Installed an app',
+        'app_store.app_activated': 'Activated an app',
+        'app_store.app_deactivated': 'Deactivated an app',
+        'app_store.app_uninstalled': 'Uninstalled an app',
+        'app_store.app_reinstalled': 'Reinstalled an app',
+        'app_store.app_upgraded': 'Updated an app',
+        'app_store.settings_updated': 'Changed app settings',
+        'app_store.subscription_canceled': 'Canceled an app subscription',
+        'app_store.subscription_resumed': 'Resumed an app subscription',
+        'app_store.subscription_past_due': 'App payment became overdue',
+        'app_store.subscription_ended': 'App subscription ended',
+        'app_store.subscription_expired': 'App subscription expired',
+        'app_store.invoice_issued': 'App invoice issued',
         'support.session_started': 'Support opened this workspace',
         'support.session_ended': 'Support left this workspace',
         'plan.created': 'Created a plan',
@@ -183,6 +208,7 @@ export default {
         company: 'Companies',
         workspace: 'Workspace',
         billing: 'Billing',
+        app_store: 'Apps',
         support: 'Support access',
         plan: 'Plans',
         platform: 'Platform',

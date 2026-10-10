@@ -80,6 +80,7 @@
  */
 import type { MessageSchema } from '@/Core/i18n';
 import billing from './billing';
+import appStore from './appStore';
 import contacts from './contacts';
 import organization from './organization';
 import platformAudit from './platformAudit';
@@ -119,6 +120,7 @@ const bn: MessageSchema = {
     contacts,
     workspace,
     billing,
+    appStore,
     register,
     platformWorkspaces,
     platformPlans,

@@ -25,6 +25,7 @@ const catalogue: MessageSchema['catalogue'] = {
         audit: 'অডিট লগ',
         settings: 'ওয়ার্কস্পেস সেটিংস',
         billing: 'বিলিং',
+        apps: 'অ্যাপ',
     },
     permissions: {
         'core.members.view': {
@@ -82,6 +83,14 @@ const catalogue: MessageSchema['catalogue'] = {
         'core.billing.manage': {
             label: 'বিলিং পরিচালনা',
             description: 'প্ল্যান পরিবর্তন বা বাতিল করতে এবং ইনভয়েস পরিশোধ করতে পারবেন।',
+        },
+        'core.apps.view': {
+            label: 'অ্যাপ দেখা',
+            description: 'অ্যাপ স্টোর দেখতে এবং ওয়ার্কস্পেসে ইনস্টল করা অ্যাপ দেখতে পারবেন।',
+        },
+        'core.apps.manage': {
+            label: 'অ্যাপ পরিচালনা',
+            description: 'অ্যাপ ইনস্টল, সক্রিয়, নিষ্ক্রিয় ও আনইনস্টল করতে পারবেন।',
         },
     },
     // How far a grant reaches, for permissions that can be narrowed.
@@ -159,6 +168,22 @@ const catalogue: MessageSchema['catalogue'] = {
         'billing.payment_recorded': 'সাপোর্ট টিম পেমেন্ট রেকর্ড করেছে',
         'billing.payment_failed': 'পেমেন্ট ব্যর্থ হয়েছে',
         'billing.payment_unapplied': 'বন্ধ হয়ে যাওয়া ইনভয়েসের জন্য পেমেন্ট পাওয়া গেছে',
+        'app_store.trial_started': 'একটি অ্যাপের ট্রায়াল শুরু করেছেন',
+        'app_store.purchase_started': 'একটি অ্যাপ কেনা শুরু করেছেন',
+        'app_store.purchase_activated': 'কেনা অ্যাপটি সক্রিয় করেছেন',
+        'app_store.app_installed': 'একটি অ্যাপ ইনস্টল করেছেন',
+        'app_store.app_activated': 'একটি অ্যাপ সক্রিয় করেছেন',
+        'app_store.app_deactivated': 'একটি অ্যাপ নিষ্ক্রিয় করেছেন',
+        'app_store.app_uninstalled': 'একটি অ্যাপ আনইনস্টল করেছেন',
+        'app_store.app_reinstalled': 'একটি অ্যাপ আবার ইনস্টল করেছেন',
+        'app_store.app_upgraded': 'একটি অ্যাপ আপডেট করেছেন',
+        'app_store.settings_updated': 'একটি অ্যাপের সেটিংস পরিবর্তন করেছেন',
+        'app_store.subscription_canceled': 'একটি অ্যাপের সাবস্ক্রিপশন বাতিল করেছেন',
+        'app_store.subscription_resumed': 'একটি অ্যাপের সাবস্ক্রিপশন আবার চালু করেছেন',
+        'app_store.subscription_past_due': 'অ্যাপের পেমেন্টের সময় পেরিয়ে গেছে',
+        'app_store.subscription_ended': 'অ্যাপের সাবস্ক্রিপশন শেষ হয়েছে',
+        'app_store.subscription_expired': 'অ্যাপের সাবস্ক্রিপশনের মেয়াদ শেষ হয়েছে',
+        'app_store.invoice_issued': 'অ্যাপের ইনভয়েস তৈরি করা হয়েছে',
         'support.session_started': 'সাপোর্ট টিম এই ওয়ার্কস্পেসে প্রবেশ করেছে',
         'support.session_ended': 'সাপোর্ট টিম এই ওয়ার্কস্পেস থেকে বেরিয়ে গেছে',
         'plan.created': 'একটি প্ল্যান তৈরি করেছেন',
@@ -189,6 +214,7 @@ const catalogue: MessageSchema['catalogue'] = {
         company: 'প্রতিষ্ঠান',
         workspace: 'ওয়ার্কস্পেস',
         billing: 'বিলিং',
+        app_store: 'অ্যাপ',
         support: 'সাপোর্ট অ্যাক্সেস',
         plan: 'প্ল্যান',
         platform: 'প্ল্যাটফর্ম',

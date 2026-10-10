@@ -19,6 +19,7 @@ const shell: MessageSchema['shell'] = {
         organization: 'শাখা ও বিভাগ',
         workspaceSettings: 'ওয়ার্কস্পেস সেটিংস',
         billing: 'বিলিং',
+        appStore: 'অ্যাপ স্টোর',
         tenants: 'ওয়ার্কস্পেস',
         plans: 'প্ল্যান',
         invoices: 'ইনভয়েস',

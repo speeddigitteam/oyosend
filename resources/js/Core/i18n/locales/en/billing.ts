@@ -43,6 +43,16 @@ export default {
             subscription: 'New plan',
             renewal: 'Renewal',
             change: 'Change of plan',
+            app_purchase: 'App purchase',
+            app_renewal: 'App renewal',
+        },
+        appBillingType: {
+            monthly: 'monthly',
+            yearly: 'yearly',
+            one_time: 'one-time',
+            usage_based: 'usage-based',
+            enterprise: 'enterprise',
+            free: 'free',
         },
         paymentStatus: {
             pending: 'Pending',
@@ -63,6 +73,7 @@ export default {
         line: {
             plan: '{plan} plan, {interval}',
             credit: 'Credit for unused time on the previous plan',
+            app: '{app} — {offer}, {billingType}',
         },
         free: 'Free',
         unlimited: 'Unlimited',

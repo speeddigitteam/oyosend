@@ -17,6 +17,7 @@ export default {
         organization: 'Branches & departments',
         workspaceSettings: 'Workspace settings',
         billing: 'Billing',
+        appStore: 'App Store',
         tenants: 'Workspaces',
         plans: 'Plans',
         invoices: 'Invoices',

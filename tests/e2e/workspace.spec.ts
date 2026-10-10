@@ -14,9 +14,24 @@ test.describe('signing in to a workspace', () => {
 
         await expect(page.getByRole('heading', { level: 1 })).toContainText('Ayesha');
 
-        for (const entry of ['Dashboard', 'Contacts', 'Members', 'Roles & permissions', 'Branches & departments', 'Audit log', 'Workspace settings', 'Billing']) {
+        for (const entry of ['Dashboard', 'Contacts', 'Members', 'Roles & permissions', 'Branches & departments', 'Audit log', 'Workspace settings', 'Billing', 'App Store']) {
             await expect(sidebar(page).getByRole('link', { name: entry, exact: true })).toBeVisible();
         }
+
+        noErrors();
+    });
+
+    test('the App Store honestly shows an empty production catalogue and My Apps', async ({ page }) => {
+        const noErrors = watchForErrors(page);
+
+        await signIn(page, 'acme', 'owner@acme.test');
+        await sidebar(page).getByRole('link', { name: 'App Store', exact: true }).click();
+
+        await expect(page.getByRole('heading', { name: 'App Store', level: 1 })).toBeVisible();
+        await expect(page.getByText('No optional apps are compiled into this build yet')).toBeVisible();
+        await page.getByRole('link', { name: 'My apps', exact: true }).click();
+        await expect(page.getByRole('heading', { name: 'My apps', level: 1 })).toBeVisible();
+        await expect(page.getByText('No apps installed yet')).toBeVisible();
 
         noErrors();
     });

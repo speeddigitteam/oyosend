@@ -7,7 +7,7 @@ import type { SubscriptionStatus } from '@/Core/types';
 
 export type BillingInterval = 'monthly' | 'yearly';
 export type InvoiceStatus = 'open' | 'paid' | 'void';
-export type InvoiceKind = 'subscription' | 'renewal' | 'change';
+export type InvoiceKind = 'subscription' | 'renewal' | 'change' | 'app_purchase' | 'app_renewal';
 export type PaymentStatus = 'pending' | 'succeeded' | 'failed' | 'canceled';
 
 /** Money is always an integer in minor units, with its currency beside it. */
@@ -76,6 +76,10 @@ export interface InvoiceLine {
     type: string;
     plan?: string;
     interval?: string;
+    app?: string;
+    offer?: string;
+    billing_type?: string;
+    quantity?: number;
     amount: number;
 }
 

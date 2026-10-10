@@ -40,6 +40,16 @@ const billing: MessageSchema['billing'] = {
             subscription: 'নতুন প্ল্যান',
             renewal: 'নবায়ন',
             change: 'প্ল্যান পরিবর্তন',
+            app_purchase: 'অ্যাপ কেনা',
+            app_renewal: 'অ্যাপ নবায়ন',
+        },
+        appBillingType: {
+            monthly: 'মাসিক',
+            yearly: 'বার্ষিক',
+            one_time: 'একবারের',
+            usage_based: 'ব্যবহার অনুযায়ী',
+            enterprise: 'এন্টারপ্রাইজ',
+            free: 'বিনামূল্যের',
         },
         paymentStatus: {
             pending: 'অপেক্ষমাণ',
@@ -60,6 +70,7 @@ const billing: MessageSchema['billing'] = {
         line: {
             plan: '{plan} প্ল্যান, {interval}',
             credit: 'আগের প্ল্যানের অব্যবহৃত সময়ের ক্রেডিট',
+            app: '{app} — {offer}, {billingType}',
         },
         free: 'বিনামূল্যে',
         unlimited: 'সীমাহীন',

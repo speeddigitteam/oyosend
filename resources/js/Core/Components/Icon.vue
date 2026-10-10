@@ -9,10 +9,12 @@ import {
     Layers,
     ListChecks,
     Network,
+    Package,
     Receipt,
     ScrollText,
     Settings,
     ShieldCheck,
+    Target,
     Users,
 } from 'lucide-vue-next';
 import type { Component } from 'vue';
@@ -39,6 +41,8 @@ const REGISTRY: Record<string, Component> = {
     'credit-card': CreditCard,
     receipt: Receipt,
     'layers': Layers,
+    package: Package,
+    target: Target,
 };
 
 defineProps<{ name: string }>();

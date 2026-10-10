@@ -83,6 +83,14 @@ export function useBillingTerms() {
                 return t('billing.terms.line.plan', { plan: line.plan ?? '', interval: term('interval', line.interval) });
             }
 
+            if (line.type === 'app') {
+                return t('billing.terms.line.app', {
+                    app: line.app ?? '',
+                    offer: line.offer ?? '',
+                    billingType: term('appBillingType', line.billing_type),
+                });
+            }
+
             return line.type === 'credit' ? t('billing.terms.line.credit') : line.type;
         },
 
