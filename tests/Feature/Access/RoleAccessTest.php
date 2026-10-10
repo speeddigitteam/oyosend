@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Gate;
 use Inertia\Testing\AssertableInertia;
 
 const CORE_PERMISSIONS = [
+    'core.apps.manage',
+    'core.apps.view',
     'core.audit.view',
     'core.billing.manage',
     'core.billing.view',
@@ -118,9 +120,9 @@ it('tells the interface which permissions the person holds', function (string $r
     // Everything but billing, which stays with the owner.
     'admin' => [Role::ADMIN, array_values(array_diff(CORE_PERMISSIONS, ['core.billing.manage', 'core.billing.view']))],
     'manager' => [Role::MANAGER, [
-        'core.contacts.manage', 'core.contacts.view', 'core.members.invite', 'core.members.view', 'core.organization.view', 'core.roles.view',
+        'core.apps.view', 'core.contacts.manage', 'core.contacts.view', 'core.members.invite', 'core.members.view', 'core.organization.view', 'core.roles.view',
     ]],
-    'employee' => [Role::EMPLOYEE, ['core.contacts.manage', 'core.contacts.view', 'core.members.view', 'core.organization.view']],
+    'employee' => [Role::EMPLOYEE, ['core.apps.view', 'core.contacts.manage', 'core.contacts.view', 'core.members.view', 'core.organization.view']],
 ]);
 
 describe('the owner', function () {

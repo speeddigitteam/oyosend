@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 use Tests\Support\Fixtures\Crm\CrmServiceProvider;
 
 const DECLARED_BY_CORE = [
+    'core.apps.manage',
+    'core.apps.view',
     'core.audit.view',
     'core.billing.manage',
     'core.billing.view',
@@ -42,7 +44,7 @@ it('creates the permissions the registered modules declare', function () {
         ->and($result['stale'])->toBe([])
         ->and($result['pruned'])->toBe([])
         ->and(($this->names)())->toBe(DECLARED_BY_CORE)
-        ->and(Permission::query()->where('guard_name', 'web')->where('module', 'core')->count())->toBe(14);
+        ->and(Permission::query()->where('guard_name', 'web')->where('module', 'core')->count())->toBe(16);
 });
 
 it('is idempotent', function () {
@@ -66,7 +68,7 @@ it('picks up the permissions of a module added later', function () {
 
     expect($result['created'])->toBe(['crm.leads.edit', 'crm.leads.view'])
         ->and(Permission::query()->where('module', 'crm')->count())->toBe(2)
-        ->and(Permission::query()->where('module', 'core')->count())->toBe(14);
+        ->and(Permission::query()->where('module', 'core')->count())->toBe(16);
 });
 
 it('corrects the module a permission is filed under', function () {
@@ -114,7 +116,7 @@ describe('permissions no module declares any more', function () {
             // Everything still declared survives, grants included.
             ->and(($this->names)())->toBe(DECLARED_BY_CORE)
             ->and(app(RoleManager::class)->grantedNames($this->roleOf($this->acme, Role::MANAGER)))
-            ->toBe(['core.contacts.manage', 'core.contacts.view', 'core.members.invite', 'core.members.view', 'core.organization.view', 'core.roles.view']);
+            ->toBe(['core.apps.view', 'core.contacts.manage', 'core.contacts.view', 'core.members.invite', 'core.members.view', 'core.organization.view', 'core.roles.view']);
     });
 
     it('never touch permissions of another guard', function () {
@@ -130,7 +132,7 @@ describe('permissions no module declares any more', function () {
 describe('php artisan permissions:sync', function () {
     it('reports what it added', function () {
         $this->artisan('permissions:sync')
-            ->expectsOutputToContain('14 permission(s) added.')
+            ->expectsOutputToContain('16 permission(s) added.')
             ->expectsOutputToContain('core.members.view')
             ->assertSuccessful();
 

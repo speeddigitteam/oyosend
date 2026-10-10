@@ -16,7 +16,7 @@ use Inertia\Testing\AssertableInertia;
  * permission they lack, so a custom role that is meant to manage employees
  * has to carry these as well.
  */
-const EMPLOYEE_PERMISSIONS = ['core.organization.view', 'core.contacts.view', 'core.contacts.manage'];
+const EMPLOYEE_PERMISSIONS = ['core.apps.view', 'core.organization.view', 'core.contacts.view', 'core.contacts.manage'];
 
 beforeEach(function () {
     $this->acme = $this->createTenant('acme');

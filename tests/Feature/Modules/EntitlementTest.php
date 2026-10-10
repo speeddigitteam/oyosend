@@ -70,9 +70,14 @@ describe('a workspace that is not entitled', function () {
             // The core module is unaffected.
             ->and(($this->can)($this->owner, 'core.members.manage'))->toBeTrue();
 
+        expect($this->inTenant(
+            $this->acme,
+            fn () => app(AutomationRegistry::class)->trigger('crm.lead.created'),
+        ))->toBeNull();
+
         $held = $this->inTenant($this->acme, fn (): array => array_keys(app(AccessChecker::class)->effectivePermissions($this->owner)));
 
-        expect($held)->toHaveCount(14)->each->toStartWith('core.');
+        expect($held)->toHaveCount(16)->each->toStartWith('core.');
     });
 
     it('denies a permission even when a role has been granted it', function () {
@@ -110,7 +115,7 @@ describe('a workspace that is not entitled', function () {
 
     it('does not let a role be given the module\'s permissions', function () {
         $this->inTenant($this->acme, function (): void {
-            expect(app(RoleManager::class)->assignablePermissionNames())->toHaveCount(14)->each->toStartWith('core.');
+            expect(app(RoleManager::class)->assignablePermissionNames())->toHaveCount(16)->each->toStartWith('core.');
 
             expect(fn () => app(RoleManager::class)->create($this->owner, 'Sales', null, ['crm.leads.view']))
                 ->toThrow(ValidationException::class, 'not available to this workspace');
@@ -133,7 +138,7 @@ describe('a workspace that is not entitled', function () {
             ->assertInertia(function (AssertableInertia $page): void {
                 $props = $page->toArray()['props'];
 
-                expect(collect($props['navigation'])->pluck('key')->all())->toBe(['workspace', 'manage'])
+                expect(collect($props['navigation'])->pluck('key')->all())->toBe(['workspace', 'apps', 'manage'])
                     ->and(collect($props['navigation'])->flatMap(fn (array $section): array => array_column($section['items'], 'key'))->all())->not->toContain('leads')
                     ->and(array_column($props['widgets'], 'key'))->toBe(['core.team', 'core.security', 'core.activity'])
                     ->and($props['auth']['permissions'])->not->toContain('crm.leads.view')
@@ -148,6 +153,17 @@ describe('a workspace that is not entitled', function () {
 describe('a workspace that is entitled', function () {
     beforeEach(function () {
         $this->entitle($this->acme, 'crm');
+    });
+
+    it('makes the module automation definitions available only inside an entitled workspace', function () {
+        expect($this->inTenant(
+            $this->acme,
+            fn () => app(AutomationRegistry::class)->trigger('crm.lead.created'),
+        ))->toBe(LeadCreatedTrigger::class)
+            ->and($this->inTenant(
+                $this->globex,
+                fn () => app(AutomationRegistry::class)->trigger('crm.lead.created'),
+            ))->toBeNull();
     });
 
     it('holds the module\'s permissions as owner and can grant them to roles', function () {
@@ -204,7 +220,9 @@ describe('a workspace that is entitled', function () {
             ->assertInertia(function (AssertableInertia $page): void {
                 $props = $page->toArray()['props'];
 
-                expect(collect($props['navigation'])->pluck('key')->all())->not->toContain('apps')
+                $apps = collect($props['navigation'])->firstWhere('key', 'apps');
+
+                expect(array_column($apps['items'], 'key'))->toBe(['appStore'])
                     ->and(array_column($props['widgets'], 'key'))->toBe(['core.team', 'core.security']);
             });
 

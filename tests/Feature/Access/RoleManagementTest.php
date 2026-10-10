@@ -28,14 +28,14 @@ describe('listing and forms', function () {
             ->get('http://acme.localhost/team/roles')
             ->assertOk()
             ->assertInertia(function (AssertableInertia $page): void {
-                $page->component('Core/Pages/Team/Roles/Index')->where('totalPermissions', 14);
+                $page->component('Core/Pages/Team/Roles/Index')->where('totalPermissions', 16);
 
                 $roles = collect($page->toArray()['props']['roles'])->keyBy('name');
 
                 expect($roles->keys()->sort()->values()->all())->toBe(['Admin', 'Auditors', 'Employee', 'Manager', 'Owner'])
                     ->and($roles['Owner'])->toMatchArray(['isSystem' => true, 'isOwner' => true, 'members' => 1, 'permissions' => 0])
-                    ->and($roles['Admin'])->toMatchArray(['isSystem' => true, 'isOwner' => false, 'members' => 1, 'permissions' => 12])
-                    ->and($roles['Employee'])->toMatchArray(['members' => 0, 'permissions' => 4])
+                    ->and($roles['Admin'])->toMatchArray(['isSystem' => true, 'isOwner' => false, 'members' => 1, 'permissions' => 14])
+                    ->and($roles['Employee'])->toMatchArray(['members' => 0, 'permissions' => 5])
                     ->and($roles['Auditors'])->toMatchArray(['isSystem' => false, 'members' => 0, 'permissions' => 2]);
             });
     });
@@ -65,7 +65,7 @@ describe('listing and forms', function () {
 
                 $permissions = collect($catalogue[0]['groups'])->flatMap(fn (array $group): array => $group['permissions'])->keyBy('name');
 
-                expect($permissions)->toHaveCount(14)
+                expect($permissions)->toHaveCount(16)
                     ->and($permissions['core.roles.manage'])->toMatchArray(['grantable' => true, 'sensitive' => true])
                     ->and($permissions['core.roles.view'])->toMatchArray(['grantable' => true, 'sensitive' => false])
                     ->and($permissions['core.audit.view'])->toMatchArray(['grantable' => false, 'sensitive' => true])
@@ -190,7 +190,7 @@ describe('you can only hand out what you hold', function () {
     it('refuses to remove a permission the editor does not hold', function () {
         $employee = $this->roleOf($this->acme, Role::EMPLOYEE);
 
-        $granted = ['core.contacts.manage', 'core.contacts.view', 'core.members.view', 'core.organization.view'];
+        $granted = ['core.apps.view', 'core.contacts.manage', 'core.contacts.view', 'core.members.view', 'core.organization.view'];
 
         // Stripping what Employee holds: the editor holds none of it.
         $this->put("http://acme.localhost/team/roles/{$employee->id}", ['name' => 'Employee', 'permissions' => []])

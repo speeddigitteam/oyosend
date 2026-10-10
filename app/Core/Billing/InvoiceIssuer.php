@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Core\Billing;
 
+use App\Core\AppStore\Models\CatalogApp;
+use App\Core\AppStore\Models\SubscriptionItem;
 use App\Core\Audit\AuditLogger;
 use App\Core\Billing\Enums\BillingInterval;
 use App\Core\Billing\Enums\InvoiceKind;
@@ -22,8 +24,9 @@ use Illuminate\Support\Facades\Mail;
 /**
  * Issues and withdraws the platform's invoices to the active workspace.
  *
- * A workspace has at most one open invoice at a time: whatever changes what
- * is owed voids the open one first and issues another.
+ * A workspace has at most one open base-plan invoice and one open invoice
+ * for each app subscription item. App and base-plan billing never void or
+ * block one another.
  */
 final class InvoiceIssuer
 {
@@ -107,6 +110,68 @@ final class InvoiceIssuer
         return $invoice;
     }
 
+    /** Issue the first or next invoice for a separately billed app licence. */
+    public function issueApp(
+        SubscriptionItem $item,
+        CatalogApp $app,
+        InvoiceKind $kind,
+        CarbonInterface $periodStart,
+        CarbonInterface $dueAt,
+    ): Invoice {
+        $tenant = $this->context->require();
+        $periodEnd = $item->billing_type->addPeriodTo($periodStart);
+
+        /** @var Invoice $invoice */
+        $invoice = Invoice::query()->create([
+            'subscription_item_id' => $item->getKey(),
+            'number' => $this->numbers->next(),
+            'kind' => $kind,
+            'status' => InvoiceStatus::Open,
+            'app_id' => $app->getKey(),
+            'period_start' => $periodStart,
+            'period_end' => $periodEnd,
+            'currency' => $item->currency,
+            'subtotal_amount' => $item->amount * $item->quantity,
+            'credit_amount' => 0,
+            'total_amount' => $item->amount * $item->quantity,
+            'lines' => [[
+                'type' => 'app',
+                'app' => $app->name,
+                'offer' => $item->offer_key,
+                'billing_type' => $item->billing_type->value,
+                'quantity' => $item->quantity,
+                'amount' => $item->amount * $item->quantity,
+            ]],
+            'billed_to' => [
+                'name' => $tenant->legal_name ?? $tenant->name,
+                'email' => $tenant->email,
+                'phone' => $tenant->phone,
+                'address' => $tenant->address,
+                'city' => $tenant->city,
+                'postal_code' => $tenant->postal_code,
+                'country' => $tenant->country,
+                'tax_id' => $tenant->tax_id,
+            ],
+            'issued_at' => Carbon::now(),
+            'due_at' => $dueAt,
+        ]);
+
+        $this->audit->record('app_store.invoice_issued', $invoice, [
+            'app' => $app->module_key,
+            'offer' => $item->offer_key,
+            'total_amount' => $invoice->total_amount,
+            'currency' => $invoice->currency,
+        ]);
+
+        if (($contact = BillingContact::ofActiveWorkspace()) !== null) {
+            $this->context->afterCommit(static function () use ($contact, $invoice): void {
+                Mail::to($contact->email)->locale($contact->locale)->queue(new InvoiceIssuedMail($invoice));
+            });
+        }
+
+        return $invoice;
+    }
+
     /**
      * Withdraw an invoice of the active workspace that is still open. One
      * that was paid or withdrawn already is left alone.
@@ -137,16 +202,32 @@ final class InvoiceIssuer
      */
     public function voidOpen(): void
     {
-        Invoice::query()->open()->lockForUpdate()->get()->each($this->void(...));
+        Invoice::query()
+            ->open()
+            ->whereNotNull('subscription_id')
+            ->lockForUpdate()
+            ->get()
+            ->each($this->void(...));
     }
 
+    /** Whether the base workspace subscription has an unpaid invoice. */
     public function hasOpen(): bool
     {
-        return Invoice::query()->open()->exists();
+        return Invoice::query()->open()->whereNotNull('subscription_id')->exists();
     }
 
+    /** The unpaid base workspace subscription invoice. */
     public function open(): ?Invoice
     {
-        return Invoice::query()->open()->latest('issued_at')->first();
+        return Invoice::query()->open()->whereNotNull('subscription_id')->latest('issued_at')->first();
+    }
+
+    /** Whether this separately billed app item already has an unpaid invoice. */
+    public function hasOpenApp(SubscriptionItem $item): bool
+    {
+        return Invoice::query()
+            ->open()
+            ->where('subscription_item_id', $item->getKey())
+            ->exists();
     }
 }

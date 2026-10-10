@@ -8,6 +8,12 @@ use App\Core\Access\AccessChecker;
 use App\Core\Access\Console\SyncPermissionsCommand;
 use App\Core\Access\Models\Role;
 use App\Core\Access\PermissionResolver;
+use App\Core\AppStore\Console\RunModuleSchedulesCommand;
+use App\Core\AppStore\Console\SyncAppsCommand;
+use App\Core\AppStore\Models\AppEntitlement;
+use App\Core\AppStore\Models\AppInstallation;
+use App\Core\AppStore\Models\CatalogApp;
+use App\Core\AppStore\Models\SubscriptionItem;
 use App\Core\Audit\AuditLogger;
 use App\Core\Audit\Models\AuditLog;
 use App\Core\Automation\Triggers\MemberJoinedTrigger;
@@ -69,7 +75,7 @@ final class CoreServiceProvider extends ModuleServiceProvider
         return new ModuleManifest(
             key: 'core',
             name: 'Workspace',
-            version: '1.1.0',
+            version: '1.2.0',
             core: true,
             permissions: [
                 new PermissionDefinition('core.members.view', 'members'),
@@ -88,6 +94,8 @@ final class CoreServiceProvider extends ModuleServiceProvider
                 new PermissionDefinition('core.settings.manage', 'settings', sensitive: true),
                 new PermissionDefinition('core.billing.view', 'billing', sensitive: true),
                 new PermissionDefinition('core.billing.manage', 'billing', sensitive: true),
+                new PermissionDefinition('core.apps.view', 'apps'),
+                new PermissionDefinition('core.apps.manage', 'apps', sensitive: true),
             ],
             navigation: [
                 new NavigationItem('dashboard', 'core.dashboard', 'layout-dashboard', section: 'workspace', order: 10),
@@ -98,6 +106,7 @@ final class CoreServiceProvider extends ModuleServiceProvider
                 new NavigationItem('audit', 'core.audit.index', 'scroll-text', 'core.audit.view', 'manage', 30, 'core.audit.*'),
                 new NavigationItem('workspaceSettings', 'core.settings.workspace', 'settings', 'core.settings.manage', 'manage', 40, 'core.settings.workspace*'),
                 new NavigationItem('billing', 'core.billing.index', 'credit-card', 'core.billing.view', 'manage', 50, 'core.billing.*'),
+                new NavigationItem('appStore', 'core.apps.index', 'package', 'core.apps.view', 'apps', 1, 'core.apps.*'),
             ],
             widgets: [
                 new WidgetDefinition('core.team', 'TeamWidget', TeamWidget::class, 'core.members.view', span: 7, order: 10),
@@ -125,6 +134,10 @@ final class CoreServiceProvider extends ModuleServiceProvider
                 'subscription' => Subscription::class,
                 'invoice' => Invoice::class,
                 'payment' => Payment::class,
+                'catalog_app' => CatalogApp::class,
+                'app_installation' => AppInstallation::class,
+                'app_entitlement' => AppEntitlement::class,
+                'subscription_item' => SubscriptionItem::class,
             ],
             limits: [
                 // Seats: everyone in the workspace, and everyone invited who can still join.
@@ -159,6 +172,12 @@ final class CoreServiceProvider extends ModuleServiceProvider
 
         $this->app->scoped(PlatformSettings::class);
 
+        // Schedule idempotency is platform-wide. It must not be affected by
+        // the cache prefix of whichever tenant is being dispatched.
+        $this->app->when(RunModuleSchedulesCommand::class)
+            ->needs(CacheRepository::class)
+            ->give(fn ($app): CacheRepository => $app->make('cache.central'));
+
         $this->app->singleton(GatewayRegistry::class, static function ($app): GatewayRegistry {
             $registry = new GatewayRegistry;
 
@@ -187,7 +206,12 @@ final class CoreServiceProvider extends ModuleServiceProvider
         ));
 
         if ($this->app->runningInConsole()) {
-            $this->commands([SyncPermissionsCommand::class, RunBillingCycleCommand::class]);
+            $this->commands([
+                SyncPermissionsCommand::class,
+                SyncAppsCommand::class,
+                RunModuleSchedulesCommand::class,
+                RunBillingCycleCommand::class,
+            ]);
         }
     }
 

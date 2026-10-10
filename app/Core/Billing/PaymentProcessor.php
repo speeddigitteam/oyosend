@@ -42,7 +42,7 @@ final class PaymentProcessor
     public function __construct(
         private readonly TenantContext $context,
         private readonly GatewayRegistry $gateways,
-        private readonly SubscriptionManager $subscriptions,
+        private readonly InvoiceSettlement $settlement,
         private readonly AuditLogger $audit,
     ) {}
 
@@ -244,7 +244,7 @@ final class PaymentProcessor
     {
         $invoice = $payment->invoice()->firstOrFail();
 
-        if (! $this->subscriptions->settle($invoice, $payment->paid_at)) {
+        if (! $this->settlement->settle($invoice, $payment->paid_at)) {
             // Money arrived for an invoice that was withdrawn or already paid
             // while the payer was at the gateway. It is kept on record and
             // flagged; putting it right (a refund, a credit) is an operator's call.

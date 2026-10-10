@@ -4,6 +4,13 @@ declare(strict_types=1);
 
 namespace Tests\Support\Fixtures\Crm;
 
+use App\Core\AppStore\AppSettingDefinition;
+use App\Core\AppStore\Enums\AppBillingType;
+use App\Core\AppStore\Enums\AppCategory;
+use App\Core\AppStore\Enums\AppSettingType;
+use App\Core\AppStore\Enums\ScheduledJobFrequency;
+use App\Core\AppStore\ScheduledJobDefinition;
+use App\Core\Modules\AppOffer;
 use App\Core\Modules\ModuleManifest;
 use App\Core\Modules\ModuleServiceProvider;
 use App\Core\Modules\NavigationItem;
@@ -39,6 +46,36 @@ final class CrmServiceProvider extends ModuleServiceProvider
             triggers: [
                 LeadCreatedTrigger::class,
             ],
+            description: 'Manage leads, opportunities and a shared sales pipeline.',
+            category: AppCategory::CrmSales,
+            icon: 'target',
+            featured: true,
+            popular: true,
+            features: ['Lead management', 'Sales pipeline', 'Team visibility'],
+            offers: [
+                new AppOffer('community', 'Community', AppBillingType::Free),
+                new AppOffer('monthly', 'Monthly', AppBillingType::Monthly, 'BDT', 250000),
+                new AppOffer('trial', '14-day trial', AppBillingType::Monthly, 'BDT', 250000, trialDays: 14),
+                new AppOffer('lifetime', 'Lifetime', AppBillingType::OneTime, 'BDT', 2500000),
+            ],
+            releaseNotes: 'Initial App Store release.',
+            routes: ['crm.leads.index', 'crm.ping'],
+            scheduledJobs: [
+                new ScheduledJobDefinition('crm.pipeline_refresh', CrmScheduledJob::class, ScheduledJobFrequency::EveryMinute),
+            ],
+            settings: [
+                new AppSettingDefinition(
+                    'pipeline_view',
+                    'Default pipeline view',
+                    AppSettingType::Select,
+                    required: true,
+                    default: 'board',
+                    options: ['board' => 'Board', 'list' => 'List'],
+                ),
+                new AppSettingDefinition('daily_digest', 'Daily pipeline digest', AppSettingType::Boolean, default: true),
+                new AppSettingDefinition('webhook_secret', 'Webhook signing secret', AppSettingType::Secret, maxLength: 500),
+            ],
+            lifecycle: CrmLifecycle::class,
         );
     }
 

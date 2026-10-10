@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Core\Billing\Models;
 
+use App\Core\AppStore\Models\CatalogApp;
+use App\Core\AppStore\Models\SubscriptionItem;
 use App\Core\Billing\Enums\BillingInterval;
 use App\Core\Billing\Enums\InvoiceKind;
 use App\Core\Billing\Enums\InvoiceStatus;
@@ -57,7 +59,7 @@ class Invoice extends Model
      * @var list<string>
      */
     protected $fillable = [
-        'subscription_id', 'number', 'kind', 'status', 'plan_id', 'interval', 'period_start', 'period_end',
+        'subscription_id', 'subscription_item_id', 'number', 'kind', 'status', 'plan_id', 'app_id', 'interval', 'period_start', 'period_end',
         'currency', 'subtotal_amount', 'credit_amount', 'total_amount', 'lines', 'billed_to',
         'issued_at', 'due_at', 'paid_at', 'voided_at',
     ];
@@ -99,6 +101,18 @@ class Invoice extends Model
     public function subscription(): BelongsTo
     {
         return $this->belongsTo(Subscription::class);
+    }
+
+    /** @return BelongsTo<SubscriptionItem, $this> */
+    public function subscriptionItem(): BelongsTo
+    {
+        return $this->belongsTo(SubscriptionItem::class, 'subscription_item_id');
+    }
+
+    /** @return BelongsTo<CatalogApp, $this> */
+    public function app(): BelongsTo
+    {
+        return $this->belongsTo(CatalogApp::class, 'app_id');
     }
 
     /**

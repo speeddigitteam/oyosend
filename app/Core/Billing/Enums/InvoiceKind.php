@@ -14,4 +14,10 @@ enum InvoiceKind: string
 
     /** Moving to a more expensive plan in the middle of a paid period. */
     case Change = 'change';
+
+    /** The first paid licence for an optional app. */
+    case AppPurchase = 'app_purchase';
+
+    /** The next period of a separately billed optional app. */
+    case AppRenewal = 'app_renewal';
 }

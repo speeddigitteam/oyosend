@@ -41,6 +41,8 @@ final class DefaultRoles
                     'core.contacts.view',
                     'core.contacts.manage',
                     'core.contacts.delete',
+                    'core.apps.view',
+                    'core.apps.manage',
                 ],
             ],
             Role::MANAGER => [
@@ -52,6 +54,7 @@ final class DefaultRoles
                     'core.organization.view',
                     'core.contacts.view',
                     'core.contacts.manage',
+                    'core.apps.view',
                 ],
             ],
             Role::EMPLOYEE => [
@@ -61,6 +64,7 @@ final class DefaultRoles
                     'core.organization.view',
                     'core.contacts.view',
                     'core.contacts.manage',
+                    'core.apps.view',
                 ],
                 // Sees every contact, changes only their own.
                 'scopes' => [

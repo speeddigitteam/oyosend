@@ -6,6 +6,8 @@ namespace App\Core\Automation;
 
 use App\Core\Automation\Contracts\ActionDefinition;
 use App\Core\Automation\Contracts\TriggerDefinition;
+use App\Core\Entitlements\Contracts\EntitlementChecker;
+use App\Core\Tenancy\TenantContext;
 use InvalidArgumentException;
 
 /**
@@ -55,7 +57,10 @@ final class AutomationRegistry
      */
     public function triggers(): array
     {
-        return $this->triggers;
+        return array_filter(
+            $this->triggers,
+            fn (string $trigger): bool => $this->available($trigger::module()),
+        );
     }
 
     /**
@@ -63,7 +68,10 @@ final class AutomationRegistry
      */
     public function actions(): array
     {
-        return $this->actions;
+        return array_filter(
+            $this->actions,
+            fn (string $action): bool => $this->available($action::module()),
+        );
     }
 
     /**
@@ -71,7 +79,9 @@ final class AutomationRegistry
      */
     public function trigger(string $key): ?string
     {
-        return $this->triggers[$key] ?? null;
+        $trigger = $this->triggers[$key] ?? null;
+
+        return $trigger !== null && $this->available($trigger::module()) ? $trigger : null;
     }
 
     /**
@@ -79,7 +89,9 @@ final class AutomationRegistry
      */
     public function action(string $key): ?string
     {
-        return $this->actions[$key] ?? null;
+        $action = $this->actions[$key] ?? null;
+
+        return $action !== null && $this->available($action::module()) ? $action : null;
     }
 
     /**
@@ -94,5 +106,14 @@ final class AutomationRegistry
         if (isset($registered[$key])) {
             throw new InvalidArgumentException("Automation key [{$key}] is registered twice.");
         }
+    }
+
+    /** Central code sees the compiled catalogue; tenant runtime sees only its entitlements. */
+    private function available(string $module): bool
+    {
+        $context = app(TenantContext::class);
+
+        return ! $context->check()
+            || app(EntitlementChecker::class)->allows($context->require(), $module);
     }
 }

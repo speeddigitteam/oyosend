@@ -249,6 +249,7 @@ describe('the role editor', function () {
         $this->actingAsMember($this->acme, $this->admin)
             ->get("http://acme.localhost/team/roles/{$employee->id}/edit")
             ->assertInertia(fn (AssertableInertia $page) => $page->where('role.scopes', [
+                'core.apps.view' => 'all',
                 'core.contacts.manage' => 'own',
                 'core.contacts.view' => 'all',
                 'core.members.view' => 'all',
@@ -593,6 +594,7 @@ describe('the system roles', function () {
         $employee = $this->roleOf($this->acme, Role::EMPLOYEE);
 
         expect(($this->stored)($employee))->toBe([
+            'core.apps.view' => 'all',
             'core.contacts.manage' => 'own',
             'core.contacts.view' => 'all',
             'core.members.view' => 'all',

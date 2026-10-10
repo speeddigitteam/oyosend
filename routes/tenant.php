@@ -1,5 +1,6 @@
 <?php
 
+use App\Core\AppStore\Http\Controllers\AppStoreController;
 use App\Core\Audit\Http\Controllers\AuditLogController;
 use App\Core\Billing\Http\Controllers\BillingController;
 use App\Core\Billing\Http\Controllers\InvoiceController;
@@ -111,6 +112,31 @@ Route::middleware(['auth:web', 'auth.session', 'member'])->group(function () {
     // Everything that is part of working in the workspace.
     Route::middleware('subscribed')->group(function () {
         Route::get('/', DashboardController::class)->name('core.dashboard');
+
+        // App Store: compiled first-party modules only. Paid checkout also
+        // requires billing control; a verified invoice is what grants access.
+        Route::middleware('can:core.apps.view')->group(function () {
+            Route::get('apps', [AppStoreController::class, 'index'])->name('core.apps.index');
+            Route::get('apps/my', [AppStoreController::class, 'mine'])->name('core.apps.mine');
+            Route::get('apps/{app}', [AppStoreController::class, 'show'])
+                ->where('app', '[a-z][a-z0-9_]*')
+                ->name('core.apps.show');
+        });
+        Route::middleware('can:core.apps.manage')->group(function () {
+            Route::post('apps/{app}/install', [AppStoreController::class, 'install'])->where('app', '[a-z][a-z0-9_]*')->name('core.apps.install');
+            Route::post('apps/{app}/activate', [AppStoreController::class, 'activate'])->where('app', '[a-z][a-z0-9_]*')->name('core.apps.activate');
+            Route::post('apps/{app}/deactivate', [AppStoreController::class, 'deactivate'])->where('app', '[a-z][a-z0-9_]*')->name('core.apps.deactivate');
+            Route::post('apps/{app}/reinstall', [AppStoreController::class, 'reinstall'])->where('app', '[a-z][a-z0-9_]*')->name('core.apps.reinstall');
+            Route::post('apps/{app}/upgrade', [AppStoreController::class, 'upgrade'])->where('app', '[a-z][a-z0-9_]*')->name('core.apps.upgrade');
+            Route::put('apps/{app}/settings', [AppStoreController::class, 'updateSettings'])->where('app', '[a-z][a-z0-9_]*')->name('core.apps.settings.update');
+            Route::delete('apps/{app}', [AppStoreController::class, 'uninstall'])->where('app', '[a-z][a-z0-9_]*')->name('core.apps.uninstall');
+            Route::post('apps/subscriptions/{item}/cancel', [AppStoreController::class, 'cancel'])->middleware('can:core.billing.manage')->name('core.apps.subscriptions.cancel');
+            Route::post('apps/subscriptions/{item}/resume', [AppStoreController::class, 'resume'])->middleware('can:core.billing.manage')->name('core.apps.subscriptions.resume');
+        });
+        Route::post('apps/{app}/purchase', [AppStoreController::class, 'purchase'])
+            ->where('app', '[a-z][a-z0-9_]*')
+            ->middleware(['can:core.apps.manage', 'can:core.billing.manage'])
+            ->name('core.apps.purchase');
 
         // First-run setup of a workspace someone signed up for.
         Route::middleware('can:core.settings.manage')->group(function () {

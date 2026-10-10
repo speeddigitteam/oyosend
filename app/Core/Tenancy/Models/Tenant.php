@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Core\Tenancy\Models;
 
+use App\Core\AppStore\Models\SubscriptionItem;
 use App\Core\Billing\Models\Subscription;
 use App\Core\Identity\Models\TenantMembership;
 use App\Core\Tenancy\Enums\TenantStatus;
@@ -123,6 +124,12 @@ class Tenant extends BaseTenant
     public function subscription(): HasOne
     {
         return $this->hasOne(Subscription::class)->withoutGlobalScopes();
+    }
+
+    /** @return HasMany<SubscriptionItem, $this> */
+    public function subscriptionItems(): HasMany
+    {
+        return $this->hasMany(SubscriptionItem::class)->withoutGlobalScopes();
     }
 
     public function isOnboarded(): bool

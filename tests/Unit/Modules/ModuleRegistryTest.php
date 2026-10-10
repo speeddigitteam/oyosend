@@ -154,6 +154,7 @@ describe('the application\'s own registry', function () {
                 'core.organization.view', 'core.organization.manage',
                 'core.contacts.view', 'core.contacts.manage', 'core.contacts.delete',
                 'core.billing.view', 'core.billing.manage',
+                'core.apps.view', 'core.apps.manage',
             ])
             ->and($registry->missingDependencies())->toBe([]);
     });

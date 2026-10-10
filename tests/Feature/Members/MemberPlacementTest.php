@@ -56,7 +56,7 @@ beforeEach(function () {
      * manages a member who holds a permission they lack - but far less than an Admin.
      */
     $this->teamLead = fn (): User => $this->addMember($this->acme, $this->createRole($this->acme, 'Team Leads', [
-        'core.members.view', 'core.members.manage', 'core.organization.view', 'core.contacts.view', 'core.contacts.manage',
+        'core.apps.view', 'core.members.view', 'core.members.manage', 'core.organization.view', 'core.contacts.view', 'core.contacts.manage',
     ]));
 });
 

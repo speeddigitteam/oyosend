@@ -36,7 +36,9 @@ final class BillingController
         $actor = $request->user('web');
 
         $subscription = $this->subscriptions->current();
-        $open = Invoice::query()->open()->latest('issued_at')->first();
+        // Base-plan billing and App Store billing are independent. App
+        // invoices remain in the history and are opened from their own row.
+        $open = Invoice::query()->open()->whereNotNull('subscription_id')->latest('issued_at')->first();
 
         // The payer comes back from a gateway with `?payment={reference}`.
         $reference = $request->query('payment');

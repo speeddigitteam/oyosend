@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Core\Access\Models\Role;
 use App\Core\Audit\AuditLogger;
 use App\Core\Dashboard\DashboardBuilder;
+use App\Core\Entitlements\PlanEntitlementChecker;
 use App\Core\Identity\Enums\MembershipStatus;
 use App\Core\Identity\Models\User;
 use App\Core\Modules\ModuleManifest;
@@ -62,15 +63,17 @@ describe('the sidebar', function () {
     })->with([
         'owner' => [Role::OWNER, [
             'workspace' => ['dashboard', 'contacts'],
+            'apps' => ['appStore'],
             'manage' => ['members', 'roles', 'organization', 'audit', 'workspaceSettings', 'billing'],
         ]],
         // Billing stays with the owner.
         'admin' => [Role::ADMIN, [
             'workspace' => ['dashboard', 'contacts'],
+            'apps' => ['appStore'],
             'manage' => ['members', 'roles', 'organization', 'audit', 'workspaceSettings'],
         ]],
-        'manager' => [Role::MANAGER, ['workspace' => ['dashboard', 'contacts'], 'manage' => ['members', 'roles', 'organization']]],
-        'employee' => [Role::EMPLOYEE, ['workspace' => ['dashboard', 'contacts'], 'manage' => ['members', 'organization']]],
+        'manager' => [Role::MANAGER, ['workspace' => ['dashboard', 'contacts'], 'apps' => ['appStore'], 'manage' => ['members', 'roles', 'organization']]],
+        'employee' => [Role::EMPLOYEE, ['workspace' => ['dashboard', 'contacts'], 'apps' => ['appStore'], 'manage' => ['members', 'organization']]],
     ]);
 
     it('leaves out a whole section when nothing in it is allowed', function () {
@@ -111,6 +114,7 @@ describe('the sidebar', function () {
                 new NavigationItem('profile', 'core.settings.profile', 'user', section: 'workspace', order: 5),
             ],
         ));
+        app(PlanEntitlementChecker::class)->forget();
 
         $sections = $this->inTenant($this->acme, fn (): array => app(NavigationBuilder::class)->for($this->ownerOf($this->acme)));
 
