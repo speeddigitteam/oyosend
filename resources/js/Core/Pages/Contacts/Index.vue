@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n';
 import Button from '@/Core/Components/Button.vue';
 import Card from '@/Core/Components/Card.vue';
 import ConfirmDialog from '@/Core/Components/ConfirmDialog.vue';
+import ContactMergeDialog from '@/Core/Components/Contacts/ContactMergeDialog.vue';
 import ContactFormDialog from '@/Core/Components/Contacts/ContactFormDialog.vue';
 import DetailsDialog from '@/Core/Components/Contacts/DetailsDialog.vue';
 import DirectorySearch from '@/Core/Components/Contacts/DirectorySearch.vue';
@@ -190,6 +191,21 @@ function openEdit(contact: ContactRow): void {
 useFocusReturn(formOpen, () => (formTarget.value ? actionsSelector(formTarget.value.id) : ADD_BUTTON));
 
 /*
+ * Duplicate matching is fetched only when requested. A merge changes the
+ * canonical contact and soft-deletes the duplicate, so both row permissions
+ * are required before the action is offered.
+ */
+const mergeTarget = ref<ContactRow | null>(null);
+const mergeOpen = ref(false);
+
+function openDuplicates(contact: ContactRow): void {
+    mergeTarget.value = contact;
+    mergeOpen.value = true;
+}
+
+useFocusReturn(mergeOpen, () => actionsSelector(mergeTarget.value?.id));
+
+/*
  * Deleting takes a contact out of the directory for everyone, so it is confirmed.
  */
 const deleteTarget = ref<ContactRow | null>(null);
@@ -340,8 +356,10 @@ function destroy(): void {
                     :name="row.name"
                     :editable="row.editable"
                     :deletable="row.deletable"
+                    :can-merge="row.editable && row.deletable"
                     @view="openDetails(row)"
                     @edit="openEdit(row)"
+                    @duplicates="openDuplicates(row)"
                     @delete="askDelete(row)"
                 />
             </template>
@@ -396,6 +414,8 @@ function destroy(): void {
         :owners="owners"
         :start-company="filters.company"
     />
+
+    <ContactMergeDialog v-model:open="mergeOpen" :contact="mergeTarget" />
 
     <ConfirmDialog
         v-model:open="deleteOpen"

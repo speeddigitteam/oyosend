@@ -56,5 +56,11 @@ test.describe('billing', () => {
         await expect(page.getByRole('button', { name: 'Choose the Business plan' })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Choose the Starter plan' })).toHaveCount(0);
         await expect(page.getByText('5 of 10')).toBeVisible();
+
+        // Restore the seeded plan so later shared-database specs keep the CRM entitlement.
+        await page.getByRole('button', { name: 'Choose the Business plan' }).click();
+        await page.getByRole('dialog').getByRole('button', { name: 'Change plan' }).click();
+        await expect(page.getByRole('button', { name: 'Choose the Starter plan' })).toBeVisible();
+        await expect(page.getByText('5 of 50')).toBeVisible();
     });
 });

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Ellipsis, Eye, Pencil, Trash2 } from 'lucide-vue-next';
+import { Ellipsis, Eye, GitMerge, Pencil, Trash2 } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import Button from '@/Core/Components/Button.vue';
 import Dropdown from '@/Core/Components/Dropdown.vue';
@@ -18,15 +18,17 @@ defineProps<{
     name: string;
     editable: boolean;
     deletable: boolean;
+    /** Both permissions are required because merging changes this record and removes the duplicate. */
+    canMerge?: boolean;
 }>();
 
-defineEmits<{ view: []; edit: []; delete: [] }>();
+defineEmits<{ view: []; edit: []; duplicates: []; delete: [] }>();
 
 const { t } = useI18n();
 </script>
 
 <template>
-    <Dropdown width="w-48">
+    <Dropdown width="w-56">
         <template #trigger>
             <Button icon size="sm" variant="ghost" :data-record-actions="recordId">
                 <template #icon><Ellipsis class="size-4" aria-hidden="true" /></template>
@@ -41,6 +43,10 @@ const { t } = useI18n();
         <DropdownItem v-if="editable" @select="$emit('edit')">
             <template #icon><Pencil aria-hidden="true" /></template>
             {{ t('common.actions.edit') }}
+        </DropdownItem>
+        <DropdownItem v-if="canMerge" @select="$emit('duplicates')">
+            <template #icon><GitMerge aria-hidden="true" /></template>
+            {{ t('contacts.people.merge.menu') }}
         </DropdownItem>
         <template v-if="deletable">
             <DropdownSeparator />

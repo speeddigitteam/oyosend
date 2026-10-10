@@ -36,6 +36,50 @@ export interface ContactRow extends DirectoryRecord {
     company: DirectoryOption | null;
 }
 
+/** Why the server considers another contact a possible duplicate. */
+export type ContactMatchReason = 'email' | 'phone';
+
+/** A possible duplicate returned by the contact matching endpoint. */
+export interface ContactDuplicateCandidate {
+    id: string;
+    name: string;
+    firstName: string;
+    lastName: string | null;
+    email: string | null;
+    phone: string | null;
+    jobTitle: string | null;
+    address: string | null;
+    city: string | null;
+    country: string | null;
+    notes: string | null;
+    company: DirectoryOption | null;
+    owner: DirectoryOption | null;
+    matchReasons: ContactMatchReason[];
+    /** The viewer may manage this record and soft-delete it as part of a merge. */
+    mergeable: boolean;
+}
+
+export type ContactMergeSource = 'canonical' | 'duplicate' | 'input';
+
+export type ContactMergeField =
+    | 'first_name'
+    | 'last_name'
+    | 'email'
+    | 'phone'
+    | 'job_title'
+    | 'address'
+    | 'city'
+    | 'country'
+    | 'notes'
+    | 'company_id';
+
+export type ContactMergeFieldSelection = {
+    source: ContactMergeSource;
+    value?: string | null;
+};
+
+export type ContactMergeFields = Partial<Record<ContactMergeField, ContactMergeFieldSelection>>;
+
 export interface CompanyRow extends DirectoryRecord {
     name: string;
     website: string | null;

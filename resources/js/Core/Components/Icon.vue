@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import {
     Blocks,
+    BadgeDollarSign,
     Building2,
     Circle,
     Contact,
+    ContactRound,
     CreditCard,
     LayoutDashboard,
+    ChartNoAxesCombined,
+    Handshake,
     Layers,
     ListChecks,
     Network,
@@ -43,6 +47,10 @@ const REGISTRY: Record<string, Component> = {
     'layers': Layers,
     package: Package,
     target: Target,
+    'contact-round': ContactRound,
+    handshake: Handshake,
+    'badge-dollar-sign': BadgeDollarSign,
+    'chart-no-axes-combined': ChartNoAxesCombined,
 };
 
 defineProps<{ name: string }>();

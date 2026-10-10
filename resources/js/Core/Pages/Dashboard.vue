@@ -8,6 +8,7 @@ import EmptyState from '@/Core/Components/EmptyState.vue';
 import ActivityWidget from '@/Core/Components/Widgets/ActivityWidget.vue';
 import SecurityWidget from '@/Core/Components/Widgets/SecurityWidget.vue';
 import TeamWidget from '@/Core/Components/Widgets/TeamWidget.vue';
+import PipelineWidget from '@/Modules/CRM/Components/PipelineWidget.vue';
 import { usePageTitle } from '@/Core/composables/usePageTitle';
 import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
 
@@ -36,6 +37,7 @@ const WIDGETS: Record<string, Component> = {
     TeamWidget,
     SecurityWidget,
     ActivityWidget,
+    PipelineWidget,
 };
 
 // Tailwind needs to see whole class names, so spans are looked up, not built.

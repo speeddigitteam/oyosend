@@ -107,9 +107,10 @@ describe('labels', () => {
         expect(eventLabel('auth.login')).toBe('Signed in');
     });
 
-    it('falls back to the raw key for something a module has not labelled yet', () => {
-        expect(permissionLabel('crm.leads.view')).toBe('crm.leads.view');
-        expect(eventLabel('crm.lead.created')).toBe('crm.lead.created');
+    it('translates CRM labels and falls back for unknown module keys', () => {
+        expect(permissionLabel('crm.leads.view')).toBe('View leads');
+        expect(eventLabel('crm.lead.created')).toBe('Created a lead');
+        expect(permissionLabel('unknown.records.view')).toBe('unknown.records.view');
     });
 
     it('sets the document language with the locale', () => {

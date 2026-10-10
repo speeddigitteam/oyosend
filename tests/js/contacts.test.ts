@@ -32,6 +32,15 @@ vi.mock('@inertiajs/vue3', () => ({
         on: () => () => {},
         get: (url: string, data: unknown) => inertia.visits.push({ method: 'get', url, data }),
         delete: (url: string) => inertia.visits.push({ method: 'delete', url }),
+        post: (
+            url: string,
+            data: Record<string, unknown>,
+            options: { onSuccess?: () => void; onFinish?: () => void } = {},
+        ) => {
+            inertia.sent.push({ method: 'post', url, data });
+            options.onSuccess?.();
+            options.onFinish?.();
+        },
     },
     // Enough of a form to see what would be sent, after `transform`.
     useForm: (initial: Record<string, string>) => {
@@ -302,6 +311,7 @@ afterEach(() => {
     mounted.splice(0).forEach((wrapper) => wrapper.unmount());
     document.body.innerHTML = '';
     vi.useRealTimers();
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
 });
 
@@ -377,7 +387,7 @@ describe('the people list', () => {
             contacts: paginated([imran, { ...solo, id: 'contact-3', name: 'Kept', deletable: true }, solo]),
         });
 
-        expect(await openMenu(wrapper, 'contact-1')).toEqual(['View details', 'Edit', 'Delete']);
+        expect(await openMenu(wrapper, 'contact-1')).toEqual(['View details', 'Edit', 'Find duplicates / merge', 'Delete']);
 
         await choose('View details');
         await press('Close');
@@ -388,6 +398,113 @@ describe('the people list', () => {
         await press('Close');
 
         expect(await openMenu(wrapper, 'contact-2')).toEqual(['View details']);
+    });
+
+    it('finds duplicates and merges one only after choosing fields and confirming removal', async () => {
+        const fetchCandidates = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                data: [
+                    {
+                        id: 'contact-duplicate',
+                        name: 'Emran Hasan',
+                        firstName: 'Emran',
+                        lastName: 'Hasan',
+                        email: 'accounts@northwind.test',
+                        phone: '+8801711000001',
+                        jobTitle: 'Finance director',
+                        address: '89 Port Road',
+                        city: 'Chattogram',
+                        country: 'US',
+                        notes: 'Send invoices by email.',
+                        company: { id: 'company-2', name: 'Northwind Imports' },
+                        owner: self,
+                        matchReasons: ['phone'],
+                        mergeable: true,
+                    },
+                    {
+                        id: 'contact-view-only',
+                        name: 'Imran Viewer',
+                        firstName: 'Imran',
+                        lastName: 'Viewer',
+                        email: 'imran@northwind.test',
+                        phone: null,
+                        jobTitle: null,
+                        address: null,
+                        city: null,
+                        country: null,
+                        notes: null,
+                        company: null,
+                        owner: null,
+                        matchReasons: ['email'],
+                        mergeable: false,
+                    },
+                ],
+            }),
+        });
+        vi.stubGlobal('fetch', fetchCandidates);
+
+        const wrapper = mountPeople();
+
+        await openMenu(wrapper, 'contact-1');
+        await choose('Find duplicates / merge');
+        await flushPromises();
+
+        expect(fetchCandidates).toHaveBeenCalledWith(
+            '/core.contacts.duplicates.show?contact=contact-1',
+            expect.objectContaining({ credentials: 'same-origin', headers: { Accept: 'application/json' } }),
+        );
+        expect(dialog().textContent).toContain('Emran Hasan');
+        expect(dialog().textContent).toContain('Matched byPhone');
+        expect(dialog().textContent).toContain('Imran Viewer');
+        expect(dialog().textContent).toContain('View only');
+
+        await press('Review merge');
+
+        const selectableFields = ['First name', 'Last name', 'Email', 'Phone', 'Job title', 'Address', 'City', 'Country', 'Notes', 'Company'];
+
+        for (const label of selectableFields) {
+            const group = dialog().querySelector<HTMLElement>(`[role="radiogroup"][aria-label="Value to keep for ${label}"]`);
+            const useDuplicate = [...(group?.querySelectorAll<HTMLButtonElement>('[role="radio"]') ?? [])].find(
+                (button) => button.textContent?.trim() === 'Use duplicate',
+            );
+
+            expect(useDuplicate, `${label} has a duplicate-value choice`).toBeDefined();
+            useDuplicate!.click();
+        }
+        await flushPromises();
+
+        await press('Review and confirm');
+
+        expect(dialog().textContent).toContain('Emran Hasan will be removed');
+        expect(dialog().textContent).toContain('accounts@northwind.test');
+        expect(dialog().textContent).toContain('Finance director');
+        expect(dialog().textContent).toContain('United States');
+        expect(inertia.sent).toEqual([]);
+
+        await press('Merge and remove duplicate');
+
+        expect(inertia.sent).toEqual([
+            {
+                method: 'post',
+                url: '/core.contacts.merge?contact=contact-1',
+                data: {
+                    duplicate_id: 'contact-duplicate',
+                    fields: {
+                        first_name: { source: 'duplicate' },
+                        last_name: { source: 'duplicate' },
+                        email: { source: 'duplicate' },
+                        phone: { source: 'duplicate' },
+                        job_title: { source: 'duplicate' },
+                        address: { source: 'duplicate' },
+                        city: { source: 'duplicate' },
+                        country: { source: 'duplicate' },
+                        notes: { source: 'duplicate' },
+                        company_id: { source: 'duplicate' },
+                    },
+                },
+            },
+        ]);
     });
 
     it('shows everything recorded about a contact, and the way to the form when it may be changed', async () => {
