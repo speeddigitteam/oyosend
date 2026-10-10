@@ -27,7 +27,7 @@
 | Text colours hold WCAG AA (4.5:1) on glass over every part of the backdrop,
 | including a disc at 80% opacity - the strongest one Backdrop.vue places.
 | That is why the glass carries this much of its own colour and why the soft
-| status fills are near-opaque chips. tests/js/contrast.test.ts recomputes it
+| status fills are chips of about 60% opacity rather than faint tints. tests/js/contrast.test.ts recomputes it
 | from this file, so change a token here and the test tells you what broke.
 |
 */

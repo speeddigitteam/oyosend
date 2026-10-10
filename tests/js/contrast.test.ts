@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -79,10 +79,22 @@ function contrast(a: Rgb, b: Rgb): number {
     return (lighter + 0.05) / (darker + 0.05);
 }
 
-/** The strongest disc any layout places, read from the classes that place them. */
+/**
+ * The strongest filled disc any component places, read from the classes that
+ * place them - in whatever order they are written. A disc without an opacity
+ * class is solid.
+ */
 function strongestDisc(): number {
-    const opacities = ['resources/js/Core/Components/Backdrop.vue', 'resources/js/Core/Layouts/AuthLayout.vue'].flatMap((path) =>
-        [...read(path).matchAll(/bg-\(--orb-[a-z]+\)\s+opacity-(\d+)/g)].map((match) => Number(match[1]) / 100),
+    const components = (readdirSync(resolve(process.cwd(), 'resources/js'), { recursive: true }) as string[])
+        .filter((path) => path.endsWith('.vue'))
+        .map((path) => read(`resources/js/${path}`));
+
+    const opacities = components.flatMap((source) =>
+        [...source.matchAll(/class="([^"]*bg-\(--orb-[a-z]+\)[^"]*)"/g)].map((match) => {
+            const opacity = /(?:^|\s)opacity-(\d+)(?:\s|$)/.exec(match[1]!);
+
+            return opacity ? Number(opacity[1]) / 100 : 1;
+        }),
     );
 
     expect(opacities.length).toBeGreaterThan(0);

@@ -7,6 +7,7 @@ use App\Core\Identity\Enums\MembershipStatus;
 use App\Core\Identity\Models\TenantMembership;
 use App\Core\Identity\Models\User;
 use App\Core\Tenancy\Models\Tenant;
+use App\Core\Tenancy\TenantContext;
 use App\Core\Tenancy\TenantProvisioner;
 use App\Platform\Enums\PlatformRole;
 use App\Platform\Models\PlatformUser;
@@ -69,7 +70,7 @@ class DemoSeeder extends Seeder
 
         $tenant = $provisioner->provision($name, $slug, $owner, ['locale' => $locale]);
 
-        $tenant->run(function () use ($members): void {
+        app(TenantContext::class)->run($tenant, function () use ($members): void {
             foreach ($members as [$roleName, $user]) {
                 TenantMembership::query()->create([
                     'user_id' => $user->getKey(),

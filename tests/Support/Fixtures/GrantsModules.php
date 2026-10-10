@@ -11,7 +11,7 @@ use App\Core\Tenancy\Models\Tenant;
 
 /**
  * The Phase 1 entitlement rules plus explicit grants made by a test - a
- * stand-in for the App Store's entitlement store (Phase 3).
+ * stand-in for the real entitlement store (Phase 2).
  */
 final class GrantsModules implements EntitlementChecker
 {

@@ -14,7 +14,7 @@ use App\Core\Tenancy\Models\Tenant;
  *
  * Core modules belong to every active tenant. Every other module is denied,
  * because nothing can have granted it yet: installs, purchases and licences
- * arrive with the App Store (Phase 3), which replaces this binding with one
+ * arrive with plans and billing (Phase 2), which replaces this binding with one
  * backed by `app_entitlements`. Denying by default means an optional module
  * added before then is unreachable rather than accidentally free.
  */

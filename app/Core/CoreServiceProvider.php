@@ -93,7 +93,7 @@ final class CoreServiceProvider extends ModuleServiceProvider
         $this->app->scoped(PermissionResolver::class);
         $this->app->scoped(AuditLogger::class);
 
-        // Replaced by the App Store's entitlement store in Phase 3.
+        // Replaced by the real entitlement store in Phase 2 (plans and billing).
         $this->app->bind(EntitlementChecker::class, CoreModulesEntitlementChecker::class);
 
         // Replay protection must hold across workspaces, so it is not tenant-prefixed.
