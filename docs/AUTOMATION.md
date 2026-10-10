@@ -1,8 +1,9 @@
 # Automation
 
-State: after Phase 3. **There is no engine**: no workflows, no builder, no executions, no tables. What exists are
-the contracts and the registry, so that every module built from now on registers its triggers and actions from
-its first day (spec section 27, note under the phase list). The engine is Phase 10.
+State: after Phase 4. **There is no engine**: no workflows, builder, executions, workflow steps or logs. What
+exists are the contracts and registry, plus CRM's narrow action-receipt table for durable retry safety. Core and
+CRM register definitions now so the Phase 10 engine can consume stable module-owned contracts later (spec
+section 27, note under the phase list).
 
 ## What exists today
 
@@ -12,10 +13,16 @@ its first day (spec section 27, note under the phase list). The engine is Phase 
 | Action contract | `app/Core/Automation/Contracts/ActionDefinition.php` |
 | Registry | `app/Core/Automation/AutomationRegistry.php` (singleton) |
 | Domain event contract | `app/Core/Events/DomainEvent.php`, base class `TenantDomainEvent` |
-| First trigger | `app/Core/Automation/Triggers/MemberJoinedTrigger.php` (`core.member.joined`) |
+| Core trigger | `app/Core/Automation/Triggers/MemberJoinedTrigger.php` (`core.member.joined`) |
+| CRM triggers | Lead created, lead qualified, deal won and activity completed under `app/Modules/CRM/Automation/Triggers` |
+| CRM actions | Assign a lead, move a deal stage and create a follow-up activity under `app/Modules/CRM/Automation/Actions` |
+| CRM action receipts | `crm_automation_action_receipts`, a tenant/action/idempotency-key unique result store used by mutating CRM actions |
 | Queue | `automation`, worked by Horizon's `background` supervisor; nothing dispatches to it |
 
-No action is registered yet.
+Definitions are metadata and callable contracts, not workflows. Registering the CRM actions does not schedule or
+execute them by itself; the Phase 10 engine remains responsible for workflow persistence, orchestration and runs.
+Assign-lead and move-stage nevertheless enforce the action contract today: their mutation and receipt are one
+transaction, and a retry in another process returns the previously stored output.
 
 ### Contracts
 

@@ -1,6 +1,6 @@
 # Security
 
-State: Phase 3 is implemented and verified. Each mechanism is listed with the file
+State: Phases 1–4 are implemented. Each mechanism is listed with the file
 that enforces it. Layers with nothing to protect yet are marked **not applicable yet**. Section 8 lists open work.
 
 Principles the code follows: the tenant comes from the hostname only; tenant, membership, entitlement and
@@ -187,7 +187,25 @@ for as typed (member search, audit search, the Super Admin tenant list).
 - Per-workspace app settings accept only compiled typed definitions and are stored as one encrypted array. Secret
   values are never returned to Inertia or audit properties; a blank secret update preserves the stored value.
 
-## 5c. Browser security headers
+## 5c. CRM records and files
+
+- The `crm` route group runs after tenant resolution and the `entitled:crm` gate, then requires sign-in, session
+  authentication, active membership, a healthy subscription and a route-specific CRM permission.
+- Leads, deals, activities, quotes, orders, contracts and customer profiles apply `RecordAccess`. A record outside
+  the grant's own/department/branch scope answers 404 rather than disclosing its existence.
+- Only an all-scope assignment grant can choose another record owner. Owner changes copy the owner's department
+  and branch, preventing stale organisational scope columns.
+- CRM customer selectors are constrained again by the actor's `core.contacts.view` scope. A CRM permission does
+  not disclose a shared contact the same person cannot open in core.
+- Attachment input is restricted by size and MIME extension and stored by `TenantStorage`; the database stores no
+  client-selected path. Download/delete verifies both parent linkage and record scope, and download URLs expire.
+- Product prices, quote/order totals and tax rates are bounded integers. Overflow-checked totals are calculated
+  server-side; client-submitted totals and tenant IDs are never trusted. A quote's optional deal is independently
+  scope-checked and must match its customer and currency.
+- CRM's mutating automation actions persist the output under a tenant/action/idempotency-key unique constraint in
+  the same transaction as the mutation. Cross-process retries return that receipt instead of applying work twice.
+
+## 5d. Browser security headers
 
 `App\Core\Http\Middleware\SecurityHeaders`, appended to the `web` group:
 
@@ -247,7 +265,7 @@ are ignored.
 
 ## 8. Known limitations
 
-Open after Phase 3 implementation. Decide and fix, or accept and record.
+Open after Phase 4 implementation. Decide and fix, or accept and record.
 
 | # | Limitation | Where |
 |---|---|---|

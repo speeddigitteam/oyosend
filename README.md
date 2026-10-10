@@ -4,7 +4,7 @@ A multi-tenant business SaaS platform: one workspace per company on its own subd
 CRM, invoicing, marketing, support, automation) added through a built-in App Store. The full product
 specification is [`MASTER_PROMPT.md`](MASTER_PROMPT.md).
 
-**Current state: Phases 1–3 are complete and verified; Phase 4 CRM is next.** What exists:
+**Current state: Phases 1–4 are complete; Phase 5 Projects is next and has not been started.** What exists:
 
 - **Foundation (Phase 1):** subdomain tenancy with fail-closed isolation, sign-in with two-factor authentication,
   memberships and invitations, tenant-scoped roles and permissions, an audit trail, the module / entitlement /
@@ -17,9 +17,13 @@ specification is [`MASTER_PROMPT.md`](MASTER_PROMPT.md).
 - **App Store (Phase 3):** compiled first-party app catalogue with immutable manifest versions; catalogue,
   details and My Apps pages; free install and paid invoice checkout; tenant-scoped installations, licences and
   separately billed subscription items; dependency/lifecycle handling and entitlement-gated execution.
+- **CRM & Sales (Phase 4):** shared-customer leads, pipelines, deals, activities, customer profiles and record
+  content/timelines; contact/company saved segments; exact-money product, quote, order, contract and lifetime-value
+  workflows; scoped permissions, retry-safe automation actions, bilingual UI and an invoicing hand-off event.
 
-No production business app (CRM, HRM, projects, …) is compiled yet, so the catalogue is honestly empty until
-Phase 4; the complete store flow uses a test-only CRM fixture. One payment gateway (SSLCommerz) is implemented
+CRM is the first compiled production business app. `migrate --seed` synchronizes its compiled catalogue entry
+(as well as permissions), and deployments run `apps:sync --prune` explicitly. The store test
+suite retains a deliberately separate `test_crm` fixture. One payment gateway (SSLCommerz) is implemented
 but has not been run against the provider's sandbox; until credentials are set, invoices are paid by recording
 an offline payment in the Super Admin panel. See [`docs/BILLING.md`](docs/BILLING.md).
 

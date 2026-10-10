@@ -1,13 +1,14 @@
 # Architecture
 
-State: Phase 3 (App Store) is implemented and verified. This page describes what is
+State: Phases 1–4, including the App Store and CRM, are implemented. This page describes what is
 in the code. Anything not built is listed in [section 12](#12-not-built-yet). Decisions are in `docs/adr/`.
 
 ## 1. Shape
 
 - A modular monolith: one Laravel 13 application, one shared MySQL database, `tenant_id` on tenant-owned tables.
-- Server-side routing with Inertia 3 + Vue 3 pages. There is no JSON API, no WebSocket server and no SSR yet.
-  The only requests that are not pages are the two payment gateway callbacks.
+- Server-side routing with Inertia 3 + Vue 3 pages. There is no public JSON API, WebSocket server or SSR yet.
+  Small same-origin JSON helpers, such as scoped contact-duplicate detection, remain behind workspace auth and
+  permissions; the two payment gateway callbacks are the only stateless public endpoints.
 - Three areas, each on its own kind of host, each with its own middleware group, guard and Inertia layout.
 
 ## 2. Areas and hosts
@@ -117,15 +118,20 @@ tests/              Feature/, Unit/, Support/ (helpers, fixtures), js/ (Vitest)
 .github/workflows/  ci.yml
 ```
 
-`app/Modules/` does not exist yet; the first optional module creates it (`docs/MODULES.md`). Billing, contacts and
-the organisation chart are part of the `core` module: every workspace has them, and billing has to stay reachable
-when nothing else is.
+`app/Modules/CRM` is the first production optional business module. It owns its provider, manifest, migrations,
+models, domain services, routes, Inertia pages, automation definitions and tests. Billing, contacts and the
+organisation chart remain in `core`: every workspace has them, and billing has to stay reachable when nothing
+else is. CRM references the shared core contacts/companies for customer content, timelines and segments, uses
+exact commercial arithmetic and durable automation action receipts, and publishes `crm.quote.accepted` as the
+Phase 6 invoicing boundary; see `docs/CRM.md`.
 
 ## 5. Module boundaries and the module contract
 
 - A module is one service provider extending `App\Core\Modules\ModuleServiceProvider`, listed in
   `config/modules.php`. `describe()` returns a `ModuleManifest`; `bootModule()` loads routes and migrations.
 - The foundation is itself a module: key `core`, `core: true`, declared in `App\Core\CoreServiceProvider`.
+- CRM is key `crm`, depends on `core`, and is available only through a healthy plan or effective App Store
+  licence. It is the production reference for scoped optional-module records and retained data on uninstall.
 - Being registered makes a module's code available. Whether a tenant may use it is a separate, server-side
   entitlement check (`EntitlementChecker`).
 - A module owns its routes, controllers, models, migrations, policies, events, jobs and tests. Modules talk to
@@ -296,10 +302,10 @@ strategy, and the gaps that must be closed before the first move, are in `docs/D
 | A verified payment gateway | when credentials exist | SSLCommerz is implemented but has not been run against the sandbox |
 | API tokens (Sanctum) | when first needed | Not installed; there are no API routes |
 | Integration centre (OAuth connections, webhooks) | not assigned in spec 27 | — |
-| First optional production app | 4 | App Store is built; production catalogue stays honestly empty until CRM is compiled |
+| Further optional production apps | 5+ | CRM is compiled; Projects, Invoicing, HRM and later apps remain phased work |
 | Notification centre, realtime (Reverb) | 8 | Not installed; `BROADCAST_CONNECTION=log` |
 | Automation engine | 10 | Contracts and registry only |
-| File manager | — | `TenantStorage` primitive; the workspace logo is the only stored file |
+| General file manager | — | `TenantStorage` backs workspace logos and CRM private attachments; no general browser exists |
 | Global data search | — | Scout installed (`database` driver), no searchable model; Ctrl/Cmd+K is navigation only. Contacts are searched with `LIKE` on their own page |
 | Custom domains | future | `tenant_domains.type` exists, no routing |
 | Support access as a member other than the owner | — | Always the owner |

@@ -183,7 +183,8 @@ php artisan horizon:terminate
   Run it after migrations and permission sync. It never deletes installations, licences or tenant business data.
 - Migrations all live in `database/migrations` and run against the one central database. The package's
   `tenants:migrate` is not used. Destructive commands (`migrate:fresh`, `db:wipe`, …) are blocked in production.
-- `php artisan db:seed --force` in production only syncs permissions; demo data is local-only.
+- `php artisan db:seed --force` in production syncs permission and compiled app catalogue reference data without
+  pruning; demo data is local-only. Deployments still run the explicit `apps:sync --prune` step above.
 - **First Super Admin:** `php artisan platform:create-admin {email} [--name=] [--role=super_admin|support_admin]`
   (`app/Platform/Console/CreatePlatformAdminCommand.php`). It must be run in an interactive terminal: the
   password is asked for and confirmed, never passed as an argument, and has to pass `Password::defaults()`

@@ -1,7 +1,7 @@
 # Database
 
-State: Phase 3 schema is migrated and verified. Sections 1–3b describe the
-schema in `database/migrations/`. Section 4 outlines later tables. Section 5 is the dedicated-database strategy
+State: Phase 4 CRM schema is implemented. Sections 1–3c describe the schema in `database/migrations/` and
+`app/Modules/CRM/Database/Migrations/`. Section 4 outlines later tables. Section 5 is the dedicated-database strategy
 the spec asks for (3.4); **only its routing seam exists today.**
 
 One MySQL 8 database, `utf8mb4` / `utf8mb4_unicode_ci`, strict mode. The application clock is UTC
@@ -405,6 +405,25 @@ effective module set.
 `app_id` and `subscription_item_id` are nullable FKs for `app_purchase` / `app_renewal` invoices. Base-plan
 invoices continue to use `subscription_id` and `plan_id`. Index `(tenant_id, app_id, status)` supports app invoice
 history. Invoice lines remain immutable snapshots.
+
+## 3c. Phase 4 CRM tables
+
+Module migrations live in `app/Modules/CRM/Database/Migrations` and are loaded by `CRMServiceProvider`.
+
+| Area | Tables | Important constraints |
+|---|---|---|
+| Pipeline | `crm_lead_sources`, `crm_pipelines`, `crm_pipeline_stages` | Names and stage positions are unique inside the tenant/pipeline; won and lost are explicit terminal flags |
+| Work | `crm_leads`, `crm_deals`, `crm_deal_stage_history`, `crm_activities` | Shared contact/company FKs; owner/department/branch indexes; immutable stage-change rows; activity reminder and idempotent automation-key indexes |
+| Record content | `crm_notes`, `crm_tags`, `crm_taggables`, `crm_custom_fields`, `crm_custom_field_values`, `crm_segments`, `crm_attachments`, `crm_timeline_entries` | Lead/deal/contact/company content, contact/company saved segments, tenant-first uniqueness, private storage paths and ordered customer timeline indexes |
+| Catalogue | `crm_products`, `crm_price_lists`, `crm_price_list_items` | SKU and price-list names are tenant-unique; quantity is thousandths; prices are integer minor units |
+| Selling | `crm_quotes`, `crm_quote_lines`, `crm_sales_orders`, `crm_sales_order_lines`, `crm_contracts` | Unique tenant document numbers, bounded integer snapshotted lines/totals, optional same-customer/currency deal link, one order per accepted quote, explicit lifecycle statuses |
+| Lifecycle | `crm_customer_profiles`, `crm_sales_targets` | One contact/company profile per tenant; exact lifetime values are a currency-to-minor-unit JSON map recognized from a linked deal or standalone order, never both; targets have owner scope and date indexes |
+| Automation safety | `crm_automation_action_receipts` | Durable action output with `UNIQUE(tenant_id, action, idempotency_key)` so a retry cannot repeat a mutation |
+
+All tables use ULIDs and carry `tenant_id`; every tenant-owned unique/index begins with it. Shared customer rows
+are referenced, not copied. Removing a contact/company nulls the reference where the business record must remain.
+Money columns are unsigned integer minor units, quantities are `*_milli`, and rates are basis points or integer
+percentages. See `docs/CRM.md` for the workflows and status rules.
 
 ## 4. Later tables (outline only)
 

@@ -1,6 +1,6 @@
 # Integrations
 
-State: after Phase 3. **There is no integration centre**: no OAuth connections, no provider adapters for
+State: after Phase 4. **There is no integration centre**: no OAuth connections, no provider adapters for
 messaging, no outgoing webhooks, no API tokens, no tables for any of it. The one outside service the application
 can talk to is a payment gateway, and only once its credentials are configured.
 

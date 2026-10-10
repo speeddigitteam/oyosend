@@ -1,12 +1,13 @@
 # App Store
 
-State: Phase 3 is implemented and verified. The store is a
+State: the Phase 3 store and its first production catalogue app, Phase 4 CRM, are implemented. The store is a
 catalogue and licence manager for **first-party modules compiled into this build**. It is not a remote plugin
 marketplace: a tenant cannot upload, download or execute code.
 
-The production catalogue is intentionally empty until the first optional business module is added in Phase 4.
-The complete flow is exercised with `tests/Support/Fixtures/Crm`; registering that fixture in a test makes it a
-compiled app for that test only. Do not seed a fake app into production to make the catalogue look populated.
+The production catalogue contains the compiled `crm` module after `apps:sync --prune`; the standard database
+seeder also performs a non-pruning catalogue sync so a fresh seeded database exposes compiled apps immediately.
+The store test suite also uses `tests/Support/Fixtures/Crm` under the distinct key `test_crm`; registering that
+fixture exercises multi-app catalogue and lifecycle behaviour without colliding with production CRM.
 
 ## 1. Model
 

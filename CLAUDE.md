@@ -5,8 +5,8 @@ Multi-tenant business SaaS, modular monolith. Spec: `MASTER_PROMPT.md` (sections
 `docs/MODULES.md`, `docs/DATABASE.md`, `docs/TESTING.md`, `resources/js/README.md`; `docs/BILLING.md` before
 touching billing. The code is the source of truth; if a doc and the code disagree, fix the doc and say so.
 
-State: Phases 1–3 are complete and verified; Phase 4 CRM is next. There is
-no production optional app until Phase 4. One phase per session; stop at the end of the phase and report.
+State: Phases 1–4 are complete; Phase 5 Projects is next and has not been started. CRM is the first production
+optional app. One phase per session; stop at the end of the phase and report.
 
 ## Stack
 
@@ -46,7 +46,7 @@ app/Core/{Tenancy,Identity,Access,Organization,Contacts,Settings,Registration,Bi
           Automation,Events,Audit,Dashboard,Http,Support}
 app/Core/CoreServiceProvider.php     the `core` module: manifest, bindings, Gate::before, gateways
 app/Platform/                        Super Admin panel (the only code that reads across tenants)
-app/Modules/<Module>/                optional apps (none yet)
+app/Modules/<Module>/                optional apps (`CRM` is the first production module)
 routes/{central,tenant,tenant-callbacks,platform,console}.php     routes/web.php is NOT loaded
 config/{platform,tenancy,modules,permission,trustedproxy,horizon,ziggy}.php
 database/{migrations,factories,seeders}          lang/{en,bn}, lang/bn.json (server-side strings)
@@ -71,7 +71,7 @@ stateless payment callbacks on the workspace host (group `tenant.callback`).
 | `composer check` | lint + analyse + test |
 | `npm run typecheck` · `npm run test` · `npm run build` | vue-tsc · Vitest · Vite build |
 | `php artisan permissions:sync [--prune]` | sync the permission catalogue; after adding permissions and on every deploy |
-| `php artisan apps:sync [--prune]` | sync compiled optional manifests into immutable catalogue versions; every deploy |
+| `php artisan apps:sync [--prune]` | sync compiled optional manifests into immutable catalogue versions; every deploy (`db:seed` also performs the non-pruning sync) |
 | `php artisan platform:create-admin {email}` | create a Super Admin panel account; interactive, asks for the password |
 | `php artisan billing:run [--tenant=slug]` | advances base and app subscriptions; scheduled hourly, safe to run twice |
 | `php artisan apps:run-scheduled` | dispatch due optional-module jobs only for entitled tenants |
@@ -136,6 +136,9 @@ Vitest from `D:/…`, not `/d/…`. The suite runs `migrate:fresh`: never run it
 - Optional apps are compiled first-party modules. Bump the version when versioned catalogue/contract fields
   change; uninstall disables access but retains licences/data for safe reinstall; schedules run through the
   worker-time entitlement-gated runner.
+- CRM customer content and timelines attach to the shared contact/company identity, not a duplicate customer row.
+  Its mutating automation actions persist tenant-scoped action receipts; a retry with the same action/key returns
+  the stored output instead of repeating the mutation. Linked deals, not their quotes, own lifetime-value credit.
 
 **Frontend** (details: `resources/js/README.md`)
 - Pages in `resources/js/{Core,Platform,Modules/<M>}/Pages`, rendered by path; type every prop.

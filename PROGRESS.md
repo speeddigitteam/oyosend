@@ -5,10 +5,10 @@ Rules for working in this repository are in `CLAUDE.md`; the product specificati
 
 ## Status
 
-**Phases 1 (Architecture & Foundation), 2 (Core SaaS & Billing) and 3 (App Store) are complete and
-verified as of 2026-10-10. Phase 4 CRM is next and has not been started.**
-There is deliberately no production optional business application yet; Phase 4 CRM will be the first compiled
-catalogue entry. Phase 3 behaviour is exercised with a test-only CRM module.
+**Phases 1 (Architecture & Foundation), 2 (Core SaaS & Billing), 3 (App Store) and 4 (CRM) are complete as of
+2026-10-10. Phase 5 Projects is next and has not been started.**
+CRM is the first compiled production business application and catalogue entry. App Store tests retain a separate
+`test_crm` fixture so production CRM and generic multi-app behaviour can be exercised independently.
 
 ## What exists
 
@@ -47,7 +47,7 @@ catalogue entry. Phase 3 behaviour is exercised with a test-only CRM module.
 | Area | What exists |
 |---|---|
 | Catalogue | Optional manifest metadata, 16 categories and six offer types; `apps:sync [--prune]`; immutable version snapshots protected by a manifest hash; only published and compiled modules are exposed |
-| Workspace UI | Search/filter catalogue, app details and My Apps; bilingual empty state remains honest while no production app is compiled |
+| Workspace UI | Search/filter catalogue, app details and My Apps; CRM appears after catalogue sync, while the bilingual empty state still covers builds with no exposed apps |
 | Installation and licences | Tenant-scoped installation, entitlement and commercial-item records; free install; activate/deactivate/uninstall/reinstall/update; typed encrypted app settings; retained data/history and lifecycle events/audit |
 | Paid apps | Trial, monthly/yearly/one-time checkout, separate app invoices/items, activation only after verified settlement, renewals, grace, expiry, cancel/resume |
 | Dependencies | Dependencies required on install/activate and recursively in entitlement resolution; active dependents block deactivate/uninstall |
@@ -55,9 +55,45 @@ catalogue entry. Phase 3 behaviour is exercised with a test-only CRM module.
 | Safety | First-party compiled modules only; no tenant uploads, runtime Composer install, eval or remote plugin execution |
 | Operations | `apps:sync --prune` in deploys; `apps:run-scheduled` every minute; `billing:run` advances both base and app subscriptions |
 
+### Phase 4 — CRM
+
+| Area | What exists |
+|---|---|
+| Shared customer identity | Leads, deals, activities and sales documents reference core contacts/companies; normalized email/phone duplicate detection and an explicit field-by-field contact merge repoint core and registered module references before soft deletion |
+| Leads and pipelines | Sources, scored leads, configurable pipelines/stages, qualification and conversion; stage history, terminal won/lost deals and scope-aware pipeline dashboard data |
+| CRM work | Calls, meetings, tasks and follow-ups with tenant-local scheduling stored as UTC; notes, tags, custom fields, private attachments and unified timelines on leads, deals and shared contact/company customer profiles; saved segments cover leads, deals, activities, contacts and companies |
+| Product catalogue | Products/services, integer minor-unit prices, quantity thousandths, basis-point tax, validity-aware tiered price lists and overflow-safe exact arithmetic |
+| Sales documents | Exact, overflow-checked integer quote/proposal line snapshots, scoped deal selection, send/accept/reject/cancel transitions, idempotent order creation, sales orders and customer/order-linked contracts |
+| Performance | Customer lifecycle profiles, canonical one-way deal lifetime-value recognition without quote/order double-counting, sales targets, conversion/forecast/order-trend reports and tenant-timezone report boundaries |
+| Boundaries | `crm.quote.accepted` carries immutable itemized order snapshots for Phase 6; module data is retained when entitlement is removed |
+| Access and UI | 24 declared permissions, record scopes, entitlement-gated routes/navigation/widgets/definitions, and complete English/Bengali Inertia surfaces |
+| Automation catalogue | Four triggers (lead created/qualified, deal won, activity completed) and three actions (assign lead, move stage, create follow-up) registered for the future Phase 10 engine; mutating actions persist tenant/action/key receipts so retries return the original output without repeating work |
+
 ## Verification
 
-The table below is the final Phase 3 whole-repository run. Phase 4 was not started.
+The Phase 3 whole-repository result remains below as historical evidence. Phase 4 implementation and its focused
+backend, frontend, scope, merge and arithmetic checks are complete. The closing Phase 4 whole-repository run is
+recorded here only after every gate has returned, so its exact totals are not guessed.
+
+### Phase 4 final — 2026-10-10
+
+Run natively on Laragon (Windows 10): PHP 8.4.13, MySQL 8.0.30, Redis 5.0.14 and Node 24.19.
+
+| Check | Command | Result |
+|---|---|---|
+| Code style | `vendor/bin/pint --test` | passed |
+| Static analysis | `vendor/bin/phpstan analyse --memory-limit=1G` (level 6) | no errors across 390 files |
+| Backend tests | `php artisan test --compact` | 2,163 passed, 19,247 assertions in 495.79s |
+| Type check | `npm run typecheck` | no errors |
+| Frontend tests | `npm run test -- --reporter=dot` | 14 files, 264 tests passed |
+| Production build | `npm run build` | built, 3,334 modules transformed |
+| End-to-end tests | `npm run test:e2e` | 20 passed in Chrome in 4.0m, including the production CRM catalogue and lead flow |
+| Fresh database and seed | Playwright global setup against `oyosend_e2e_testing` | `migrate:fresh --seed` succeeded before the browser run; compiled apps were synchronized into the catalogue |
+| CRM isolation | Full backend suite, including the parameterized CRM route matrix | foreign tenant route bindings and mismatched nested resources returned 404 without mutation |
+
+Vitest and Playwright needed permission to spawn their bundled worker/browser processes in this managed Windows
+environment. Their elevated reruns passed; the initial `spawn EPERM` errors were environment startup failures,
+not failing assertions.
 
 ### Phase 3 final — 2026-10-10
 
@@ -123,6 +159,21 @@ Longer reasoning is in ADR 0009 and `docs/APP_STORE.md`.
 | Dependencies are enforced both on lifecycle writes and entitlement reads | A stale/manual database grant cannot expose a child whose required app is unavailable |
 | Uninstall retains module business data | Reinstall is reversible and commercial state changes never become destructive data deletion |
 
+## Phase 4 decisions
+
+Longer reasoning is in ADR 0010 and `docs/CRM.md`.
+
+| Decision | Why |
+|---|---|
+| Core contacts and companies remain the canonical customer identity | CRM enrichment must not create a second customer directory; contact merging can therefore preserve one identity across modules |
+| Contact merge is explicit, field-by-field and extensible through registered module handlers | The user chooses the canonical values while core and every participating module repoint references in one transaction |
+| Customer-facing CRM records use normal tenant and record scopes | Optional-module entitlement never replaces row isolation or own/department/branch/all authorization |
+| Money, quantity and rates use bounded exact integer arithmetic | Quotes, orders, forecasts and targets remain deterministic without floating-point or overflow corruption |
+| Quote/order lines are immutable commercial snapshots | Later catalogue changes cannot rewrite an issued document, and Phase 6 can consume accepted itemized values safely |
+| Won and lost deals are terminal; linked deals own lifetime-value recognition | A linked quote can create its order without counting the same sale again; standalone accepted quotes still recognize their order total |
+| Tenant-local inputs and reports are normalized around UTC persistence | Scheduling and date-bound reports remain correct for each workspace without mixing server timezone assumptions |
+| CRM data survives deactivation or uninstall | Entitlement changes remove access, not business history; reinstall remains reversible like every App Store lifecycle |
+
 ## Known issues and debt
 
 Security and correctness:
@@ -142,8 +193,9 @@ Billing and product:
 - SSLCommerz has not been exercised against its sandbox.
 - A verified payment for an invoice voided in the meantime is retained and flagged as unapplied; refunds and
   credits are not built.
-- There is no production optional business module, coupon, refund/credit-note flow, tax engine, usage-based app
-  charge calculator or automatic payment method. The App Store catalogue therefore remains empty until Phase 4.
+- Coupon, refund/credit-note flow, a general tax engine, usage-based app charge calculation and automatic payment
+  methods are not built. CRM calculates document tax from its own snapshotted basis-point line rates; that is not
+  a platform accounting/tax engine.
 - Changing an account email, platform password recovery and login-session management are not built.
 - The dedicated-database seam (`tenants.db_connection`) is reserved but not operational; the migration plan and
   gaps are documented in `docs/DATABASE.md`.
@@ -160,7 +212,7 @@ Frontend and operations:
 
 ## Deferred, by phase
 
-- **Phase 4–7:** CRM, Projects, customer invoicing, then HRM/Payroll.
+- **Phase 5–7:** Projects, customer invoicing, then HRM/Payroll.
 - **Phase 8:** notification centre and communication providers. **Phase 9:** marketing apps.
 - **Phase 10:** the automation engine; only its definition registry exists today.
 - **Phase 11–12:** AI applications, Support and advanced reporting.
@@ -180,11 +232,13 @@ Frontend and operations:
 8. Final name and brand mark approval.
 9. Production support-access policy and whether tenants must explicitly approve a session.
 
-## Phase 3 completion
+## Phase 4 completion
 
-All Phase 3 implementation, documentation and quality gates are complete. `apps:sync --prune`,
-`apps:run-scheduled`, the worker-time entitlement check and the fresh migration/seed path are covered by the
-green test runs above. Stop for review; do not begin Phase 4 CRM in this session.
+All Phase 4 CRM implementation and documentation are complete. CRM is the first production optional app, uses
+the shared customer directory (including customer content, timelines and contact/company segments), preserves
+exact commercial snapshots and canonical deal-based lifetime value, persists retry-safe automation receipts and
+publishes the Phase 6 quote-accepted handoff. The normal seeder also synchronizes compiled App Store catalogue
+reference data. Stop for review; do not begin Phase 5 Projects in this session.
 
 ## Session log
 
@@ -199,4 +253,8 @@ green test runs above. Stop for review; do not begin Phase 4 CRM in this session
   and verified paid licensing, independent app renewals, encrypted typed settings, lifecycle/dependency/data-
   retention and reinstall rules, and dispatch-time plus worker-time entitlement-gated scheduled jobs. Final
   verification: Pint, Larastan, 2,117 Pest tests, vue-tsc, 255 Vitest tests, production build and 19 Chrome E2E
-  tests all passed. Phase 4 was not started.
+  tests all passed.
+- **2026-10-10** — Phase 4 completed: shared-identity CRM, duplicate-contact detection and transactional merge,
+  scoped leads/pipelines/deals/activities, customer content/timelines and contact/company segments, products and
+  tiered prices, exact immutable quotes/proposals/orders/contracts, canonical deal LTV, bilingual UI, durable
+  automation action receipts and the itemized Phase 6 quote-accepted boundary. Phase 5 Projects was not started.

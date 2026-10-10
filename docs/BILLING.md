@@ -120,8 +120,9 @@ provider's own API, never from the payload it is handed.
 
 - A plan's `modules` lists optional modules included in the base price. The App Store can also create an
   independent entitlement backed by a free licence, trial, one-time purchase or recurring `subscription_item`.
-- The production build currently has no optional business module, so its catalogue and plan-module choices are
-  empty until Phase 4. The App Store flow is tested with the compiled-only `Crm` fixture.
+- The production build includes optional module `crm`. A healthy plan may include it, or a workspace may acquire
+  its compiled free offer independently. The App Store suite also uses the distinct compiled-only `test_crm`
+  fixture.
 - App offer types are `free`, `monthly`, `yearly`, `one_time`, `usage_based` and `enterprise`. The latter two are
   visible catalogue offers but not self-serve. Amounts are integer minor units; app items copy the offer amount,
   currency and quantity so later manifest price changes do not rewrite an agreement already taken.

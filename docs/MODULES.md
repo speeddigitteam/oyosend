@@ -1,8 +1,9 @@
 # Modules
 
-How to add a first-party module. The contract is in `app/Core/Modules`; the production build currently registers
-only `core` (`app/Core/CoreServiceProvider.php`). `app/Modules/` starts with the first business app. A complete
-non-core App Store module, used only by the test suite, is in `tests/Support/Fixtures/Crm`.
+How to add a first-party module. The contract is in `app/Core/Modules`; the production build registers `core` and
+the optional `crm` business app. CRM is the reference production module under `app/Modules/CRM` and is documented
+in `docs/CRM.md`. A small non-core App Store fixture remains in `tests/Support/Fixtures/Crm` under the distinct
+module key `test_crm`.
 
 ## 1. What a module is
 
@@ -134,6 +135,8 @@ Implement `App\Core\Automation\Contracts\TriggerDefinition` / `ActionDefinition`
 `module()`, `requiredPermission()`, `inputSchema()`, `outputSchema()`; triggers add `event()`, actions add
 `execute(array $input, string $idempotencyKey): array`). Keys must start with `{module}.` and be unique, or
 `AutomationRegistry` throws. Register from Phase 1 onwards even though nothing executes workflows until Phase 10.
+An action that mutates state must make its mutation and durable idempotency result atomic; CRM's tenant/action/key
+receipt store is the reference implementation for returning the same output across process retries.
 See `docs/AUTOMATION.md`.
 
 ### Morph map

@@ -1,7 +1,7 @@
 # Testing
 
 Backend tests are Pest on a real MySQL database. Frontend tests are Vitest. Playwright covers critical browser
-flows against a separate disposable database. Phase 3's whole-repository quality run is green.
+flows against a separate disposable database. Phase 4 CRM has feature, unit, frontend and browser coverage.
 
 ## 1. Commands
 
@@ -85,6 +85,14 @@ tests/
   Unit/<Area>/*Test.php    Pure logic; the application boots but the database is never touched
   js/*.test.ts             Vitest (jsdom); js/setup.ts installs the real i18n catalogue
 ```
+
+Phase 4 CRM coverage lives in `tests/Feature/CRM` and `tests/js/crm.test.ts`. Backend tests exercise the complete
+lead-to-deal and quote-to-order workflows, tenant and record-scope isolation, document arithmetic/status rules,
+customer-profile content/timelines, contact/company saved segments, exact lifetime-value recognition, durable
+automation action receipts and the Phase 6 quote-accepted event. The route-isolation matrix also probes foreign
+and mismatched nested CRM resources. Frontend tests mount the bilingual CRM surfaces and verify their primary
+empty, list and action states. The CRM browser spec uses the Business demo plan, which
+includes the production `crm` module; the Free workspace remains a useful negative entitlement case.
 
 | Suite | Files | Covers |
 |---|---|---|
@@ -178,7 +186,7 @@ through the cycle: move the clock (`$this->travel(8)->days()`, `$this->travelTo(
 
 | Fixture | Use |
 |---|---|
-| `Crm\CrmServiceProvider` | A compiled-only stand-in app (`crm`): complete catalogue/offers, permissions, routes, sidebar, widget, trigger and lifecycle recorder. Register it, then run `AppCatalogSynchronizer::sync()` for App Store tests |
+| `Crm\CrmServiceProvider` | A compiled-only stand-in app (`test_crm`): catalogue/offers, permissions, routes, sidebar, widget, trigger and lifecycle recorder. Production `crm` stays registered; the fixture provides a distinct second app for App Store tests |
 | `GrantsModules` | The entitlement checker `entitle()` installs: the product's rules plus explicit grants, so a test about what an entitlement does needs no plan |
 | `TestGateway` | A `PaymentGateway` whose answers the test controls; see `useTestGateway()` |
 | `RecordsTenantJob`, `TenantBoundJob` | Queued jobs that record the tenant they ran in; the second implements `RequiresTenantContext` |
