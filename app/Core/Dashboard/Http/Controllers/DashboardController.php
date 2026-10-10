@@ -9,6 +9,7 @@ use App\Core\Entitlements\Contracts\EntitlementChecker;
 use App\Core\Identity\Models\User;
 use App\Core\Modules\ModuleRegistry;
 use App\Core\Tenancy\TenantContext;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -21,9 +22,14 @@ final class DashboardController
         ModuleRegistry $modules,
         EntitlementChecker $entitlements,
         TenantContext $context,
-    ): Response {
+    ): Response|RedirectResponse {
         /** @var User $user */
         $user = $request->user('web');
+
+        // A workspace someone signed up for is set up once, by whoever may change its settings.
+        if (! $context->require()->isOnboarded() && $user->can('core.settings.manage')) {
+            return redirect()->route('core.onboarding.show');
+        }
 
         return Inertia::render('Core/Pages/Dashboard', [
             'widgets' => $dashboard->for($user),

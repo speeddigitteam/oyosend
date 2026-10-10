@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Core\Http\Controllers;
 
+use App\Core\Billing\Models\Plan;
+use App\Core\Billing\Support\BillingPresenter;
+use App\Core\Settings\Enums\RegistrationMode;
+use App\Core\Settings\PlatformSettings;
 use App\Core\Tenancy\Models\Tenant;
 use App\Core\Tenancy\Support\TenantHost;
 use Illuminate\Http\Request;
@@ -15,10 +19,17 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 final class WelcomeController
 {
-    public function show(TenantHost $hosts): Response
+    public function show(TenantHost $hosts, PlatformSettings $settings): Response
     {
+        $registrationOpen = $settings->registrationMode() !== RegistrationMode::Closed;
+
         return Inertia::render('Core/Pages/Central/Welcome', [
             'domain' => $hosts->domain(),
+            'registrationOpen' => $registrationOpen,
+            // Prices are only shown where someone can act on them.
+            'plans' => $registrationOpen
+                ? Plan::query()->offered()->get()->map(BillingPresenter::plan(...))->all()
+                : [],
         ]);
     }
 

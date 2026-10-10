@@ -6,38 +6,26 @@ namespace App\Core\Identity\Http\Controllers\Auth;
 
 use App\Core\Access\AccessChecker;
 use App\Core\Identity\Actions\CompleteWorkspaceLogin;
+use App\Core\Identity\Auth\WorkspaceHandoff;
 use App\Core\Identity\Enums\MembershipStatus;
 use App\Core\Identity\Models\TenantMembership;
 use App\Core\Identity\Models\User;
 use App\Core\Tenancy\Models\Tenant;
-use App\Core\Tenancy\Support\TenantHost;
 use App\Core\Tenancy\TenantContext;
-use Illuminate\Contracts\Cache\Repository as Cache;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Switching workspace without signing in again.
- *
- * Sessions are bound to one workspace's hostname, so moving to another one
- * needs a handoff: the current workspace issues a single-use token that is
- * valid for one named user, one named target tenant and a few seconds; the
- * target redeems it and starts its own session.
+ * Switching workspace without signing in again. See {@see WorkspaceHandoff}
+ * for how the session crosses hosts.
  */
 final class WorkspaceHandoffController
 {
-    private Cache $cache;
+    public function __construct(private readonly WorkspaceHandoff $handoff) {}
 
-    public function __construct()
-    {
-        // Platform-level: must be readable from the target workspace too.
-        $this->cache = app('cache.central');
-    }
-
-    public function issue(Request $request, string $workspace, TenantHost $hosts): Response
+    public function issue(Request $request, string $workspace): Response
     {
         /** @var User $user */
         $user = $request->user('web');
@@ -55,15 +43,8 @@ final class WorkspaceHandoffController
 
         abort_unless($isMember, 404);
 
-        $token = Str::random(64);
-
-        $this->cache->put($this->key($token), [
-            'user_id' => $user->getKey(),
-            'tenant_id' => $target->getKey(),
-        ], (int) config('platform.workspace_handoff_ttl', 60));
-
         // A different origin: tell Inertia to do a full browser visit.
-        return Inertia::location($hosts->url($target, 'auth/handoff?token='.$token));
+        return Inertia::location($this->handoff->urlFor($user, $target));
     }
 
     public function consume(
@@ -72,15 +53,9 @@ final class WorkspaceHandoffController
         AccessChecker $access,
         CompleteWorkspaceLogin $login,
     ): RedirectResponse {
-        // Anything but a well-formed token (`?token[]=` included) is simply not a claim.
-        $token = $request->query('token');
+        $claim = $this->handoff->redeem($request->query('token'));
 
-        /** @var array{user_id: string, tenant_id: string}|null $claim */
-        $claim = is_string($token) && preg_match('/^[A-Za-z0-9]{64}$/', $token) === 1
-            ? $this->cache->pull($this->key($token))
-            : null;
-
-        if (! is_array($claim) || $claim['tenant_id'] !== $context->requireId()) {
+        if ($claim === null || $claim['tenant_id'] !== $context->requireId()) {
             return redirect()->route('auth.login');
         }
 
@@ -93,10 +68,5 @@ final class WorkspaceHandoffController
         $login->handle($request, $user, false, 'workspace_switch');
 
         return redirect()->route('core.dashboard');
-    }
-
-    private function key(string $token): string
-    {
-        return 'workspace-handoff:'.hash('sha256', $token);
     }
 }
