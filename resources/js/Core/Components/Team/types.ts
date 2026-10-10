@@ -9,6 +9,12 @@ export interface RoleOption {
     name: string;
 }
 
+/** A branch or a department, as offered in a picker and shown on a member's row. */
+export interface UnitOption {
+    id: string;
+    name: string;
+}
+
 export type MemberStatus = 'active' | 'suspended';
 
 export interface Member {
@@ -18,11 +24,16 @@ export interface Member {
     email: string;
     initials: string;
     role: RoleOption | null;
+    /** Where the person sits. It decides what a grant limited to a branch or a department reaches. */
+    branch: UnitOption | null;
+    department: UnitOption | null;
     status: MemberStatus;
     isOwner: boolean;
     isSelf: boolean;
     /** The viewer may change, suspend or remove this member (decided by the server). */
     manageable: boolean;
+    /** The viewer may set this member's branch and department: anyone they may manage, and the owner themselves. */
+    placeable: boolean;
     twoFactorEnabled: boolean;
     joinedAt: string | null;
     lastSeenAt: string | null;
@@ -52,6 +63,12 @@ export interface RoleSummary {
     permissions: number;
 }
 
+/** How far a grant reaches, from the narrowest to the widest. */
+export type AccessScope = 'own' | 'department' | 'branch' | 'all';
+
+/** Permission name => scope. */
+export type ScopeMap = Record<string, AccessScope>;
+
 export interface EditableRole {
     id: string;
     name: string;
@@ -59,6 +76,8 @@ export interface EditableRole {
     isSystem: boolean;
     isOwner: boolean;
     permissions: string[];
+    /** The scope of every grant. A role that grants nothing sends an empty list: PHP has one empty array. */
+    scopes: ScopeMap | [];
 }
 
 export interface CataloguePermission {
@@ -66,6 +85,10 @@ export interface CataloguePermission {
     sensitive: boolean;
     /** Whether the person editing holds it, and so may add or remove it. */
     grantable: boolean;
+    /** Whether the grant can be narrowed to a person's own, their department's or their branch's records. */
+    scopable: boolean;
+    /** The widest scope the person editing may hand out: the one they hold. `null` when they do not hold it. */
+    maxScope: AccessScope | null;
 }
 
 export interface CatalogueGroup {

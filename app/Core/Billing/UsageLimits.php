@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Core\Billing;
 
+use App\Core\Billing\Enums\InvoiceStatus;
 use App\Core\Billing\Enums\LimitKind;
+use App\Core\Billing\Models\Invoice;
 use App\Core\Billing\Models\Subscription;
 use App\Core\Modules\LimitDefinition;
 use App\Core\Modules\ModuleRegistry;
@@ -111,12 +113,32 @@ final class UsageLimits
     private function periodStart(): Carbon
     {
         $subscription = $this->subscription();
+        $start = $subscription?->current_period_start;
 
-        if ($subscription?->current_period_start === null || $subscription->current_period_end === null) {
+        if ($subscription === null || $start === null || $subscription->current_period_end === null) {
             return Carbon::now()->startOfMonth();
         }
 
-        return $subscription->current_period_start->isPast() ? $subscription->current_period_start : Carbon::now()->startOfMonth();
+        if (! $start->isFuture()) {
+            return $start;
+        }
+
+        // A renewal paid early: the period on record has not begun, and the one
+        // before it is still running. Paying early buys no second allowance.
+        $now = Carbon::now();
+
+        /** @var Carbon|null $running */
+        $running = Invoice::query()
+            ->where('subscription_id', $subscription->getKey())
+            ->where('status', InvoiceStatus::Paid)
+            ->where('period_start', '<=', $now)
+            ->where('period_end', '>', $now)
+            ->orderByDesc('period_start')
+            ->first()
+            ?->period_start;
+
+        // Not bought with an invoice (a plan an operator gave): one interval back.
+        return $running ?? $subscription->interval->subtractFrom($start);
     }
 
     private function subscription(): ?Subscription

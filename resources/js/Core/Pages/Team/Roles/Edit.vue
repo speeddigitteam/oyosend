@@ -9,7 +9,8 @@ import EmptyState from '@/Core/Components/EmptyState.vue';
 import Input from '@/Core/Components/Input.vue';
 import PageHeader from '@/Core/Components/PageHeader.vue';
 import PermissionGroup from '@/Core/Components/Team/PermissionGroup.vue';
-import type { CatalogueModule, EditableRole } from '@/Core/Components/Team/types';
+import { isChangeable, savedScopes } from '@/Core/Components/Team/scopes';
+import type { AccessScope, CatalogueModule, CataloguePermission, EditableRole, ScopeMap } from '@/Core/Components/Team/types';
 import { useFormat } from '@/Core/composables/useFormat';
 import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
 import { moduleLabel } from '@/Core/lib/labels';
@@ -32,15 +33,21 @@ const isOwner = computed(() => props.role?.isOwner === true);
 /** Other code refers to system roles by name, so the name stays. */
 const nameLocked = computed(() => props.role?.isSystem === true);
 
-const form = useForm({
+/** How far each grant of the saved role reaches. They also decide which grants this person may touch. */
+const savedScopeMap = computed<ScopeMap>(() => savedScopes(props.role));
+
+const form = useForm<{ name: string; description: string; permissions: string[]; scopes: ScopeMap }>({
     name: props.role?.name ?? '',
     description: props.role?.description ?? '',
     permissions: [...(props.role?.permissions ?? [])],
+    // Sent back as it came for every grant left alone: a scope that is missing means "every record" to the server.
+    scopes: { ...savedScopeMap.value },
 });
 
 const nameInput = ref<InstanceType<typeof Input> | null>(null);
 
 const everyPermission = computed(() => props.catalogue.flatMap((module) => module.groups.flatMap((group) => group.permissions)));
+const byName = computed(() => new Map(everyPermission.value.map((permission) => [permission.name, permission])));
 const total = computed(() => everyPermission.value.length);
 
 // The Owner role stores no grants, yet holds all of them.
@@ -50,21 +57,50 @@ const selectedCount = computed(() => everyPermission.value.filter((permission) =
 const sensitiveCount = computed(
     () => everyPermission.value.filter((permission) => permission.sensitive && selected.value.has(permission.name)).length,
 );
-const lockedCount = computed(() => everyPermission.value.filter((permission) => !permission.grantable).length);
+// What this person cannot change: permissions they do not hold, and grants that reach further than their own.
+const lockedCount = computed(
+    () => everyPermission.value.filter((permission) => !isChangeable(permission, savedScopeMap.value[permission.name])).length,
+);
+const hasScopable = computed(() => everyPermission.value.some((permission) => permission.scopable));
+
+/** A permission ticked again goes back to the scope it was saved with; a new one reaches as far as this person may grant it. */
+function startingScope(permission: CataloguePermission): AccessScope {
+    return savedScopeMap.value[permission.name] ?? permission.maxScope ?? 'all';
+}
 
 function toggle(names: string[], on: boolean): void {
     const next = new Set(form.permissions);
+    const scopes = { ...form.scopes };
 
     for (const name of names) {
-        if (on) {
-            next.add(name);
-        } else {
+        if (!on) {
             next.delete(name);
+            delete scopes[name];
+
+            continue;
+        }
+
+        if (next.has(name)) {
+            continue;
+        }
+
+        next.add(name);
+
+        const permission = byName.value.get(name);
+
+        if (permission?.scopable) {
+            scopes[name] = startingScope(permission);
         }
     }
 
     form.permissions = [...next];
-    form.clearErrors('permissions');
+    form.scopes = scopes;
+    form.clearErrors('permissions', 'scopes');
+}
+
+function setScope(name: string, scope: AccessScope): void {
+    form.scopes = { ...form.scopes, [name]: scope };
+    form.clearErrors('permissions', 'scopes');
 }
 
 function moduleCount(module: CatalogueModule): string {
@@ -83,10 +119,21 @@ function moduleCount(module: CatalogueModule): string {
 const saved = computed(() => new Set(props.role?.permissions ?? []));
 const added = computed(() => form.permissions.filter((name) => !saved.value.has(name)).length);
 const removed = computed(() => [...saved.value].filter((name) => !selected.value.has(name)).length);
+// Grants that stay, but reach further or less far than they did.
+const rescoped = computed(
+    () =>
+        form.permissions.filter(
+            (name) =>
+                saved.value.has(name) &&
+                byName.value.get(name)?.scopable === true &&
+                (form.scopes[name] ?? 'all') !== (savedScopeMap.value[name] ?? 'all'),
+        ).length,
+);
 const detailsChanged = computed(
     () => form.name !== (props.role?.name ?? '') || form.description !== (props.role?.description ?? ''),
 );
-const dirty = computed(() => props.role === null || detailsChanged.value || added.value > 0 || removed.value > 0);
+const grantsChanged = computed(() => added.value > 0 || removed.value > 0 || rescoped.value > 0);
+const dirty = computed(() => props.role === null || detailsChanged.value || grantsChanged.value);
 
 const notes = computed(() => {
     const parts: string[] = [];
@@ -100,7 +147,11 @@ const notes = computed(() => {
             parts.push(t('roles.editor.summary.removed', { count: format.number(removed.value) }));
         }
 
-        if (detailsChanged.value && added.value === 0 && removed.value === 0) {
+        if (rescoped.value > 0) {
+            parts.push(t('roles.editor.summary.rescoped', { count: format.number(rescoped.value) }));
+        }
+
+        if (detailsChanged.value && !grantsChanged.value) {
             parts.push(t('roles.editor.summary.unsaved'));
         }
     }
@@ -114,11 +165,21 @@ const notes = computed(() => {
 
 // "The Owner role cannot be changed" and similar arrive under a key that is not a form field.
 const roleError = computed(() => (form.errors as Record<string, string | undefined>).role);
+// The scopes are validated as one map, so their error has no field of its own to sit under.
+const grantError = computed(
+    () => form.errors.permissions ?? (form.errors as Record<string, string | undefined>).scopes ?? roleError.value,
+);
 
 function submit(): void {
     if (isOwner.value) {
         return;
     }
+
+    // Only the scopes of what is ticked; the server reads a missing one as "every record".
+    form.transform((data) => ({
+        ...data,
+        scopes: Object.fromEntries(Object.entries(data.scopes).filter(([name]) => data.permissions.includes(name))),
+    }));
 
     const options = {
         preserveScroll: true,
@@ -197,6 +258,7 @@ function submit(): void {
             <h2 class="text-lg text-ink">{{ t('roles.editor.permissions') }}</h2>
             <template v-if="!isOwner">
                 <p class="mt-1 max-w-2xl text-[0.8125rem] text-ink-muted">{{ t('roles.editor.permissionsHelp') }}</p>
+                <p v-if="hasScopable" class="mt-1 max-w-2xl text-[0.8125rem] text-ink-muted">{{ t('roles.editor.scopesHelp') }}</p>
                 <p v-if="lockedCount > 0" class="mt-2 flex max-w-2xl items-start gap-2 text-[0.8125rem] text-ink-muted">
                     <Lock class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
                     {{
@@ -219,8 +281,11 @@ function submit(): void {
                     :key="group.key"
                     :group="group"
                     :selected="selected"
+                    :scopes="form.scopes"
+                    :saved="savedScopeMap"
                     :readonly="isOwner"
                     @toggle="toggle"
+                    @scope="setScope"
                 />
             </div>
         </Card>
@@ -234,13 +299,9 @@ function submit(): void {
         <!-- Stays in view while the catalogue scrolls: the running count, and the way out. -->
         <div class="sticky bottom-3 z-10 mt-1">
             <div class="glass-solid rounded-panel px-5 py-3.5">
-                <p
-                    v-if="form.errors.permissions || roleError"
-                    class="mb-3 flex items-start gap-2 text-[0.8125rem] text-danger"
-                    role="alert"
-                >
+                <p v-if="grantError" class="mb-3 flex items-start gap-2 text-[0.8125rem] text-danger" role="alert">
                     <CircleAlert class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                    {{ form.errors.permissions ?? roleError }}
+                    {{ grantError }}
                 </p>
 
                 <div class="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">

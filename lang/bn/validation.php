@@ -223,6 +223,66 @@ return [
         'event' => 'ঘটনা',
         'from' => 'শুরুর তারিখ',
         'to' => 'শেষের তারিখ',
+
+        // Team: where a member works, and how far a role reaches.
+        'branch_id' => 'শাখা',
+        'department_id' => 'বিভাগ',
+        'scopes' => 'পরিসর',
+
+        // Contacts, companies and the workspace's own profile.
+        'first_name' => 'নামের প্রথম অংশ',
+        'last_name' => 'নামের শেষ অংশ',
+        'job_title' => 'পদবি',
+        'phone' => 'ফোন',
+        'website' => 'ওয়েবসাইট',
+        'address' => 'ঠিকানা',
+        'city' => 'শহর',
+        'postal_code' => 'পোস্টাল কোড',
+        'country' => 'দেশ',
+        'industry' => 'ব্যবসার খাত',
+        'tax_id' => 'ট্যাক্স আইডি',
+        'legal_name' => 'নিবন্ধিত নাম',
+        'notes' => 'নোট',
+        'company_id' => 'প্রতিষ্ঠান',
+        'owner_id' => 'দায়িত্বে থাকা সদস্য',
+        'timezone' => 'টাইম জোন',
+        'currency' => 'মুদ্রা',
+        'logo' => 'লোগো',
+
+        // Sign-up.
+        'company' => 'প্রতিষ্ঠানের নাম',
+        'slug' => 'ওয়ার্কস্পেসের ঠিকানা',
+
+        // Billing.
+        'plan' => 'প্ল্যান',
+        'plan_id' => 'প্ল্যান',
+        'interval' => 'বিলিং মেয়াদ',
+        'gateway' => 'পেমেন্ট গেটওয়ে',
+
+        // Super Admin panel: workspaces, plans, invoices and platform settings.
+        'owner_name' => 'মালিকের নাম',
+        'owner_email' => 'মালিকের ইমেইল',
+        'reason' => 'কারণ',
+        'period_end' => 'মেয়াদ শেষের তারিখ',
+        'trial_ends_at' => 'ট্রায়াল শেষের তারিখ',
+        'key' => 'শনাক্তকারী কী',
+        'monthly_amount' => 'মাসিক মূল্য',
+        'yearly_amount' => 'বার্ষিক মূল্য',
+        'trial_days' => 'ট্রায়ালের দিনসংখ্যা',
+        'modules' => 'মডিউল',
+        'modules.*' => 'মডিউল',
+        'limits' => 'সীমা',
+        'is_public' => 'সবার জন্য উন্মুক্ত',
+        'is_active' => 'সক্রিয়',
+        'sort_order' => 'ক্রম',
+        'method' => 'পেমেন্ট পদ্ধতি',
+        'reference' => 'রেফারেন্স',
+        'note' => 'নোট',
+        'paid_at' => 'পেমেন্টের তারিখ',
+        'registration_mode' => 'সাইন আপের ধরন',
+        'grace_days' => 'অতিরিক্ত সময়ের দিনসংখ্যা',
+        'invoice_lead_days' => 'ইনভয়েস আগাম তৈরির দিনসংখ্যা',
+        'offline_instructions' => 'অফলাইন পেমেন্টের নির্দেশনা',
     ],
 
 ];

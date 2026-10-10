@@ -8,6 +8,7 @@ import RecoveryCodes from '@/Core/Components/RecoveryCodes.vue';
 import StatTile from '@/Core/Components/StatTile.vue';
 import { useFormat } from '@/Core/composables/useFormat';
 import PlatformLayout from '@/Core/Layouts/PlatformLayout.vue';
+import BillingOverviewCard, { type BillingOverview } from '@/Platform/Components/BillingOverviewCard.vue';
 import PanelActivityCard, { type ActivityEntry } from '@/Platform/Components/PanelActivityCard.vue';
 import RecentWorkspacesCard, { type RecentTenant } from '@/Platform/Components/RecentWorkspacesCard.vue';
 import SystemHealthCard, { type HealthCheck } from '@/Platform/Components/SystemHealthCard.vue';
@@ -31,6 +32,8 @@ interface Stats {
 
 const props = defineProps<{
     stats: Stats;
+    /** Subscriptions by status, and what is waiting on an operator, across every workspace. */
+    billing: BillingOverview;
     /** The six newest workspaces. */
     recentTenants: RecentTenant[];
     /** The eight latest platform-level audit entries. */
@@ -154,6 +157,7 @@ const totals = computed(() => [
             </dl>
         </Card>
 
+        <BillingOverviewCard :billing="billing" class="min-w-0 lg:col-span-12" />
         <RecentWorkspacesCard :tenants="recentTenants" class="min-w-0 lg:col-span-12" />
         <PanelActivityCard :entries="activity" class="min-w-0 lg:col-span-12" />
     </div>

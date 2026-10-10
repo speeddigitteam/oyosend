@@ -43,7 +43,10 @@ function switchTo(slug: string): void {
                 class="flex w-full items-center gap-2.5 rounded-control p-1.5 text-left transition-colors hover:bg-hover"
                 :aria-label="t('shell.workspace.switch')"
             >
-                <Avatar :initials="initialsOf(tenant.name)" :name="tenant.slug" square />
+                <!-- `mark`: what stands for the workspace - its logo, when the layout has one. -->
+                <slot name="mark">
+                    <Avatar :initials="initialsOf(tenant.name)" :name="tenant.slug" square />
+                </slot>
                 <span class="min-w-0 flex-1">
                     <span class="block truncate text-sm leading-tight font-semibold text-ink">{{ tenant.name }}</span>
                     <span class="mt-0.5 block truncate font-mono text-[0.6875rem] leading-tight text-ink-subtle">{{ tenant.slug }}</span>

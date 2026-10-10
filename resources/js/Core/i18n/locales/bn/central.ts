@@ -8,6 +8,15 @@ const central: MessageSchema['central'] = {
         title: 'আপনার ওয়ার্কস্পেস খুঁজে নিন',
         headline: 'আপনার কাজের একটি ঠিকানা আছে।',
         lede: 'Oyosend একটি প্রতিষ্ঠান ও তার টিমকে নিজস্ব একটি ওয়ার্কস্পেস দেয়: সাইন ইন করার একটিই ঠিকানা, আর এমন ডেটা যা অন্য কোনো প্রতিষ্ঠান দেখতে পায় না।',
+        // Only while the platform accepts sign-ups.
+        create: 'ওয়ার্কস্পেস তৈরি করুন',
+        plans: {
+            label: 'প্ল্যান',
+            body: 'প্রতিটি ওয়ার্কস্পেস একটি প্ল্যানে থাকে। সাইন আপ করার সময় আপনি সেটি বেছে নেন।',
+            // The accessible name of a plan's button; the button itself shows `choose`.
+            choosePlan: '{plan} প্ল্যান বেছে নিন',
+            choose: 'বেছে নিন',
+        },
         find: {
             title: 'আপনার ওয়ার্কস্পেস খুঁজে নিন',
             label: 'ওয়ার্কস্পেসের ঠিকানা',

@@ -197,15 +197,17 @@ final class RoleManager
             'removed' => array_values(array_diff(array_keys($current), array_keys($requested))),
         ];
 
-        // Only grants that are narrower than "everything" are worth spelling out.
-        $narrowed = array_filter(
+        // Every grant whose reach changed, wider or narrower, and every new grant
+        // that is not "everything". A new grant of everything is the ordinary case
+        // and is already listed under `added`.
+        $rescoped = array_filter(
             $requested,
             static fn (AccessScope $scope, string $permission): bool => $scope !== ($current[$permission] ?? AccessScope::All),
             ARRAY_FILTER_USE_BOTH,
         );
 
-        if ($narrowed !== []) {
-            $changes['scopes'] = array_map(static fn (AccessScope $scope): string => $scope->value, $narrowed);
+        if ($rescoped !== []) {
+            $changes['scopes'] = array_map(static fn (AccessScope $scope): string => $scope->value, $rescoped);
         }
 
         $this->audit->record('role.permissions_changed', $role, $changes);

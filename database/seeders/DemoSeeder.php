@@ -70,7 +70,19 @@ class DemoSeeder extends Seeder
         User $owner,
         array $members,
     ): void {
-        if (Tenant::query()->where('slug', $slug)->exists()) {
+        $existing = Tenant::query()->where('slug', $slug)->first();
+
+        if ($existing !== null) {
+            // A local database from before plans existed: put the workspace on
+            // its plan and leave everything else in it as it is.
+            app(TenantContext::class)->run($existing, function () use ($plan): void {
+                $subscriptions = app(SubscriptionManager::class);
+
+                if ($subscriptions->current() === null) {
+                    $subscriptions->start($plan, BillingInterval::Monthly);
+                }
+            });
+
             return;
         }
 
@@ -102,7 +114,7 @@ class DemoSeeder extends Seeder
     private function plans(): array
     {
         $definitions = [
-            'free' => ['Free', 'For trying things out with a small team.', 0, null, 0, 3, 10],
+            'free' => ['Free', 'For trying things out with a small team.', 0, null, 0, 5, 10],
             'starter' => ['Starter', 'For a small business getting organised.', 150000, 1500000, 14, 10, 20],
             'business' => ['Business', 'For a growing company with several teams.', 450000, 4500000, 14, 50, 30],
             'enterprise' => ['Enterprise', 'For a large organisation. No limit on members.', 1200000, 12000000, 14, null, 40],

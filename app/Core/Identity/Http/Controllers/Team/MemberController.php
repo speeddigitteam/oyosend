@@ -17,6 +17,7 @@ use App\Core\Support\Like;
 use App\Core\Support\Toast;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -116,29 +117,33 @@ final class MemberController
         /** @var User $actor */
         $actor = $request->user('web');
 
-        if (isset($input['role_id'])) {
-            // forCurrentTenant(): a role id from another tenant is simply not found.
-            $role = Role::query()->forCurrentTenant()->findOrFail($input['role_id']);
+        // One request, one change: when a later part is refused or not found,
+        // the parts before it are not left applied.
+        DB::transaction(function () use ($input, $actor, $membership, $members): void {
+            if (isset($input['role_id'])) {
+                // forCurrentTenant(): a role id from another tenant is simply not found.
+                $role = Role::query()->forCurrentTenant()->findOrFail($input['role_id']);
 
-            $members->changeRole($actor, $membership, $role);
-        }
+                $members->changeRole($actor, $membership, $role);
+            }
 
-        if (isset($input['status'])) {
-            $members->setStatus($actor, $membership, MembershipStatus::from($input['status']));
-        }
+            if (isset($input['status'])) {
+                $members->setStatus($actor, $membership, MembershipStatus::from($input['status']));
+            }
 
-        if (array_key_exists('branch_id', $input) || array_key_exists('department_id', $input)) {
-            // Tenant-scoped lookups: an id from another workspace is simply not found.
-            $branchId = array_key_exists('branch_id', $input) ? $input['branch_id'] : $membership->branch_id;
-            $departmentId = array_key_exists('department_id', $input) ? $input['department_id'] : $membership->department_id;
+            if (array_key_exists('branch_id', $input) || array_key_exists('department_id', $input)) {
+                // Tenant-scoped lookups: an id from another workspace is simply not found.
+                $branchId = array_key_exists('branch_id', $input) ? $input['branch_id'] : $membership->branch_id;
+                $departmentId = array_key_exists('department_id', $input) ? $input['department_id'] : $membership->department_id;
 
-            $members->place(
-                $actor,
-                $membership,
-                $branchId === null ? null : Branch::query()->findOrFail($branchId),
-                $departmentId === null ? null : Department::query()->findOrFail($departmentId),
-            );
-        }
+                $members->place(
+                    $actor,
+                    $membership,
+                    $branchId === null ? null : Branch::query()->findOrFail($branchId),
+                    $departmentId === null ? null : Department::query()->findOrFail($departmentId),
+                );
+            }
+        });
 
         Toast::success(__('Member updated.'));
 

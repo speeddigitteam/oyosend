@@ -1,1 +1,137 @@
-export default {};
+/**
+ * Messages for the contact directory: the people (`Contacts/Index`) and the
+ * companies (`Contacts/Companies`). English is the source of truth for keys.
+ *
+ * Counts come in two keys, `one` and `other`, picked in code: vue-i18n's own
+ * plural syntax needs the pipe character, which the catalogues avoid.
+ */
+export default {
+    // The switch between the two lists.
+    tabs: {
+        label: 'Contacts and companies',
+        people: 'People',
+        companies: 'Companies',
+    },
+    // One label per field, shared by the columns, the forms and the details of both lists.
+    fields: {
+        name: 'Name',
+        firstName: 'First name',
+        lastName: 'Last name',
+        email: 'Email',
+        phone: 'Phone',
+        jobTitle: 'Job title',
+        company: 'Company',
+        website: 'Website',
+        industry: 'Industry',
+        taxId: 'Tax ID',
+        address: 'Address',
+        city: 'City',
+        country: 'Country',
+        location: 'Location',
+        notes: 'Notes',
+        owner: 'Owner',
+        people: 'People',
+        added: 'Added',
+    },
+    // What both lists say and offer.
+    list: {
+        clearSearch: 'Clear search',
+        clearFilters: 'Clear filters',
+        found: {
+            one: '{count} match',
+            other: '{count} matches',
+        },
+        actions: 'Actions',
+        menu: 'Actions for {name}',
+        view: 'View details',
+        noOwner: 'No one',
+        notRecorded: 'Not recorded',
+        opensNewTab: 'opens in a new tab',
+        noMatch: {
+            title: 'Nothing matches “{query}”',
+            body: 'Check the spelling, or try an email address or a phone number.',
+        },
+    },
+    form: {
+        noCountry: 'Not set',
+        notesHint: 'Everyone who can see this record can read its notes.',
+        ownerHint: 'Some roles only reach their own records, or those of their department or branch. The owner decides which records those are.',
+    },
+    people: {
+        title: 'Contacts',
+        description: 'The people {workspace} deals with: customers, suppliers and partners.',
+        caption: 'Contacts in this workspace',
+        add: 'Add contact',
+        search: 'Search by name, email or phone',
+        count: {
+            one: '{count} contact',
+            other: '{count} contacts',
+        },
+        showCompany: 'Show the contacts at {company}',
+        clearCompany: 'Show contacts from every company',
+        details: 'Contact details',
+        access: {
+            viewOnly: 'You can look through the contacts here. Adding and changing them is not part of your role.',
+            partial: 'You can add contacts and change the ones that are yours to manage. The others are view only.',
+        },
+        empty: {
+            title: 'No contacts yet',
+            body: 'Add the people you work with. Each of them can be put in a company.',
+            bodyViewOnly: 'Contacts you are allowed to see will appear here.',
+            companyTitle: 'No contacts at {company}',
+            companyBody: 'Contacts that are put in this company appear here.',
+            showAll: 'Show all contacts',
+        },
+        form: {
+            addTitle: 'Add a contact',
+            editTitle: 'Edit {name}',
+            description: 'Only the first name is required.',
+            noCompany: 'No company',
+            noCompanies: 'There are no companies to choose from yet. Add them under Companies.',
+        },
+        delete: {
+            title: 'Delete {name}?',
+            body: '{name} is removed from the contacts of {workspace} for everyone. This cannot be undone.',
+            confirm: 'Delete contact',
+        },
+    },
+    companies: {
+        title: 'Companies',
+        description: 'The organisations {workspace} deals with, and the people who work at each of them.',
+        caption: 'Companies in this workspace',
+        add: 'Add company',
+        search: 'Search by name, email or phone',
+        count: {
+            one: '{count} company',
+            other: '{count} companies',
+        },
+        // How many people a company has; `showPeople` takes this as {people}.
+        people: {
+            one: '{count} person',
+            other: '{count} people',
+        },
+        showPeople: 'Show the contacts at {company} ({people})',
+        details: 'Company details',
+        access: {
+            viewOnly: 'You can look through the companies here. Adding and changing them is not part of your role.',
+            partial: 'You can add companies and change the ones that are yours to manage. The others are view only.',
+        },
+        empty: {
+            title: 'No companies yet',
+            body: 'Add the organisations you work with, then put your contacts in them.',
+            bodyViewOnly: 'Companies you are allowed to see will appear here.',
+        },
+        form: {
+            addTitle: 'Add a company',
+            editTitle: 'Edit {name}',
+            description: 'Only the name is required.',
+            websiteHint: 'The full address, starting with https:// or http://',
+        },
+        delete: {
+            title: 'Delete {name}?',
+            body: '{name} is removed from the companies of {workspace} for everyone. This cannot be undone.',
+            peopleStay: 'Its people stay in the directory, without a company.',
+            confirm: 'Delete company',
+        },
+    },
+};

@@ -17,13 +17,15 @@ const { t } = useI18n();
 
 const locales = computed(() => Object.entries(page.props.app.locales).map(([code, name]) => ({ code, name })));
 
-// The Super Admin panel is English-only for now and has no locale route.
+// Each area has its own route: only the current area's routes are known to the browser.
 const endpoint = computed(() => {
     switch (page.props.app.area) {
         case 'tenant':
             return route('core.locale.update');
         case 'central':
             return route('central.locale.update');
+        case 'platform':
+            return route('platform.locale.update');
         default:
             return null;
     }

@@ -1,10 +1,9 @@
 import type { MessageSchema } from '@/Core/i18n';
 
 /**
- * Messages for the `platform` pages (the Super Admin panel).
- *
- * The English file notes that the panel is English-only for now; this
- * translation is ready for when the panel follows the person's language.
+ * Messages for the `platform` pages (the Super Admin panel): sign-in, the
+ * dashboard and the workspace directory. The panel follows the language the
+ * operator picks from the switch in its top bar.
  */
 const platform: MessageSchema['platform'] = {
     // Signed-out screens. Operators have no "remember me" and no self-service recovery.
@@ -45,8 +44,13 @@ const platform: MessageSchema['platform'] = {
             signedInAs: 'সাইন ইন করা অ্যাকাউন্ট',
         },
     },
+    // The operator's role, under their name in the account menu. Keyed by PlatformRole.
+    roles: {
+        super_admin: 'সুপার অ্যাডমিন',
+        support_admin: 'সাপোর্ট অ্যাডমিন',
+    },
     dashboard: {
-        description: 'ওয়ার্কস্পেস, ব্যবহারকারী এবং যেসব সার্ভিসের ওপর প্ল্যাটফর্মটি চলে।',
+        description: 'ওয়ার্কস্পেস, ব্যবহারকারী, পাওনা অর্থ এবং যেসব সার্ভিসের ওপর প্ল্যাটফর্মটি চলে।',
         stats: {
             tenants: 'ওয়ার্কস্পেস',
             newThisMonth: 'এ মাসে {count}টি নতুন',
@@ -57,6 +61,21 @@ const platform: MessageSchema['platform'] = {
             pendingHint: 'নিবন্ধিত, এখনো অনুমোদিত নয়',
             suspended: 'স্থগিত',
             suspendedHint: 'অ্যাক্সেস বন্ধ, ডেটা রাখা আছে',
+        },
+        billing: {
+            title: 'সাবস্ক্রিপশন ও ইনভয়েস',
+            description: 'ওয়ার্কস্পেসগুলোর প্ল্যান কোন অবস্থায় আছে, এবং কোন কাজগুলো আপনার অপেক্ষায় আছে।',
+            subscriptions: 'অবস্থা অনুযায়ী সাবস্ক্রিপশন',
+            noSubscriptions: 'এখনো কোনো ওয়ার্কস্পেস কোনো প্ল্যানে নেই।',
+            attention: 'অপেক্ষায় আছে',
+            openInvoices: 'অপরিশোধিত ইনভয়েস',
+            openInvoicesHint: 'তৈরি হয়েছে, এখনো পরিশোধ করা হয়নি',
+            overdueInvoices: 'বকেয়া ইনভয়েস',
+            overdueInvoicesHint: 'পরিশোধের শেষ তারিখ পেরিয়ে গেছে',
+            pendingApprovals: 'অনুমোদনের অপেক্ষায় থাকা সাইন আপ',
+            pendingApprovalsHint: 'কোনো অ্যাডমিন অনুমোদন না করা পর্যন্ত সদস্যদের জন্য বন্ধ',
+            viewInvoices: 'অপরিশোধিত ইনভয়েস',
+            reviewPending: 'সাইন আপগুলো দেখুন',
         },
         totals: {
             title: 'প্ল্যাটফর্মের মোট হিসাব',
@@ -109,12 +128,14 @@ const platform: MessageSchema['platform'] = {
         emptyBody: 'এই প্যানেলে সাইন ইন এবং প্ল্যাটফর্ম পর্যায়ের ঘটনা এখানে দেখা যাবে।',
     },
     tenants: {
-        description: 'প্রতিটি ওয়ার্কস্পেস একজন গ্রাহকের এবং নিজস্ব ঠিকানায় চলে। এই তালিকা শুধু দেখার জন্য।',
+        description: 'প্রতিটি ওয়ার্কস্পেস একজন গ্রাহকের এবং নিজস্ব ঠিকানায় চলে। প্ল্যান, ইনভয়েস ও কার্যকলাপ দেখতে যেকোনো একটি খুলুন।',
         caption: 'প্ল্যাটফর্মের ওয়ার্কস্পেসগুলো',
+        create: 'ওয়ার্কস্পেস তৈরি করুন',
         columns: {
             name: 'ওয়ার্কস্পেস',
             address: 'ঠিকানা',
             status: 'অবস্থা',
+            plan: 'প্ল্যান',
             members: 'সদস্য',
             locale: 'ভাষা',
             currency: 'মুদ্রা',

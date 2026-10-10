@@ -60,7 +60,10 @@ final class UpdateWorkspaceProfile
     {
         $tenant->fill(array_intersect_key($attributes, array_flip(self::EDITABLE)));
 
-        $changes = $tenant->getDirty();
+        // Only what this action may change. A tenant loaded from the database
+        // also reports its `data` column as dirty: the tenancy package empties
+        // it in memory. That is no change to the workspace and nothing to record.
+        $changes = array_intersect_key($tenant->getDirty(), array_flip(self::EDITABLE));
 
         if ($changes === []) {
             return $tenant;

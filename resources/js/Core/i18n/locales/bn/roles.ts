@@ -67,6 +67,13 @@ const roles: MessageSchema['roles'] = {
             other: 'আপনি শুধু সেই অনুমতিগুলোই দিতে পারবেন যা আপনার নিজের আছে। নিচের {count}টি অনুমতি লক করা: এগুলো আপনি এই ভূমিকায় যোগ করতেও পারবেন না, সরিয়ে নিতেও পারবেন না।',
         },
         lockedItem: 'এই অনুমতি আপনার নেই, তাই এটি পরিবর্তন করতে পারবেন না',
+        lockedWider: 'এই অনুমতির পরিসর আপনার নিজের পরিসরের চেয়ে বড়, তাই এটি পরিবর্তন করতে পারবেন না',
+        // How far a ticked permission reaches. The scope names themselves are in the catalogue.
+        scopesHelp: 'কিছু অনুমতি সদস্যের নিজের রেকর্ডে, অথবা তাঁর বিভাগ বা শাখার রেকর্ডে সীমিত রাখা যায়। এমন কোনো অনুমতিতে টিক দেওয়ার পর তার নিচে পরিসর বেছে নিন।',
+        scope: 'পরিসর',
+        scopeFor: '“{permission}” অনুমতির পরিসর',
+        scopeIs: 'পরিসর: {scope}',
+        scopeLimited: 'এই অনুমতিতে আপনার নিজের পরিসর “{scope}”, তাই এর চেয়ে বড় পরিসরে এটি দিতে পারবেন না।',
         sensitive: 'সংবেদনশীল',
         granted: 'দেওয়া আছে',
         // Read out after a group name: "সদস্য, সব নির্বাচন করুন".
@@ -81,6 +88,7 @@ const roles: MessageSchema['roles'] = {
             ownerAll: 'অনুমতি, সবগুলোই',
             added: '{count}টি যোগ হয়েছে',
             removed: '{count}টি সরানো হয়েছে',
+            rescoped: '{count}টির পরিসর বদলেছে',
             sensitive: '{count}টি সংবেদনশীল',
             unsaved: 'বিস্তারিত পরিবর্তিত হয়েছে',
         },

@@ -97,21 +97,39 @@ final class InvoiceIssuer
 
         // Nothing to ask for when credit covers the whole price.
         if ($invoice->total_amount > 0 && ($contact = BillingContact::ofActiveWorkspace()) !== null) {
-            Mail::to($contact->email)->locale($contact->locale)->queue((new InvoiceIssuedMail($invoice))->afterCommit());
+            // Queued once the invoice is committed, and inside this workspace
+            // wherever that commit happens (sign-up commits outside it).
+            $this->context->afterCommit(static function () use ($contact, $invoice): void {
+                Mail::to($contact->email)->locale($contact->locale)->queue(new InvoiceIssuedMail($invoice));
+            });
         }
 
         return $invoice;
     }
 
+    /**
+     * Withdraw an invoice of the active workspace that is still open. One
+     * that was paid or withdrawn already is left alone.
+     */
     public function void(Invoice $invoice): void
     {
-        if (! $invoice->isOpen()) {
+        // Read again, under a lock: the copy in hand may predate a payment,
+        // and an invoice that has been paid is never withdrawn.
+        /** @var Invoice|null $current */
+        $current = Invoice::query()->lockForUpdate()->find($invoice->getKey());
+
+        if ($current === null) {
             return;
         }
 
-        $invoice->update(['status' => InvoiceStatus::Void, 'voided_at' => Carbon::now()]);
+        if ($current->isOpen()) {
+            $current->update(['status' => InvoiceStatus::Void, 'voided_at' => Carbon::now()]);
 
-        $this->audit->record('billing.invoice_voided', $invoice);
+            $this->audit->record('billing.invoice_voided', $current);
+        }
+
+        // The caller's copy says what the database says.
+        $invoice->setRawAttributes($current->getAttributes(), true);
     }
 
     /**

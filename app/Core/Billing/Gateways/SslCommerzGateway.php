@@ -112,10 +112,20 @@ final class SslCommerzGateway implements PaymentGateway
         $this->requireConfigured();
 
         $valId = $payload['val_id'] ?? null;
+        $transaction = null;
 
-        $transaction = is_string($valId) && $valId !== ''
-            ? $this->validate($valId)
-            : $this->queryByReference($payment->reference);
+        if (is_string($valId) && $valId !== '') {
+            $answer = $this->validate($valId);
+
+            // The `val_id` is whatever the caller sent. An answer about some other
+            // transaction says nothing about this one, good or bad, and is dropped.
+            if ($answer !== null && ($answer['tran_id'] ?? null) === $payment->reference) {
+                $transaction = $answer;
+            }
+        }
+
+        // Asked by our own reference: the answer can only be about this payment.
+        $transaction ??= $this->queryByReference($payment->reference);
 
         if ($transaction === null) {
             return new VerifiedPayment(PaymentStatus::Pending);
@@ -132,8 +142,8 @@ final class SslCommerzGateway implements PaymentGateway
             return new VerifiedPayment($status, failureReason: $this->text($transaction['error'] ?? null));
         }
 
-        // An answer about some other transaction proves nothing about this one.
-        if (($transaction['tran_id'] ?? null) !== $payment->reference) {
+        // Cannot happen for an answer that was asked for by our reference; refused all the same.
+        if (isset($transaction['tran_id']) && $transaction['tran_id'] !== $payment->reference) {
             return new VerifiedPayment(PaymentStatus::Failed, failureReason: 'The gateway answered about a different transaction.');
         }
 

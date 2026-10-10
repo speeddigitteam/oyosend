@@ -21,6 +21,8 @@ const team: MessageSchema['team'] = {
         columns: {
             member: 'নাম',
             role: 'ভূমিকা',
+            branch: 'শাখা',
+            department: 'বিভাগ',
             status: 'অবস্থা',
             twoFactor: 'দুই-ধাপ',
             joined: 'যোগ দিয়েছেন',
@@ -34,9 +36,15 @@ const team: MessageSchema['team'] = {
         actions: {
             menu: '{name}-এর জন্য অ্যাকশন',
             changeRole: 'ভূমিকা পরিবর্তন করুন',
+            place: 'শাখা ও বিভাগ',
             suspend: 'স্থগিত করুন',
             reactivate: 'আবার সক্রিয় করুন',
             remove: 'ওয়ার্কস্পেস থেকে সরিয়ে দিন',
+        },
+        // Shown instead of the placement action while the workspace has nothing to place people in.
+        organize: {
+            body: 'এই ওয়ার্কস্পেসে এখনো কোনো শাখা বা বিভাগ নেই। যোগ করা হলে এখান থেকেই সদস্যদের সেগুলোতে রাখতে পারবেন।',
+            link: 'শাখা ও বিভাগ সেট আপ করুন',
         },
         empty: {
             title: 'এখনো কোনো সদস্য নেই',
@@ -53,6 +61,16 @@ const team: MessageSchema['team'] = {
         placeholder: 'একটি ভূমিকা বেছে নিন',
         hint: 'যে ভূমিকার সব অনুমতি আপনার নিজের আছে, সেই ভূমিকাই আপনি দিতে পারবেন।',
         submit: 'ভূমিকা পরিবর্তন করুন',
+    },
+    placement: {
+        title: '{name}-এর শাখা ও বিভাগ',
+        description: 'কেউ কোন শাখা ও বিভাগে আছেন, তা-ই ঠিক করে শাখা বা বিভাগে সীমিত কোনো অনুমতি দিয়ে তিনি কোন রেকর্ডগুলোতে অ্যাক্সেস পাবেন।',
+        branch: 'শাখা',
+        department: 'বিভাগ',
+        noBranch: 'কোনো শাখা নেই',
+        noDepartment: 'কোনো বিভাগ নেই',
+        missing: 'যেটি দরকার সেটি তালিকায় নেই?',
+        manage: 'শাখা ও বিভাগ পৃষ্ঠায় গিয়ে যোগ করুন',
     },
     suspend: {
         title: '{name}-কে স্থগিত করবেন?',

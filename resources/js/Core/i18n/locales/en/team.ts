@@ -19,6 +19,8 @@ export default {
         columns: {
             member: 'Name',
             role: 'Role',
+            branch: 'Branch',
+            department: 'Department',
             status: 'Status',
             twoFactor: 'Two-step',
             joined: 'Joined',
@@ -32,9 +34,15 @@ export default {
         actions: {
             menu: 'Actions for {name}',
             changeRole: 'Change role',
+            place: 'Branch and department',
             suspend: 'Suspend',
             reactivate: 'Reactivate',
             remove: 'Remove from workspace',
+        },
+        // Shown instead of the placement action while the workspace has nothing to place people in.
+        organize: {
+            body: 'This workspace has no branches or departments yet. Once it does, you can put people in them here.',
+            link: 'Set up branches and departments',
         },
         empty: {
             title: 'No members yet',
@@ -51,6 +59,16 @@ export default {
         placeholder: 'Choose a role',
         hint: 'You can hand out any role whose permissions you hold yourself.',
         submit: 'Change role',
+    },
+    placement: {
+        title: 'Branch and department for {name}',
+        description: 'Where someone sits decides which records a permission limited to a branch or a department lets them reach.',
+        branch: 'Branch',
+        department: 'Department',
+        noBranch: 'No branch',
+        noDepartment: 'No department',
+        missing: 'Is the one you need not listed?',
+        manage: 'Add it under Branches & departments',
     },
     suspend: {
         title: 'Suspend {name}?',

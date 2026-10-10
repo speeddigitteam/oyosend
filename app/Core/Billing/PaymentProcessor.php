@@ -76,7 +76,9 @@ final class PaymentProcessor
 
         try {
             $redirect = $gateway->initiate($payment, new PaymentRequest(
-                description: __('Invoice :number', ['number' => $invoice->number]),
+                // Not translated: it is shown by the provider, in the provider's
+                // own language, and some accept nothing but ASCII here.
+                description: 'Invoice '.$invoice->number,
                 customerName: $tenant->legal_name ?? $tenant->name,
                 customerEmail: $tenant->email ?? $payer->email,
                 customerPhone: $tenant->phone,
@@ -253,7 +255,10 @@ final class PaymentProcessor
         }
 
         if (($contact = BillingContact::ofActiveWorkspace()) !== null) {
-            Mail::to($contact->email)->locale($contact->locale)->queue((new PaymentReceivedMail($payment))->afterCommit());
+            // Queued once the payment is committed, inside this workspace wherever that happens.
+            $this->context->afterCommit(static function () use ($contact, $payment): void {
+                Mail::to($contact->email)->locale($contact->locale)->queue(new PaymentReceivedMail($payment));
+            });
         }
     }
 

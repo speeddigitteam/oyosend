@@ -1,6 +1,6 @@
 # Database
 
-State: end of Phase 1. Sections 1–3 describe the schema that exists (`database/migrations/`). Section 4 is an
+State: end of Phase 2. Sections 1–3 describe the schema that exists (`database/migrations/`). Section 4 is an
 outline of tables later phases will add. Section 5 is the dedicated-database strategy the spec asks for (3.4);
 **only its routing seam exists today.**
 
@@ -15,17 +15,23 @@ One MySQL 8 database, `utf8mb4` / `utf8mb4_unicode_ci`, strict mode. The applica
 | `tenant_id` | `foreignUlid('tenant_id')->constrained('tenants')->cascadeOnDelete()`. Always indexed. Model uses `BelongsToTenant` |
 | Unique indexes | Lead with `tenant_id`: `UNIQUE(tenant_id, …)`. Validation mirrors it: `Rule::unique(...)->where('tenant_id', …)` (see `RoleController::validated()`) |
 | Composite indexes | Start with `tenant_id`, then the common filter or sort column |
-| Money | Integer minor units (paisa/cents) plus a 3-letter currency code. Never floats or decimals. No money column exists yet, so the column naming is not established: decide it with the first one and record it here |
+| Money | Integer minor units (paisa/cents) in an unsigned `BIGINT` named `amount` or `{what}_amount`, next to a 3-letter `currency` on the same row. Never floats or decimals. `App\Core\Billing\Support\Money` turns it into a decimal string or text where the server needs one |
 | Enums | Short `VARCHAR` cast to a PHP enum (`status`, `role`, `scope`). No MySQL `ENUM` |
 | Polymorphic columns | Store the morph alias (`user`, `role`), never a class name. `Relation::requireMorphMap()` is on; aliases come from module manifests |
-| Soft deletes | Only where a record must be recoverable. Today: `tenants` only |
-| Secrets | Encrypted casts (`two_factor_secret`, `two_factor_recovery_codes`) or a one-way hash (`invitations.token_hash`). Never plain |
+| Soft deletes | Only where a record must be recoverable. Today: `tenants`, `contacts`, `companies` |
+| Secrets | Encrypted casts (`two_factor_secret`, `two_factor_recovery_codes`) or a one-way hash (`invitations.token_hash`, `workspace_registrations.token_hash` and `.password`, `impersonations.token_hash`). Never plain |
 | Migrations | Reversible (`down()` on every one). `DB::prohibitDestructiveCommands()` is on in production |
 | Raw queries | `DB::table()` bypasses both the tenant scope and the connection resolver. It must filter by `tenant_id` itself and is acceptable only for central tables |
 | Search filters | User text goes into `LIKE` only through `App\Core\Support\Like` (`contains()`, `escape()`), so `%` and `_` are matched as typed |
 
-Two intentional exceptions to "unique indexes lead with `tenant_id`": `users.email` (a user is a platform-wide
-identity, ADR 0003) and `invitations.token_hash` (the SHA-256 of a 64-character random token).
+Intentional exceptions to "unique indexes lead with `tenant_id`": `users.email` (a user is a platform-wide
+identity, ADR 0003); `invitations.token_hash` (the SHA-256 of a 64-character random token);
+`subscriptions.tenant_id` itself (one subscription per tenant); and three platform-wide identifiers on billing
+tables - `invoices.number`, `payments.reference` and `payments(gateway, gateway_reference)` - which must be
+unique across tenants because a gateway and an accountant see them without a tenant.
+
+"One live contact per email address" is not a unique index either: deleted contacts are kept, so validation
+enforces it among the rows that are not deleted.
 
 ## 2. Central vs tenant-owned
 
@@ -39,7 +45,14 @@ identity, ADR 0003) and `invitations.token_hash` (the SHA-256 of a 64-character 
 | `permissions` | Central catalogue | `Permission` | Same for every tenant; written only by `permissions:sync` |
 | `tenant_memberships` | Tenant-scoped rows, pinned to the central connection | `TenantMembership` | `BelongsToTenant` + `UsesCentralConnection` |
 | `roles`, `model_has_roles`, `model_has_permissions`, `role_has_permissions` | Tenant-owned rows, default connection | `Role` | Scoped by hand (ADR 0002) |
-| `invitations` | Tenant-owned | `Invitation` | `BelongsToTenant` (the only model that follows the tenant connection today) |
+| `invitations` | Tenant-owned | `Invitation` | `BelongsToTenant` (follows the tenant connection) |
+| `contacts`, `companies` | Tenant-owned | `Contact`, `Company` | `BelongsToTenant` (follow the tenant connection); record scopes through `HasRecordOwner` |
+| `branches`, `departments` | Tenant-scoped rows, pinned to the central connection | `Branch`, `Department` | `BelongsToTenant` + `UsesCentralConnection`: memberships reference them and authorization reads them on every request |
+| `plans` | Central catalogue | `Plan` | Same for every tenant; managed in the panel |
+| `subscriptions`, `invoices`, `payments`, `usage_records` | Central, keyed by `tenant_id` | `Subscription`, `Invoice`, `Payment`, `UsageRecord` | `BelongsToTenant` + `UsesCentralConnection`: a workspace sees only its own; the panel crosses tenants explicitly |
+| `platform_sequences`, `platform_settings` | Central | — / `PlatformSettings` | Not tenant data |
+| `workspace_registrations` | Central | `WorkspaceRegistration` | A sign-up before any tenant exists |
+| `impersonations` | Central, keyed by `tenant_id` | `Impersonation` | Platform's record of support sessions; read by the panel and by the redeeming workspace |
 | `audit_logs` | Tenant-scoped on read; `tenant_id` null for platform events; default connection | `AuditLog` | `ScopedToTenant` |
 | `cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs` | Framework | — | — |
 
@@ -59,7 +72,7 @@ identity, ADR 0003) and `invitations.token_hash` (the SHA-256 of a 64-character 
 | `timezone` | varchar(64), default `Asia/Dhaka` | The workspace's clock: display, the audit log's date filters, the expiry day in invitation mail |
 | `currency` | char(3), default `BDT` | |
 | `db_connection` | varchar(64), null | null = shared database. Set only when a tenant is moved (section 5) |
-| `trial_ends_at`, `suspended_at` | ts | Not read by any code yet |
+| `trial_ends_at`, `suspended_at` | ts | `suspended_at` is set and cleared by the panel's suspend / reactivate. `trial_ends_at` is not read: the trial lives on the subscription |
 | `data` | json, null | Package "virtual columns": attributes not listed in `Tenant::getCustomColumns()` land here |
 | timestamps, `deleted_at` | | Soft deletes; a soft-deleted tenant no longer resolves |
 
@@ -142,7 +155,8 @@ workspace switcher. Nothing in the schema enforces a single owner per tenant; th
   `TenantProvisioner` from `Access\DefaultRoles`. The roles page lists them in that order
   (`Role::SYSTEM_ORDER`), then custom roles by name.
 - `model_has_roles.tenant_id` leads the primary key, so the same user holds different roles per tenant.
-- `role_has_permissions.scope` is `own`, `department`, `branch` or `all`. Every grant is written as `all` today.
+- `role_has_permissions.scope` is `own`, `department`, `branch` or `all`. Only a permission declared `scopable`
+  can be narrower than `all` (ADR 0007).
 - `model_has_permissions` (direct grants to a user) is **not read** by `PermissionResolver`. Do not use it.
 - `permissions.module` is derived from the first segment of the name and is what the entitlement check keys on.
 
@@ -186,6 +200,146 @@ force-deleting a tenant removes its trail; tenants are soft-deleted in normal op
 `cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs`: stock Laravel. `cache` and `jobs` are used only
 when `CACHE_STORE` / `QUEUE_CONNECTION` is `database`; the project runs both on Redis.
 
+## 3a. Phase 2 tables
+
+Migrations `2026_10_10_000010` to `000050`. "ownership" = the three columns `HasRecordOwner` needs: `owner_id`
+ULID null FK → `tenant_memberships` (null on delete), `department_id` ULID null FK → `departments` (null on
+delete), `branch_id` ULID null FK → `branches` (null on delete).
+
+### tenants (added columns) — `000040`
+
+| Column | Type | Notes |
+|---|---|---|
+| `legal_name`, `email`, `website` | varchar(255), null | The company behind the workspace; printed on its invoices from the platform |
+| `phone` | varchar(40), null | |
+| `address`, `city`, `postal_code`, `country`, `tax_id` | varchar(500) / (120) / (20) / char(2) / varchar(60), null | `country` is ISO 3166-1 alpha-2 |
+| `logo_path` | varchar(255), null | Tenant-relative path on the tenant disk (`TenantStorage`) |
+| `onboarded_at` | ts | null = first-run setup still to do. Existing rows were set to `created_at` |
+
+`trial_ends_at` on `tenants` is still not read by any code: the trial lives on the subscription.
+
+### tenant_memberships (added columns) — `000010`
+
+`branch_id` ULID null FK → `branches` (null on delete), `department_id` ULID null FK → `departments` (null on
+delete); indexes `(tenant_id, branch_id)` and `(tenant_id, department_id)`.
+
+### branches, departments — `000010`
+
+| Table | Columns | Keys and indexes |
+|---|---|---|
+| `branches` | `id` ULID, `tenant_id` FK (cascade), `name` varchar(120), `code` varchar(30) null, `phone` varchar(40) null, `address` varchar(500) null, timestamps | `UNIQUE(tenant_id, name)`, `UNIQUE(tenant_id, code)` |
+| `departments` | `id` ULID, `tenant_id` FK (cascade), `name` varchar(120), `code` varchar(30) null, `description` varchar(255) null, timestamps | `UNIQUE(tenant_id, name)`, `UNIQUE(tenant_id, code)` |
+
+Several rows may have no `code`: MySQL does not compare NULLs in a unique index.
+
+### companies, contacts — `000020`
+
+| Table | Columns | Keys and indexes |
+|---|---|---|
+| `companies` | `id` ULID, `tenant_id` FK (cascade), `name` varchar(200), `email`, `phone` varchar(40), `website`, `industry` varchar(120), `tax_id` varchar(60), `address` varchar(500), `city` varchar(120), `country` char(2), `notes` text (all nullable but `name`), ownership, timestamps, `deleted_at` | Indexes `(tenant_id, name)`, `(tenant_id, owner_id)`, `(tenant_id, department_id)`, `(tenant_id, branch_id)` |
+| `contacts` | `id` ULID, `tenant_id` FK (cascade), `company_id` ULID null FK → `companies` (null on delete), `first_name` varchar(100), `last_name` varchar(100) null, `email` null, `phone` varchar(40) null, `job_title` varchar(120) null, `address`, `city`, `country`, `notes` (null), ownership, timestamps, `deleted_at` | Indexes `(tenant_id, email)`, `(tenant_id, phone)`, `(tenant_id, company_id)`, `(tenant_id, first_name, last_name)`, and the three ownership indexes |
+
+- These two tables are the one shared customer identity (spec section 0). A module attaches its own data by
+  `contact_id` / `company_id`; it does not keep a customer table of its own. Writes go through
+  `App\Core\Contacts\ContactDirectory`.
+- Deleting is a soft delete. A soft-deleted company's contacts stay and lose their `company_id` (done by
+  `ContactDirectory`, because the foreign key only acts on a hard delete).
+
+### plans — `000030`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | ULID, PK | |
+| `key` | varchar(40), **unique** | `starter`. Stable; what a sign-up link names |
+| `name`, `description` | varchar(80) / varchar(255) null | |
+| `currency` | char(3) | |
+| `monthly_amount`, `yearly_amount` | unsigned bigint, null | null = not sold for that interval; 0 = free |
+| `trial_days` | unsigned smallint, default 0 | |
+| `modules` | json | Keys of the optional modules the plan includes |
+| `limits` | json | Limit key → maximum; a missing key means unlimited |
+| `is_public`, `is_active` | boolean, default true | Public: offered to workspaces. Active: accepts new subscribers. A plan is archived, never deleted |
+| `sort_order` | smallint, default 0 | |
+| timestamps | | Index `(is_active, is_public, sort_order)` |
+
+### subscriptions — `000030`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | ULID, PK | |
+| `tenant_id` | ULID, FK → `tenants` (cascade), **unique** | One per tenant; history is in invoices and the audit trail |
+| `plan_id` | ULID, FK → `plans` (restrict) | |
+| `status` | varchar(20) | `SubscriptionStatus`: `trialing`, `active`, `past_due`, `expired`, `canceled` |
+| `interval` | varchar(10) | `BillingInterval`: `monthly`, `yearly` |
+| `currency`, `amount` | char(3), unsigned bigint | Price per interval, fixed when the plan was taken; renewals use it |
+| `trial_ends_at`, `current_period_start`, `current_period_end`, `grace_ends_at` | ts | `current_period_end` null = no end (free plan). While past due it holds the boundary the unpaid period began at |
+| `cancel_at_period_end`, `canceled_at`, `ended_at` | boolean, ts, ts | |
+| `pending_plan_id`, `pending_interval` | ULID null FK → `plans` (null on delete), varchar(10) null | A downgrade waiting for the paid period to end |
+| timestamps | | Indexes `(status, current_period_end)`, `(status, trial_ends_at)` |
+
+### invoices — `000030`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | ULID, PK | |
+| `tenant_id` | ULID, FK (cascade) | |
+| `subscription_id` | ULID null, FK → `subscriptions` (null on delete) | |
+| `number` | varchar(30), **unique** | `INV-2026-000042`, one counter for the platform |
+| `kind` | varchar(20) | `InvoiceKind`: `subscription`, `renewal`, `change` |
+| `status` | varchar(20) | `InvoiceStatus`: `open`, `paid`, `void` |
+| `plan_id`, `interval`, `period_start`, `period_end` | ULID null FK → `plans` (null on delete), varchar(10) null, ts, ts | What paying it buys |
+| `currency`, `subtotal_amount`, `credit_amount`, `total_amount` | char(3), unsigned bigint ×3 | `total = subtotal − credit` |
+| `lines` | json | `[{type: "plan", plan, interval, amount}, {type: "credit", amount}]`, as issued |
+| `billed_to` | json, null | The company profile as it was when issued |
+| `issued_at`, `due_at`, `paid_at`, `voided_at` | timestamp, ts ×3 | |
+| timestamps | | Indexes `(tenant_id, status)`, `(tenant_id, issued_at)`, `(status, due_at)` |
+
+### payments — `000030`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | ULID, PK | |
+| `tenant_id`, `invoice_id` | ULID, FK (cascade) | |
+| `gateway` | varchar(40) | A gateway key, or `offline` for money recorded by an operator |
+| `method` | varchar(40), null | `VISA`, `bank_transfer`, … |
+| `status` | varchar(20) | `PaymentStatus`: `pending`, `succeeded`, `failed`, `canceled` |
+| `currency`, `amount` | char(3), unsigned bigint | Always the invoice's total |
+| `reference` | varchar(40), **unique** | Our transaction id (a ULID), the one given to the gateway |
+| `gateway_reference` | varchar(120), null | The provider's transaction id. `UNIQUE(gateway, gateway_reference)`: recorded once, however often its notification arrives |
+| `paid_at`, `failed_at`, `failure_reason` | ts, ts, varchar(255) null | |
+| `details` | json, null | What the gateway's verification answered, or the note of an offline payment. Never card data or credentials |
+| `recorded_by` | ULID null, FK → `platform_users` (null on delete) | Offline payments |
+| timestamps | | Indexes `(tenant_id, status)`, `(invoice_id, status)` |
+
+### usage_records, platform_sequences — `000030`
+
+| Table | Columns | Keys and indexes |
+|---|---|---|
+| `usage_records` | `id` ULID, `tenant_id` FK (cascade), `meter` varchar(60), `quantity` unsigned bigint, `idempotency_key` varchar(120), `meta` json null, `occurred_at` timestamp, `created_at` | `UNIQUE(tenant_id, idempotency_key)`; index `(tenant_id, meter, occurred_at)` |
+| `platform_sequences` | `name` varchar(60) PK, `value` unsigned bigint | One row per counter; `invoice` is the only one |
+
+### workspace_registrations — `000040`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | ULID, PK | |
+| `email`, `name`, `company` | varchar | |
+| `password` | varchar(255) | Hashed. Used only if the address has no account when the sign-up is confirmed |
+| `slug` | varchar(63) | The address being reserved |
+| `locale` | varchar(8) | |
+| `plan_id`, `interval` | ULID null FK → `plans` (null on delete), varchar(10) null | |
+| `token_hash` | char(64), **unique** | SHA-256 of the emailed token |
+| `expires_at`, `completed_at` | timestamp, ts | Waiting = not completed and not expired |
+| `tenant_id` | ULID null, FK → `tenants` (null on delete) | Set when completed |
+| `ip_address`, timestamps | | Indexes `(slug, completed_at, expires_at)`, `(email, completed_at)` |
+
+Pruned daily: unconfirmed rows a day after they expire, completed rows after a month.
+
+### platform_settings, impersonations — `000050`
+
+| Table | Columns | Keys and indexes |
+|---|---|---|
+| `platform_settings` | `key` varchar(100) PK, `value` json, timestamps | Only settings that differ from `config/platform.php` are stored |
+| `impersonations` | `id` ULID, `platform_user_id` FK → `platform_users` (cascade), `tenant_id` FK (cascade), `user_id` FK → `users` (cascade), `reason` varchar(500), `token_hash` char(64) null **unique**, `token_expires_at` ts, `started_at` ts, `expires_at` timestamp, `ended_at` ts, `ip_address`, timestamps | Indexes `(tenant_id, created_at)`, `(platform_user_id, created_at)` |
 ## 4. Later tables (outline only)
 
 Names come from spec section 23. Nothing below is designed in detail or migrated. Spec 3.4 names plans, apps and
@@ -194,14 +348,10 @@ not name, to be confirmed when they are designed.
 
 | Group | Phase | Tables | Ownership | Fixed by the spec |
 |---|---|---|---|---|
-| Core SaaS | 2 | `branches`, `departments` | Tenant-owned | Needed before the `branch` / `department` access scopes can be evaluated |
-| Core SaaS | 2 | `contacts`, `companies` | Tenant-owned | One shared customer identity reused by CRM, marketing, support and projects; no duplicate customer tables |
 | Core SaaS | 8 | `notifications` | Tenant-owned | In-app, email, SMS, WhatsApp, realtime; read/unread; delivery tracking |
 | Core SaaS | not assigned | `files`, `integrations`, `api_credentials`, `webhooks` | Tenant-owned | Files polymorphic, private, tenant-prefixed; credentials encrypted; webhook idempotency by provider event id |
-| Billing | 2 | `plans` | Central | Starter, Business, Enterprise, Custom; monthly and yearly |
-| Billing | 2 | `invoices` (platform → tenant) | Central, keyed by `tenant_id` | Distinct from the Invoicing app's customer invoices (Phase 6) |
-| Billing | 2 | `subscriptions`, `subscription_items`, `payments` | Central, keyed by `tenant_id` † | Payment confirmed only by backend gateway verification |
-| Billing | 2 | `usage_records` | Central, keyed by `tenant_id` † | Unique idempotency key per event |
+| Billing | 3 | `subscription_items` | Central, keyed by `tenant_id` † | App subscriptions independent of the base plan, per-seat pricing |
+| Billing | not assigned | coupons, refunds | Central † | Spec section 16 lists them; nothing is designed |
 | App Store | 3 | `apps`, `app_versions` | Central catalogue | Apps are first-party modules; tenants cannot upload code |
 | App Store | 3 | `app_installations`, `app_entitlements` | Central, keyed by `tenant_id` † | Entitlement only after server-side payment verification; uninstall never deletes business data |
 | Automation | 10 | `workflows`, `workflow_versions` | Tenant-owned | Versioned JSON graphs; only published versions execute |
@@ -247,8 +397,10 @@ Found while reading the Phase 1 code:
    `config/database.php`.
 3. Raw `DB::table()` calls ignore the resolver. `RoleManager::delete()` reads `invitations` that way
    (`RoleManager.php:89`).
-4. Foreign keys cannot cross databases: `invitations.role_id → roles`, `invitations.invited_by → users` and every
-   `tenant_id → tenants` on a moved table would have to be dropped and enforced in code.
+4. Foreign keys cannot cross databases: `invitations.role_id → roles`, `invitations.invited_by → users`,
+   `contacts` / `companies` `.owner_id → tenant_memberships`, `.department_id → departments` and
+   `.branch_id → branches`, and every `tenant_id → tenants` on a moved table would have to be dropped and
+   enforced in code.
 5. `roles`, their pivots and `audit_logs` use the default connection because their models do not go through the
    resolver. Decide whether they move with the tenant or stay central.
 6. `DB::transaction()` opens on the default connection. A write to a tenant connection inside it is not atomic

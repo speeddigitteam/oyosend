@@ -1,1 +1,172 @@
-export default {};
+/**
+ * Messages for one workspace in the Super Admin panel: creating it, its
+ * detail page, and what an operator can do to it. The directory itself is in
+ * `platform.tenants`. English is the source of truth for keys.
+ */
+export default {
+    back: 'All workspaces',
+    create: {
+        title: 'Create workspace',
+        description: 'Set up a workspace for a customer. It is active as soon as it is created, and its owner is emailed.',
+        workspace: {
+            title: 'Workspace',
+            description: 'The name its members see, and the address they sign in at.',
+        },
+        name: 'Workspace name',
+        slug: 'Address',
+        slugHint: '3 to 63 lower-case letters, digits or hyphens, starting and ending with a letter or digit.',
+        owner: {
+            title: 'Owner',
+            description:
+                'If an account with this email already exists, it becomes the owner and keeps its name and password. Otherwise an account is created and emailed a link to choose a password.',
+        },
+        ownerName: 'Owner name',
+        ownerNameHint: 'Used only when a new account is created.',
+        ownerEmail: 'Owner email',
+        language: {
+            title: 'Language',
+            description: 'The default for the workspace. A new owner account and its email use it too.',
+        },
+        locale: 'Workspace language',
+        plan: {
+            title: 'Plan',
+            description: 'Optional. A workspace without a plan has the core features only, and nothing to pay.',
+        },
+        planField: 'Plan',
+        noPlan: 'No plan',
+        hiddenPlan: '{name} (not public)',
+        interval: 'Billing interval',
+        // What starting on the chosen plan does, by the kind of plan.
+        planEffect: {
+            free: 'This plan is free: it is active at once and never billed.',
+            trial: 'The workspace starts with a {days}-day free trial. Its first invoice is issued before the trial ends.',
+            invoiced: 'This plan has no trial: the first invoice is issued now, and the workspace keeps working for the grace period while it is unpaid.',
+        },
+        submit: 'Create workspace',
+    },
+    show: {
+        viewOnly: 'You can look at this workspace, but your role cannot change it.',
+        overview: {
+            title: 'Overview',
+            status: 'Status',
+            suspendedAt: 'Suspended on {date}',
+            address: 'Address',
+            owner: 'Owner',
+            noOwner: 'No owner',
+            members: 'Members',
+            created: 'Created',
+            setup: 'First-run setup',
+            setupDone: 'Finished',
+            setupPending: 'Not finished yet',
+            legalName: 'Legal name',
+            contact: 'Contact',
+            regional: 'Language, time zone, currency',
+        },
+        subscription: {
+            title: 'Subscription',
+            none: 'No plan',
+            noneBody: 'This workspace has the core features only, and nothing to pay.',
+            trialEnds: 'Trial ends',
+            periodEnds: 'Paid until',
+            graceEnds: 'Grace period ends',
+            ended: 'Ended',
+            cancels: 'Canceled: it ends when the paid period is over.',
+            pending: 'Moves to {plan} ({interval}) when the paid period is over.',
+            locked: 'Locked: its members can reach billing and their own settings, nothing else.',
+            setPlan: 'Set plan',
+            extendTrial: 'Extend trial',
+        },
+        invoices: {
+            title: 'Recent invoices',
+            caption: 'The latest invoices of this workspace',
+            columns: {
+                number: 'Invoice',
+                status: 'Status',
+                total: 'Total',
+                issued: 'Issued',
+                due: 'Due',
+            },
+            empty: 'No invoices yet',
+            emptyBody: 'Invoices issued to this workspace will be listed here.',
+        },
+        activity: {
+            title: 'Recent activity',
+            description: 'The latest entries of the workspace’s own audit log.',
+            empty: 'No activity yet',
+            emptyBody: 'What happens in this workspace is recorded in its audit log and shown here.',
+        },
+        support: {
+            title: 'Support sessions',
+            description: 'The latest times an operator opened this workspace as its owner.',
+            empty: 'No support sessions',
+            emptyBody: 'Nobody from the platform has opened this workspace.',
+            reason: 'Reason',
+            // Where a session stands. `{time}` is a date and time.
+            state: {
+                running: 'In progress, until {time}',
+                ended: 'Ended {time}',
+                timedOut: 'Ran out of time {time}',
+                unused: 'Never opened',
+            },
+        },
+        actions: {
+            approve: 'Approve',
+            suspend: 'Suspend',
+            reactivate: 'Reactivate',
+            impersonate: 'Open as owner',
+        },
+    },
+    approve: {
+        title: 'Approve {name}?',
+        body: 'The workspace becomes active and its owner is emailed. If it is on a trial, the trial starts again from today.',
+        confirm: 'Approve workspace',
+    },
+    suspend: {
+        title: 'Suspend {name}?',
+        body: 'Every request to the workspace is refused until it is reactivated. Its data is kept. The reason is written to the platform’s audit log and to the workspace’s own.',
+        reason: 'Reason',
+        reasonHint: 'At least 5 characters.',
+        confirm: 'Suspend workspace',
+    },
+    reactivate: {
+        title: 'Reactivate {name}?',
+        body: 'Its members can sign in again straight away.',
+        reason: 'Reason',
+        reasonHint: 'Written to both audit logs.',
+        confirm: 'Reactivate workspace',
+    },
+    impersonate: {
+        title: 'Open {name} as its owner',
+        description: 'You are signed in to the workspace as {owner}, without their password or second factor.',
+        rulesTitle: 'Before you go in',
+        rules: {
+            timed: 'The session is time-limited and ends by itself.',
+            visible: 'The workspace can see it: the start and the end are in its audit log, with your email and this reason.',
+            recorded: 'Everything you do there is recorded and marked as done through a support session.',
+            personal: 'You work in the workspace, not on the owner: their profile, password, two-step verification and language cannot be changed.',
+        },
+        reason: 'Reason',
+        reasonHint: 'At least 10 characters. Say what you are going in to do, such as a ticket reference.',
+        submit: 'Open workspace',
+    },
+    setPlan: {
+        title: 'Set the plan of {name}',
+        description: 'The plan takes effect at once, without an invoice. An unpaid invoice of the workspace is withdrawn.',
+        plan: 'Plan',
+        planPlaceholder: 'Choose a plan',
+        hiddenPlan: '{name} (not public)',
+        interval: 'Billing interval',
+        price: 'Listed at {price}. Nothing is charged for a plan set here.',
+        periodEnd: 'Runs until',
+        periodEndHint: 'The end of that day, by the workspace’s own clock. Empty means one billing interval from now.',
+        free: 'A free plan has no period and does not run out.',
+        noPlans: 'There is no active plan to give. Create a plan first.',
+        submit: 'Set plan',
+    },
+    trial: {
+        title: 'Extend the trial of {name}',
+        description: 'The workspace is on trial until the end of the day you choose, by its own clock ({timezone}). An unpaid invoice is withdrawn; the next one is issued before the trial ends.',
+        until: 'Trial ends on',
+        submit: 'Extend trial',
+    },
+};

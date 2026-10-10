@@ -1,21 +1,23 @@
 # App Store
 
-State: end of Phase 1. **There is no App Store**: no catalogue, no install flow, no tables, no UI. What exists is
-the contract every app is built against and the entitlement check in front of it.
+State: end of Phase 2. **There is no App Store**: no catalogue, no install flow, no tables, no UI. What exists is
+the contract every app is built against, the entitlement check in front of it, and - since Phase 2 - plans that
+can include optional modules.
 
 ## What exists today
 
 | Piece | Where | Role |
 |---|---|---|
-| Module manifest | `app/Core/Modules/ModuleManifest.php` | What the platform knows about an app: key, name, version, `core`, dependencies, permissions, navigation, widgets, triggers, actions, morph map |
+| Module manifest | `app/Core/Modules/ModuleManifest.php` | What the platform knows about an app: key, name, version, `core`, dependencies, permissions, navigation, widgets, triggers, actions, morph map, limits a plan can cap |
 | Module registry | `app/Core/Modules/ModuleRegistry.php` | The set of modules compiled into the build; permission index; dependency check at boot |
 | Module provider | `app/Core/Modules/ModuleServiceProvider.php` | Base class; `loadTenantRoutes()` adds `entitled:{key}` for non-core modules |
 | Entitlement contract | `app/Core/Entitlements/Contracts/EntitlementChecker.php` | `allows(Tenant, moduleKey)`, `entitledModules(Tenant)` |
-| Phase 1 implementation | `app/Core/Entitlements/CoreModulesEntitlementChecker.php` | Core modules for every accessible tenant; **everything else denied** |
+| Implementation | `app/Core/Entitlements/PlanEntitlementChecker.php` | Core modules for every accessible tenant; an optional module when the workspace's plan lists it (`plans.modules`) and its subscription is in good standing; **everything else denied** |
 | Route gate | `app/Core/Access/Http/Middleware/EnsureModuleEntitled.php` | `entitled:{module}` → 404, so an app the tenant does not have is not disclosed by its URLs |
 
 Only one module is registered: `core` (`config/modules.php`). The tenant dashboard counts the optional modules
-the workspace is entitled to and shows an "apps" empty state while that is zero, which today is always.
+the workspace is entitled to and shows an "apps" empty state while that is zero, which today is always: no
+optional module exists for a plan to include.
 
 The whole gate is exercised in tests with a stand-in optional app: `tests/Support/Fixtures/Crm` (a non-core
 `crm` module) and `tests/Support/Fixtures/GrantsModules` (an entitlement checker with explicit grants), driven by
@@ -44,9 +46,9 @@ in `bootModule()`, and there is nothing to install yet.
 
 ## Planned
 
-- **Phase 2:** the entitlement store (plans, usage limits). `CoreServiceProvider` binds `EntitlementChecker`; that
-  one binding is what gets replaced. The code comments place this in Phase 3; spec section 27 lists entitlements
-  under Phase 2.
+- **Built in Phase 2:** entitlement by plan, usage limits and metering (`docs/BILLING.md`). The App Store adds
+  to it: per-app installs and licences next to what the plan includes (`app_installations`, `app_entitlements`,
+  `subscription_items`).
 - **Phase 3 (App Store):** app registry and manifests, categories, detail pages, free install, paid checkout,
   licensing, activation, My Apps, app permissions, dependencies, entitlement-driven navigation.
 

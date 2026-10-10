@@ -2,13 +2,23 @@
  * Messages for the `central` pages. English is the source of truth for keys.
  *
  * This is the public page at the root domain. Only describe what is built:
- * no apps, pricing or sign-up until they exist.
+ * no apps until they exist. Sign-up and prices are shown only while the
+ * platform accepts sign-ups, and the prices are the plans the server sends.
  */
 export default {
     welcome: {
         title: 'Find your workspace',
         headline: 'Your work has an address.',
         lede: 'Oyosend gives a company and its team a workspace of their own: one address to sign in at, and data no other company can see.',
+        // Only while the platform accepts sign-ups.
+        create: 'Create a workspace',
+        plans: {
+            label: 'Plans',
+            body: 'Each workspace is on one plan. You choose it when you sign up.',
+            // The accessible name of a plan's button; the button itself shows `choose`.
+            choosePlan: 'Choose the {plan} plan',
+            choose: 'Choose',
+        },
         find: {
             title: 'Find your workspace',
             label: 'Workspace address',

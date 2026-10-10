@@ -38,6 +38,9 @@ final class TenantSubscriptionController
             'interval' => ['required', Rule::enum(BillingInterval::class)],
             // When a paid plan given this way runs out. Empty: one interval from now.
             'period_end' => ['nullable', 'date', 'after:today'],
+        ], [
+            // The rule's own message would quote the word "today" as it is written here.
+            'period_end.after' => __('Choose a date after today.'),
         ]);
 
         // Any plan, public or not: this is how a custom deal is given.
@@ -58,6 +61,8 @@ final class TenantSubscriptionController
     {
         $input = $request->validate([
             'trial_ends_at' => ['required', 'date', 'after:today'],
+        ], [
+            'trial_ends_at.after' => __('Choose a date after today.'),
         ]);
 
         // The end of that day on the workspace's own clock.

@@ -20,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -109,6 +110,8 @@ final class InvoiceController
             'reference' => ['nullable', 'string', 'max:120'],
             'note' => ['nullable', 'string', 'max:500'],
             'paid_at' => ['required', 'date', 'before_or_equal:tomorrow'],
+        ], [
+            'paid_at.before_or_equal' => __('The date the payment was received cannot be in the future.'),
         ]);
 
         /** @var PlatformUser $operator */
@@ -148,9 +151,17 @@ final class InvoiceController
 
         $this->context->run($tenant, function () use ($invoices, $invoice, $audit, $input): void {
             DB::transaction(function () use ($invoices, $invoice, $audit, $input): void {
-                $invoices->void($invoice);
+                /** @var Invoice $open */
+                $open = Invoice::query()->lockForUpdate()->findOrFail($invoice->getKey());
 
-                $audit->record('billing.invoice_withdrawn', $invoice, ['reason' => $input['reason']]);
+                // Paid or withdrawn already: nothing to withdraw, and nothing to record as withdrawn.
+                if (! $open->isOpen()) {
+                    throw ValidationException::withMessages(['invoice' => __('This invoice is not waiting for payment.')]);
+                }
+
+                $invoices->void($open);
+
+                $audit->record('billing.invoice_withdrawn', $open, ['reason' => $input['reason']]);
             });
         });
 

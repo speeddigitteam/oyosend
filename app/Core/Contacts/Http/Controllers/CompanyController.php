@@ -14,6 +14,7 @@ use App\Core\Identity\Models\TenantMembership;
 use App\Core\Identity\Models\User;
 use App\Core\Support\Like;
 use App\Core\Support\Toast;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -45,7 +46,11 @@ final class CompanyController
 
         $companies = $this->records->constrain(Company::query(), $actor, ContactController::VIEW)
             ->with('owner.user:id,name')
-            ->withCount('contacts')
+            // Only the people the viewer can see: the count links to that list,
+            // and a contact outside someone's scope is not disclosed to exist.
+            ->withCount(['contacts' => function (Builder $contacts) use ($actor): void {
+                $this->records->constrain($contacts, $actor, ContactController::VIEW);
+            }])
             ->when($search !== '', fn ($query) => $query->where(fn ($match) => $match
                 ->where('name', 'like', Like::contains($search))
                 ->orWhere('email', 'like', Like::contains($search))
@@ -104,7 +109,7 @@ final class CompanyController
 
         $this->records->authorize($actor, ContactController::MANAGE, $company);
 
-        $input = $this->validated($request, $actor);
+        $input = $this->validated($request, $actor, $company);
 
         $this->directory->updateCompany($company, $input['attributes'], $input['owner']);
 
@@ -130,7 +135,7 @@ final class CompanyController
     /**
      * @return array{attributes: array<string, mixed>, owner: TenantMembership|false|null}
      */
-    private function validated(Request $request, User $actor): array
+    private function validated(Request $request, User $actor, ?Company $company = null): array
     {
         $input = $request->validate([
             'name' => ['required', 'string', 'max:200'],
@@ -153,9 +158,13 @@ final class CompanyController
         }
 
         // Only someone who manages every company may hand one to another member.
+        // Sending the owner it already has hands nothing over, so that owner need
+        // not be someone a company could be given to now (suspended since, say).
         $owner = false;
 
-        if (array_key_exists('owner_id', $input) && $this->access->scopeFor($actor, ContactController::MANAGE) === AccessScope::All) {
+        if (array_key_exists('owner_id', $input)
+            && $this->access->scopeFor($actor, ContactController::MANAGE) === AccessScope::All
+            && ($company === null || $input['owner_id'] !== $company->owner_id)) {
             $owner = $input['owner_id'] === null
                 ? null
                 : TenantMembership::query()->where('status', MembershipStatus::Active)->findOrFail($input['owner_id']);

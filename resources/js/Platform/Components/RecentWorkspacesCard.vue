@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Link } from '@inertiajs/vue3';
 import { ArrowUpRight, Building2 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -56,7 +57,12 @@ const columns = computed<Column[]>(() => [
 
         <DataTable v-else :columns="columns" :rows="tenants" row-key="id" :caption="t('platform.dashboard.recent.caption')">
             <template #cell-name="{ row }">
-                <WorkspaceName :name="row.name" />
+                <Link
+                    :href="route('platform.tenants.show', { workspace: row.id })"
+                    class="inline-flex rounded-chip underline-offset-4 hover:underline"
+                >
+                    <WorkspaceName :name="row.name" />
+                </Link>
             </template>
 
             <template #cell-slug="{ row }">

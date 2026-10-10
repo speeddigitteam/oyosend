@@ -35,7 +35,11 @@ void createInertiaApp({
         setLocale(localeOf(props.initialPage));
 
         // The interface language can change between visits (language switch, sign-in).
+        // `navigate` covers a visit to another address and moving through history.
+        // It does not fire for a visit that comes back to the address it left - which
+        // is what the language switch itself does - so `success` covers that one.
         router.on('navigate', (event) => setLocale(localeOf(event.detail.page as typeof props.initialPage)));
+        router.on('success', (event) => setLocale(localeOf(event.detail.page as typeof props.initialPage)));
 
         createApp({ render: () => h(App, props) })
             .use(plugin)

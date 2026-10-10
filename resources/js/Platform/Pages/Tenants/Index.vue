@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { router, usePage } from '@inertiajs/vue3';
-import { Building2, ExternalLink, Search, SearchX, X } from 'lucide-vue-next';
+import { Link, router, usePage } from '@inertiajs/vue3';
+import { Building2, ExternalLink, Plus, Search, SearchX, X } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import SubscriptionStatusBadge from '@/Core/Components/Billing/SubscriptionStatusBadge.vue';
 import Button from '@/Core/Components/Button.vue';
 import Card from '@/Core/Components/Card.vue';
 import DataTable, { type Column } from '@/Core/Components/DataTable.vue';
@@ -32,6 +33,10 @@ interface TenantRow {
     currency: string;
     timezone: string;
     members: number;
+    /** Name of the plan the workspace is on; null when it has no subscription. */
+    plan: string | null;
+    /** A SubscriptionStatus value; null when it has no subscription. */
+    subscriptionStatus: string | null;
     createdAt: string | null;
 }
 
@@ -44,6 +49,8 @@ const props = defineProps<{
     tenants: Paginated<TenantRow>;
     /** The filters the server applied to this response. */
     filters: Filters;
+    /** Whether this operator may create workspaces. */
+    canManage: boolean;
 }>();
 
 const page = usePage();
@@ -157,6 +164,7 @@ const columns = computed<Column[]>(() => [
     { key: 'name', label: t('platform.tenants.columns.name'), class: 'min-w-48' },
     { key: 'url', label: t('platform.tenants.columns.address'), class: 'whitespace-nowrap' },
     { key: 'status', label: t('platform.tenants.columns.status'), class: 'whitespace-nowrap' },
+    { key: 'plan', label: t('platform.tenants.columns.plan'), class: 'whitespace-nowrap' },
     { key: 'members', label: t('platform.tenants.columns.members'), align: 'right', class: 'whitespace-nowrap' },
     {
         key: 'locale',
@@ -197,11 +205,21 @@ function host(url: string): string {
         :eyebrow="t('shell.nav.sections.platform')"
         :title="t('shell.nav.tenants')"
         :description="t('platform.tenants.description')"
-    />
+    >
+        <template v-if="canManage" #actions>
+            <Button variant="primary" :href="route('platform.tenants.create')">
+                <template #icon><Plus class="size-4" aria-hidden="true" /></template>
+                {{ t('platform.tenants.create') }}
+            </Button>
+        </template>
+    </PageHeader>
 
     <Card v-if="untouched">
         <EmptyState :title="t('platform.tenants.empty.title')" :description="t('platform.tenants.empty.body')">
             <template #icon><Building2 /></template>
+            <template v-if="canManage" #default>
+                <Button size="sm" :href="route('platform.tenants.create')">{{ t('platform.tenants.create') }}</Button>
+            </template>
         </EmptyState>
     </Card>
 
@@ -250,8 +268,14 @@ function host(url: string): string {
                 </form>
             </template>
 
+            <!-- The name is the way in: every row leads to the workspace's own page. -->
             <template #cell-name="{ row }">
-                <WorkspaceName :name="row.name" />
+                <Link
+                    :href="route('platform.tenants.show', { workspace: row.id })"
+                    class="inline-flex rounded-chip underline-offset-4 hover:underline"
+                >
+                    <WorkspaceName :name="row.name" />
+                </Link>
             </template>
 
             <template #cell-url="{ row }">
@@ -269,6 +293,14 @@ function host(url: string): string {
 
             <template #cell-status="{ row }">
                 <TenantStatusBadge :status="row.status" />
+            </template>
+
+            <template #cell-plan="{ row }">
+                <span v-if="row.plan" class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span class="text-ink">{{ row.plan }}</span>
+                    <SubscriptionStatusBadge :status="row.subscriptionStatus" />
+                </span>
+                <span v-else class="text-ink-subtle">{{ t('billing.terms.subscriptionStatus.none') }}</span>
             </template>
 
             <template #cell-members="{ row }">

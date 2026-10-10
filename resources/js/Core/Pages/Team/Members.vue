@@ -4,6 +4,8 @@ import {
     CirclePause,
     CirclePlay,
     Ellipsis,
+    Info,
+    Network,
     Search,
     SearchX,
     ShieldCheck,
@@ -34,7 +36,8 @@ import ChangeRoleDialog from '@/Core/Components/Team/ChangeRoleDialog.vue';
 import { useFocusReturn } from '@/Core/Components/Team/focus';
 import InvitationList from '@/Core/Components/Team/InvitationList.vue';
 import InviteMemberDialog from '@/Core/Components/Team/InviteMemberDialog.vue';
-import type { Member, OpenInvitation, RoleOption } from '@/Core/Components/Team/types';
+import PlacementDialog from '@/Core/Components/Team/PlacementDialog.vue';
+import type { Member, OpenInvitation, RoleOption, UnitOption } from '@/Core/Components/Team/types';
 import { useAccess } from '@/Core/composables/useAccess';
 import { useFormat } from '@/Core/composables/useFormat';
 import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
@@ -50,6 +53,9 @@ const props = defineProps<{
     filters: { search: string };
     /** Roles this person may hand out: never Owner, never one that grants more than they hold. */
     assignableRoles: RoleOption[];
+    /** Every branch and department of the workspace, by name. */
+    branches: UnitOption[];
+    departments: UnitOption[];
 }>();
 
 const { t } = useI18n();
@@ -60,6 +66,17 @@ const { can } = useAccess();
 const workspace = computed(() => page.props.tenant?.name ?? '');
 const canInvite = computed(() => can('core.members.invite'));
 const canManage = computed(() => can('core.members.manage'));
+
+/*
+ * Branches and departments. A workspace that has neither gets no columns and
+ * no way to place anyone - only, for someone who may add them, the way there.
+ */
+const hasBranches = computed(() => props.branches.length > 0);
+const hasDepartments = computed(() => props.departments.length > 0);
+const hasStructure = computed(() => hasBranches.value || hasDepartments.value);
+const organizationUrl = computed(() =>
+    can('core.organization.view') && can('core.organization.manage') ? route('core.organization.index') : null,
+);
 
 /*
  * Search: the list is filtered on the server, a moment after typing stops.
@@ -148,17 +165,42 @@ function leaveEmptyPage(): void {
 onMounted(leaveEmptyPage);
 watch(() => props.members, leaveEmptyPage);
 
+/*
+ * Branch and department start out visible only where the table has room for
+ * them: on anything narrower they would push the row actions off the edge, and
+ * on a phone they would double the sideways scrolling. The Columns menu turns
+ * them on anywhere, and the choice is remembered on that device.
+ */
+const roomy = typeof window.matchMedia === 'function' && window.matchMedia('(min-width: 90rem)').matches;
+
 const columns = computed<Column[]>(() => {
     const list: Column[] = [
         // Name and role share whatever width is left; the rest are as wide as what they hold.
         { key: 'name', label: t('team.members.columns.member') },
         { key: 'role', label: t('team.members.columns.role') },
+    ];
+
+    if (hasBranches.value) {
+        list.push({ key: 'branch', label: t('team.members.columns.branch'), class: 'w-px', hideable: true, hiddenByDefault: !roomy });
+    }
+
+    if (hasDepartments.value) {
+        list.push({
+            key: 'department',
+            label: t('team.members.columns.department'),
+            class: 'w-px',
+            hideable: true,
+            hiddenByDefault: !roomy,
+        });
+    }
+
+    list.push(
         { key: 'status', label: t('team.members.columns.status'), class: 'w-px' },
         { key: 'twoFactorEnabled', label: t('team.members.columns.twoFactor'), class: 'w-px', hideable: true },
         // Off until asked for: with it, the row actions fall off the edge of a 1280px screen.
         { key: 'joinedAt', label: t('team.members.columns.joined'), class: 'w-px', hideable: true, hiddenByDefault: true },
         { key: 'lastSeenAt', label: t('team.members.columns.lastSeen'), class: 'w-px', hideable: true },
-    ];
+    );
 
     if (canManage.value) {
         list.push({ key: 'actions', label: t('team.members.columns.actions'), srOnly: true, align: 'right', class: 'w-px' });
@@ -184,6 +226,17 @@ function openChangeRole(member: Member): void {
 }
 
 useFocusReturn(roleOpen, () => actionsSelector(roleTarget.value));
+
+// Branch and department. The owner is the one person who gets this for their own row.
+const placementTarget = ref<Member | null>(null);
+const placementOpen = ref(false);
+
+function openPlacement(member: Member): void {
+    placementTarget.value = member;
+    placementOpen.value = true;
+}
+
+useFocusReturn(placementOpen, () => actionsSelector(placementTarget.value));
 
 // Suspend and remove share one confirmation dialog.
 const pending = ref<{ kind: 'suspend' | 'remove'; member: Member } | null>(null);
@@ -360,6 +413,24 @@ useFocusReturn(inviteOpen);
                     <span v-else class="whitespace-nowrap text-ink-subtle">{{ t('team.members.noRole') }}</span>
                 </template>
 
+                <template #cell-branch="{ row }">
+                    <span v-if="row.branch" class="block max-w-36 truncate text-ink-muted" :title="row.branch.name">{{ row.branch.name }}</span>
+                    <span v-else class="text-ink-subtle">
+                        <span aria-hidden="true">—</span>
+                        <span class="sr-only">{{ t('team.placement.noBranch') }}</span>
+                    </span>
+                </template>
+
+                <template #cell-department="{ row }">
+                    <span v-if="row.department" class="block max-w-36 truncate text-ink-muted" :title="row.department.name">
+                        {{ row.department.name }}
+                    </span>
+                    <span v-else class="text-ink-subtle">
+                        <span aria-hidden="true">—</span>
+                        <span class="sr-only">{{ t('team.placement.noDepartment') }}</span>
+                    </span>
+                </template>
+
                 <!-- Active is the normal case and stays quiet; a suspension is what should catch the eye. -->
                 <template #cell-status="{ row }">
                     <Badge v-if="row.status === 'suspended'" tone="warn" dot>{{ t('common.status.suspended') }}</Badge>
@@ -408,7 +479,8 @@ useFocusReturn(inviteOpen);
                 </template>
 
                 <template #cell-actions="{ row }">
-                    <Dropdown v-if="row.manageable">
+                    <!-- The owner's own row has one entry at most: where they sit. -->
+                    <Dropdown v-if="row.manageable || (row.placeable && hasStructure)">
                         <template #trigger>
                             <Button icon size="sm" variant="ghost" :loading="reactivating === row.id" :data-member-actions="row.id">
                                 <template #icon><Ellipsis class="size-4" aria-hidden="true" /></template>
@@ -416,23 +488,29 @@ useFocusReturn(inviteOpen);
                             </Button>
                         </template>
 
-                        <DropdownItem v-if="assignableRoles.length > 0" @select="openChangeRole(row)">
+                        <DropdownItem v-if="row.manageable && assignableRoles.length > 0" @select="openChangeRole(row)">
                             <template #icon><UserCog aria-hidden="true" /></template>
                             {{ t('team.members.actions.changeRole') }}
                         </DropdownItem>
-                        <DropdownItem v-if="row.status === 'suspended'" @select="reactivate(row)">
-                            <template #icon><CirclePlay aria-hidden="true" /></template>
-                            {{ t('team.members.actions.reactivate') }}
+                        <DropdownItem v-if="row.placeable && hasStructure" @select="openPlacement(row)">
+                            <template #icon><Network aria-hidden="true" /></template>
+                            {{ t('team.members.actions.place') }}
                         </DropdownItem>
-                        <DropdownItem v-else @select="ask('suspend', row)">
-                            <template #icon><CirclePause aria-hidden="true" /></template>
-                            {{ t('team.members.actions.suspend') }}
-                        </DropdownItem>
-                        <DropdownSeparator />
-                        <DropdownItem tone="danger" @select="ask('remove', row)">
-                            <template #icon><UserMinus aria-hidden="true" /></template>
-                            {{ t('team.members.actions.remove') }}
-                        </DropdownItem>
+                        <template v-if="row.manageable">
+                            <DropdownItem v-if="row.status === 'suspended'" @select="reactivate(row)">
+                                <template #icon><CirclePlay aria-hidden="true" /></template>
+                                {{ t('team.members.actions.reactivate') }}
+                            </DropdownItem>
+                            <DropdownItem v-else @select="ask('suspend', row)">
+                                <template #icon><CirclePause aria-hidden="true" /></template>
+                                {{ t('team.members.actions.suspend') }}
+                            </DropdownItem>
+                            <DropdownSeparator />
+                            <DropdownItem tone="danger" @select="ask('remove', row)">
+                                <template #icon><UserMinus aria-hidden="true" /></template>
+                                {{ t('team.members.actions.remove') }}
+                            </DropdownItem>
+                        </template>
                     </Dropdown>
                 </template>
 
@@ -452,6 +530,20 @@ useFocusReturn(inviteOpen);
             </DataTable>
 
             <Pagination :meta="members" />
+
+            <!-- Nowhere to place anyone yet: point the people who can change that to where it is done. -->
+            <template v-if="canManage && !hasStructure && organizationUrl" #footer>
+                <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                    <p class="flex min-w-0 items-start gap-2 text-[0.8125rem] text-ink-subtle">
+                        <Info class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                        {{ t('team.members.organize.body') }}
+                    </p>
+                    <Button size="sm" :href="organizationUrl">
+                        <template #icon><Network class="size-3.5" aria-hidden="true" /></template>
+                        {{ t('team.members.organize.link') }}
+                    </Button>
+                </div>
+            </template>
         </Card>
 
         <InvitationList
@@ -463,6 +555,15 @@ useFocusReturn(inviteOpen);
     </div>
 
     <ChangeRoleDialog v-model:open="roleOpen" :member="roleTarget" :roles="assignableRoles" />
+
+    <PlacementDialog
+        v-if="canManage && hasStructure"
+        v-model:open="placementOpen"
+        :member="placementTarget"
+        :branches="branches"
+        :departments="departments"
+        :organization-url="organizationUrl"
+    />
 
     <ConfirmDialog
         v-model:open="confirmOpen"

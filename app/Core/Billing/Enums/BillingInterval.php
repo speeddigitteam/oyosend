@@ -27,6 +27,19 @@ enum BillingInterval: string
     }
 
     /**
+     * The start of a period that ends at the given moment.
+     */
+    public function subtractFrom(CarbonInterface $end): Carbon
+    {
+        $start = Carbon::instance($end);
+
+        return match ($this) {
+            self::Monthly => $start->subMonthNoOverflow(),
+            self::Yearly => $start->subYearNoOverflow(),
+        };
+    }
+
+    /**
      * Months in one period - what prices of different intervals are compared by.
      */
     public function months(): int

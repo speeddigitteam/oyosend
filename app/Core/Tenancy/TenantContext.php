@@ -7,6 +7,7 @@ namespace App\Core\Tenancy;
 use App\Core\Tenancy\Exceptions\MissingTenantContextException;
 use App\Core\Tenancy\Models\Tenant;
 use Closure;
+use Illuminate\Support\Facades\DB;
 use Stancl\Tenancy\Tenancy;
 
 /**
@@ -101,6 +102,29 @@ final class TenantContext
         } finally {
             $this->restore($previous);
         }
+    }
+
+    /**
+     * Run a callback for the tenant that is active now, once the surrounding
+     * database transaction has committed - at once when there is none.
+     *
+     * Anything queued "after commit" (a job, mail, a notification) is only
+     * built when the outermost transaction commits. That can be after `run()`
+     * has returned, in another tenant or in none, and a tenant-bound job built
+     * outside its tenant is refused by the worker. Queue such work through
+     * here and it is built inside its tenant wherever the commit happens.
+     *
+     * @param  Closure(Tenant): void  $callback
+     *
+     * @throws MissingTenantContextException
+     */
+    public function afterCommit(Closure $callback): void
+    {
+        $tenant = $this->require();
+
+        DB::afterCommit(function () use ($tenant, $callback): void {
+            $this->run($tenant, $callback);
+        });
     }
 
     /**

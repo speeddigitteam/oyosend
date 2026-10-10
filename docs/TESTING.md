@@ -18,6 +18,11 @@ Phase 2 (spec section 0) and are not installed.
 
 A change is done when `composer check`, `npm run typecheck` and `npm run test` all pass.
 
+**One run per database.** The suite starts with `migrate:fresh`, so two runs against the same database destroy
+each other. To run tests in a second terminal (or from a second agent), give that run its own database:
+`DB_DATABASE=oyosend_b_testing php artisan test tests/Feature/Billing` (create the database first; its name must
+end in `_testing`). A variable set in the shell wins over `phpunit.xml`.
+
 - There is no `pint.json`: Pint uses its default Laravel preset.
 - `tests/` is not in Larastan's paths. `phpstan/stubs/TenantCollection.stub` restores the generics the tenancy
   package's collection class lacks; it is the only stub.
@@ -66,9 +71,10 @@ fails when the Vue file is missing under `resources/js`. Assert the component in
 ```
 tests/
   Pest.php                 Feature: TestCase + RefreshDatabase.  Unit: TestCase, no database.
-  TestCase.php             Base class; uses the five traits in Support/
+  TestCase.php             Base class; uses the six traits in Support/
   Support/                 Helpers (traits)
-  Support/Fixtures/        A stand-in optional module (Crm/), a test entitlement checker, two queued jobs
+  Support/Fixtures/        A stand-in optional module (Crm/), a test entitlement checker, a test payment
+                           gateway, two queued jobs
   Feature/<Area>/*Test.php HTTP and database behaviour
   Unit/<Area>/*Test.php    Pure logic; the application boots but the database is never touched
   js/*.test.ts             Vitest (jsdom); js/setup.ts installs the real i18n catalogue
@@ -121,7 +127,7 @@ Available on `$this` in every Pest test.
 | Signature | Does |
 |---|---|
 | `registerModule(string $provider): ModuleManifest` | Registers a module provider for this test as if it were in `config/modules.php`: manifest, routes, and its permissions synced |
-| `entitle(Tenant $tenant, string ...$modules): void` | Entitles a tenant to optional modules. Swaps the bound `EntitlementChecker` for `Fixtures\GrantsModules` (Phase 1 rules plus explicit grants) |
+| `entitle(Tenant $tenant, string ...$modules): void` | Entitles a tenant to optional modules. Swaps the bound `EntitlementChecker` for `Fixtures\GrantsModules` (the product's rules plus explicit grants). The other way to entitle one is the real one: a plan with `modules` and a subscription |
 
 **`AssertsTenantIsolation`**
 
@@ -130,7 +136,23 @@ Available on `$this` in every Pest test.
 | `assertTenantIsolated(string $model, Closure $makeInTenant): void` | The whole row-isolation contract. Provisions two tenants and calls `$makeInTenant(Tenant)` once in each (it must create and return one record). Then: stamped with its tenant; invisible from the other tenant to `find`, `get`, `count`, `exists`, route binding, bulk update and bulk delete; every read throws with no tenant; reachable through `withoutTenancy()` and `forTenant()`. For `BelongsToTenant` models also the write guards |
 | `assertNotFoundFromOtherTenant(string $method, string $path, Tenant $home, array $data = [], ?Tenant $intruder = null): void` | The route answers 404 when called on another workspace's host by that workspace's owner, and does **not** answer 404 or 5xx in the record's own workspace (the control). With a destructive verb the control really performs the action, so call it last |
 
-**`InteractsWithPlatform`**
+**`InteractsWithBilling`**
+
+Billing records are central data scoped to their tenant, so every helper names its tenant. Time only matters
+through the cycle: move the clock (`$this->travel(8)->days()`, `$this->travelTo(...)`), then `runBillingCycle()`.
+
+| Signature | Does |
+|---|---|
+| `createPlan(array $attributes = []): Plan` | A plan through its factory: paid (BDT 1,500.00 a month, 15,000.00 a year, in minor units), public, active, no trial. Pass any column: `trial_days`, `monthly_amount`, `modules`, `limits`, `is_public`, … |
+| `createFreePlan(array $attributes = []): Plan` | A plan that costs nothing |
+| `subscribe(Tenant $tenant, ?Plan $plan = null, BillingInterval $interval = Monthly, bool $withTrial = true): Subscription` | What sign-up does: `SubscriptionManager::start()` in that tenant |
+| `subscribeAndPay(Tenant $tenant, ?Plan $plan = null, BillingInterval $interval = Monthly): Subscription` | A workspace inside a paid period: the starting point for renewal, upgrade and cancellation tests |
+| `subscriptionOf(Tenant $tenant): Subscription` | The subscription as it is in the database now, with `plan` and `pendingPlan` |
+| `invoicesOf(Tenant $tenant): Collection`, `openInvoiceOf(Tenant $tenant): ?Invoice`, `paymentsOf(Tenant $tenant): Collection` | Oldest first |
+| `runBillingCycle(Tenant $tenant): void` | What the hourly `billing:run` does for one workspace |
+| `payOpenInvoice(Tenant $tenant, string $method = 'bank_transfer'): Payment` | Pays the open invoice the way an operator records an offline payment |
+| `useTestGateway(): TestGateway` | Registers `Fixtures\TestGateway` (key `testpay`) for this test. It never leaves the process; `willFail()`, `willCancel()`, `willConfirm($amount, $currency)`, `$verificationFailure`, `$initiationFailure`, `$configured` decide what the "provider" answers |
+
 
 | Signature | Does |
 |---|---|
@@ -150,10 +172,12 @@ Available on `$this` in every Pest test.
 | Fixture | Use |
 |---|---|
 | `Crm\CrmServiceProvider` | A stand-in optional app (`crm`, non-core): permissions `crm.leads.view` / `.edit`, routes `crm/leads` and `crm/ping`, a sidebar entry, a widget, a trigger. Register it with `registerModule()` |
-| `GrantsModules` | The entitlement checker `entitle()` installs |
+| `GrantsModules` | The entitlement checker `entitle()` installs: the product's rules plus explicit grants, so a test about what an entitlement does needs no plan |
+| `TestGateway` | A `PaymentGateway` whose answers the test controls; see `useTestGateway()` |
 | `RecordsTenantJob`, `TenantBoundJob` | Queued jobs that record the tenant they ran in; the second implements `RequiresTenantContext` |
 
-Factories exist for `Tenant`, `User`, `TenantMembership`, `Invitation` and `PlatformUser` (`database/factories`).
+Factories exist for `Tenant`, `User`, `TenantMembership`, `Invitation`, `PlatformUser`, `Branch`, `Department`,
+`Contact`, `Company` and `Plan` (`database/factories`). The tenant-owned ones create in the active tenant.
 `TenantFactory` makes a bare row; use `createTenant()` when the test needs a working workspace.
 
 ## 5. Conventions
@@ -183,14 +207,21 @@ it('does not serve a note to another workspace', function () {
   The owner holds everything, so the owner proves nothing about permissions.
 - Slugs must be valid, unreserved labels. `test`, `demo`, `dev`, `app`, `api` and the others in
   `platform.reserved_subdomains` are rejected by `TenantProvisioner`.
-- A non-core module is denied by the Phase 1 entitlement checker. In its tests call `registerModule()` and
+- A non-core module is denied unless the workspace's plan includes it. In its tests call `registerModule()` and
   `entitle()`, and also test the not-entitled case (404). `Feature/Modules/EntitlementTest.php` shows the pattern.
 - Dispatch inside `inTenant()` with a block closure: `function (): void { SomeJob::dispatch(); }`. An arrow
   function returns the `PendingDispatch`, which only reaches the queue when it is destroyed, after the tenant
   context has ended.
 - Under `Queue::fake()` the tenancy package does not add `tenant_id` to payloads; to test tenant propagation
   use the `sync` queue.
-- Fakes for outside services are bound only in tests (`Mail::fake()`, …). Never add a fake to a production code path.
+- Fakes for outside services are bound only in tests (`Mail::fake()`, `Http::fake()`, `useTestGateway()`, …). Never
+  add a fake to a production code path.
+- A JSON column comes back from MySQL with its keys in MySQL's order: compare with `toEqual`, not `toBe`.
+- Nobody can manage a member who holds a permission they lack, and the system roles hold contact and
+  organisation permissions. A custom role that is meant to manage Employees has to carry what Employee holds
+  (`EMPLOYEE_PERMISSIONS` in `Feature/Members/MemberManagementTest.php`).
+- A permission that can be scoped is tested per scope: see `Feature/Access/RecordAccessTest.php` and
+  `Feature/Contacts/ContactScopeTest.php`.
 - `Feature/Tenancy/RoutePipelineTest.php` checks every registered workspace route: tenant resolved first, then
   sign-in, session check and membership, and only tenant-scoped models bound. A route meant for signed-out
   visitors has to be added to its `PUBLIC_WORKSPACE_ROUTES` list, which makes the exception visible in review.

@@ -15,6 +15,8 @@ use App\Core\Registration\Models\WorkspaceRegistration;
 use App\Core\Registration\Rules\AvailableWorkspaceAddress;
 use App\Core\Settings\Enums\RegistrationMode;
 use App\Core\Settings\PlatformSettings;
+use App\Core\Tenancy\Enums\TenantStatus;
+use App\Core\Tenancy\Models\Tenant;
 use App\Core\Tenancy\Support\TenantHost;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -121,9 +123,15 @@ final class RegistrationController
             return $this->outcome('invalid');
         }
 
-        // Already confirmed (perhaps in another tab): point at the workspace instead of failing.
+        // Already confirmed (perhaps in another tab): point at the workspace instead of failing -
+        // unless it still waits for approval, where a link to its sign-in would lead nowhere.
         if ($registration->completed_at !== null) {
-            return $this->outcome('ready', $registration->company, $registration->slug);
+            $awaitsApproval = Tenant::query()
+                ->whereKey($registration->tenant_id)
+                ->where('status', TenantStatus::Pending)
+                ->exists();
+
+            return $this->outcome($awaitsApproval ? 'pending' : 'ready', $registration->company, $registration->slug);
         }
 
         if (! $registration->isWaiting()) {
@@ -138,6 +146,7 @@ final class RegistrationController
             'address' => parse_url($this->hosts->url($registration->slug), PHP_URL_HOST),
             'plan' => $registration->plan?->name,
             'loginUrl' => null,
+            'registrationOpen' => true,
         ]);
     }
 
@@ -173,6 +182,8 @@ final class RegistrationController
             'address' => $slug === null ? null : parse_url($this->hosts->url($slug), PHP_URL_HOST),
             'plan' => null,
             'loginUrl' => $slug === null || $state !== 'ready' ? null : $this->hosts->url($slug, 'login'),
+            // Whether the page may offer to sign up again.
+            'registrationOpen' => $this->settings->registrationMode() !== RegistrationMode::Closed,
         ]);
     }
 

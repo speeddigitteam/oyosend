@@ -5,165 +5,167 @@ Rules for working in this repository are in `CLAUDE.md`; the product specificati
 
 ## Status
 
-**Phase 1 (Architecture & Foundation) is complete as of 2026-10-10.** Phase 2 has not been started.
+**Phases 1 (Architecture & Foundation) and 2 (Core SaaS & Billing) are complete as of 2026-10-10.**
+Phase 3 has not been started. The application has a production-shaped foundation and core workspace/billing
+surface, but it does not have an App Store or any optional business application yet.
 
-## What Phase 1 delivered
+## What exists
+
+### Phase 1 — Architecture & Foundation
 
 | Area | What exists |
 |---|---|
-| Tenancy | Workspace per subdomain (`{tenant}.APP_DOMAIN`), resolved from the hostname only. Fail-closed row scope (`BelongsToTenant`): no tenant, no query. Tenant-prefixed cache on every store, tenant-aware rate limiter, `TenantStorage` for files, tenant context carried by queued jobs and enforced on them |
-| Identity | Platform-wide `users` (unique email) with one `tenant_memberships` row per workspace. Host-only sessions bound to one workspace, "remember me" bound to it too, workspace switcher with one-time handoff tokens, password reset, TOTP two-step verification with recovery codes, replay protection and lockout |
-| Team | Members list (search, role change, suspend, remove), invitations by email (hashed one-time token, expiry, withdraw, resend), acceptance for new and existing accounts |
-| Access | Tenant-scoped roles (Owner, Admin, Manager, Employee + custom), permissions declared by modules and synced with `permissions:sync`, checked through `AccessChecker` behind `Gate::before`. Nobody can grant, remove or outrank a permission they do not hold |
-| Audit | Append-only, tenant-scoped trail (`AuditLogger`, `Auditable`), sensitive keys redacted, audit page with filters and cursor pagination |
-| Super Admin | Separate host, guard and table (`platform_users`), mandatory two-step verification, dashboard (counts, live service checks, recent workspaces, panel activity), read-only workspace directory, `platform:create-admin` command |
-| Module system | `ModuleManifest`, `ModuleRegistry`, `ModuleServiceProvider`; navigation and dashboard widgets built from manifests; contracts for entitlements (`EntitlementChecker`), automation triggers/actions (`AutomationRegistry`) and domain events (`TenantDomainEvent`). The only module is `core` |
-| Design system | "Warm frosted glass": tokens in `resources/css/app.css`, 30 shared components, floating glass shell, light and dark themes, command palette, three layouts. Text contrast on glass is tested (see below) |
-| Languages | English and Bengali for every screen and every server message; numerals (Latin/Bengali) are a separate per-person choice; dates, numbers and money are formatted for the workspace |
-| Pages | 20 Inertia pages: sign-in, two-step challenge, forgot/reset password, invitation, dashboard, members, roles (list, editor), audit log, profile, security, landing page, error pages, and the five Super Admin screens |
-| Tooling | Pest, Vitest, Pint, Larastan level 6, vue-tsc, GitHub Actions workflow, Sail `compose.yaml`, development-only seeders |
-| Docs | `README.md`, `CLAUDE.md`, `docs/` (architecture, database, modules, security, testing, deployment, and short notes for the phases to come), five ADRs, `resources/js/README.md` |
+| Tenancy | Workspace per subdomain (`{tenant}.APP_DOMAIN`), resolved from the hostname only. Fail-closed row scope, tenant-prefixed cache, tenant-aware rate limiter, tenant file storage, tenant context carried by queued work |
+| Identity | Platform-wide users with memberships in several workspaces; host-only workspace-bound sessions and remember cookies; password reset; TOTP two-step verification and recovery codes |
+| Team and access | Invitations, member management, tenant roles, module permissions, permission hierarchy rules, append-only audit trail |
+| Platform | Separate Super Admin host, guard, users and layout; mandatory two-step verification; dashboard and workspace directory |
+| Module foundation | Manifests, registry, entitlement contract, navigation and dashboard builders, domain-event and automation-definition contracts |
+| Product shell | Warm frosted-glass design system, light/dark themes, command palette, responsive layouts, English/Bengali UI and configurable numeral display |
+| Tooling | Pest, Vitest, Pint, Larastan level 6, vue-tsc, GitHub Actions workflow and an unverified Sail environment |
+
+### Phase 2 — Core SaaS & Billing
+
+| Area | What exists |
+|---|---|
+| Registration | Configurable open/approval/closed sign-up, email confirmation before provisioning, one-use token, first-run workspace setup, and welcome mail |
+| Workspace settings | Company/legal profile, address and tax fields, locale, timezone, currency, and private logo storage through `TenantStorage` |
+| Organisation | Tenant-scoped branches and departments, member placement, and invalid-placement guards |
+| Shared customers | One tenant-scoped contacts/companies directory for future modules, soft deletion, duplicate-email protection, audit/events, and ownership assignment |
+| Scoped permissions | `own`, `department`, `branch` and `all` grants evaluated by `RecordAccess`; contacts and companies are the reference implementation |
+| Plans and subscriptions | Monthly/yearly/free plans, trials, upgrades/downgrades, cancellation, renewals, grace periods, expiry and the hourly `billing:run` cycle |
+| Platform billing | Immutable invoice snapshots and lines, payments, offline payment recording, SSLCommerz adapter, server-side verification, idempotent callbacks and payment audit events |
+| Entitlements and usage | Plan-based optional-module entitlements, route/navigation/widget/permission gating, gauge and metered limits, idempotent usage records and workspace paywall |
+| Super Admin | Workspace creation/approval/suspension/reactivation, plan management, subscription overrides, invoice/payment views, operator settings and panel audit log |
+| Support access | Time-limited, reason-required, audited access as the owner; persistent workspace banner; personal/security routes remain blocked |
+| Hardening brought forward | Trusted-proxy configuration, security headers, report-only CSP and stricter tenant-context restoration |
+| Frontend | Registration/onboarding, organisation, contacts, workspace settings, billing, and complete platform management pages in both languages |
+| Browser coverage | Playwright flows for workspace sign-in/authorization/language, registration, contacts/isolation, billing, platform 2FA and support access |
 
 ## Verification on 2026-10-10
 
-Run natively on Laragon (Windows 10): PHP 8.4.13, MySQL 8.0.30, Redis 5.0.14, Node 24.19.
+Run natively on Laragon (Windows 10): PHP 8.4.13, MySQL 8.0.30, Redis 5.0.14 and Node 24.19.
 
 | Check | Command | Result |
 |---|---|---|
 | Code style | `vendor/bin/pint --test` | passed |
-| Static analysis | `vendor/bin/phpstan analyse` (level 6) | no errors |
-| Backend tests | `php artisan test` | 660 passed, 5035 assertions |
+| Static analysis | `vendor/bin/phpstan analyse --no-progress` (level 6) | no errors |
+| Backend tests | `php artisan test --compact` | 2,086 passed, 16,522 assertions |
 | Type check | `npm run typecheck` | no errors |
-| Frontend tests | `npm run test` | 69 passed |
-| Production build | `npm run build` | built |
-| Database | `php artisan migrate --seed` on an empty database | succeeded (run on 2026-10-08; migrations unchanged since, and the seeder is now under test) |
-| Visual review | every page in a real browser: light, dark, 390px, Bengali | done on 2026-10-08, no console errors |
+| Frontend tests | `npm run test -- --reporter=dot` | 12 files, 242 tests passed |
+| Production build | `npm run build` | built, 3,254 modules transformed |
+| End-to-end tests | `npm run test:e2e` | 18 passed in Chrome |
+| Fresh database and seed | Playwright global setup against `oyosend_e2e_testing` | `migrate:fresh --seed` succeeded before the browser run |
 
-Among the 660 backend tests: cross-tenant isolation for every tenant-owned model and every route that takes an id,
-cache and storage isolation, queue context, the whole sign-in surface, role and member rules, entitlements with a
-fixture module, and the demo seeder the local setup depends on.
+Vitest needed permission to spawn its bundled esbuild worker in this managed Windows environment. The elevated
+rerun passed; the first `spawn EPERM` was an environment startup error, not a failing test.
 
-### Not verified
+### Still not verified
 
-- **Laravel Sail / Docker.** `compose.yaml` is committed but this machine has no Docker. It also builds PHP 8.5
-  and MySQL 8.4, where everything above ran on 8.4 and 8.0 (ADR 0004).
-- **The GitHub Actions workflow** has never run: the repository has no remote.
-- **Horizon** cannot run on Windows (needs `pcntl`/`posix`). `composer dev` uses `queue:listen` instead; the
-  Horizon configuration is untested.
-- **Real mail delivery.** Mail was only sent to the `log` and `array` transports.
-- **S3 storage.** The driver package is not installed.
-- **End-to-end browser tests.** Playwright arrives in Phase 2, as the specification says.
+- **Laravel Sail / Docker.** `compose.yaml` exists, but Docker is not installed on this machine. It builds PHP
+  8.5 and MySQL 8.4; the successful native run used PHP 8.4 and MySQL 8.0.
+- **GitHub Actions.** The workflow has never run because the repository has no remote.
+- **Horizon.** Windows lacks `pcntl` / `posix`; production queue supervision remains untested.
+- **SSLCommerz sandbox or production.** The adapter is extensively tested with fake HTTP responses, but no real
+  merchant account has been connected. Treat it as unverified until a sandbox transaction completes.
+- **Real mail and S3.** Mail has used test/log transports; the S3 driver is not installed.
+- **Production proxy/TLS/CSP behaviour.** Security headers are tested, but CSP is deliberately report-only until
+  it has been observed on the deployed origins.
 
-## Decisions
+## Phase 2 decisions
 
-All dated 2026-10-08. The longer reasoning is in `docs/adr/`.
+Longer reasoning is in ADRs 0006–0008 and the domain documents.
 
 | Decision | Why |
 |---|---|
-| stancl/tenancy 3.10 for tenant, domain and lifecycle; our own scope, cache prefixing and storage API on top (ADR 0001) | The package supports Laravel 13 in single-database mode, but its scope fails open with no tenant and its cache isolation needs tagging. Ours fails closed |
-| spatie/laravel-permission 8 in teams mode for schema and assignment; checks go through our own `AccessChecker` (ADR 0002) | A permission must also depend on the workspace's entitlement to the module and carry a scope, which the package's check API cannot express |
-| One `users` row per person across workspaces; sessions host-only and bound to a workspace (ADR 0003) | One login for people in several companies, without a session in one workspace being valid in another |
-| Verified natively on Laragon; Sail shipped unverified (ADR 0004) | No Docker on the development machine |
-| Own design system; fonts under OFL-1.1 (ADR 0005) | A distinct identity, and the only licence exception: fonts |
-| TypeScript pinned to `~6.0` | vue-tsc 3.3 cannot drive TypeScript 7 yet |
-| `ext-pcntl`/`ext-posix` declared in `composer.json` `config.platform` | Lets Composer install Horizon on Windows; Horizon itself still only runs on Linux |
-| Tests run on a real MySQL database (`oyosend_testing`) | The behaviour under test is MySQL's (JSON, indexes, foreign keys); `TestCase` refuses any database not named `*_testing` |
-| Sanctum and Reverb not installed | Both confirmed compatible with Laravel 13; nothing uses them until there is an API and realtime |
-| Glass made more opaque than first drawn; soft status fills are chips of about 60% opacity | Measured contrast on glass over the backdrop discs was below WCAG AA in the dark theme. `tests/js/contrast.test.ts` now recomputes it from the stylesheet |
-| "Remember me" tied to the issuing workspace with a second, encrypted cookie | The framework's cookie names a person and no workspace; a stolen copy would otherwise open every workspace that person belongs to |
-| Nobody can change, suspend or remove a member who holds a permission they lack | Otherwise "manage members" alone was enough to remove an Admin |
-| `platform:create-admin` command, password typed in and never an argument | There was no way to create the first Super Admin outside the local seeder |
-| Sign-in and landing copy describe only what exists today | The specification forbids presenting unfinished features as done |
+| Invoice-driven billing; no automatic charging | A workspace changes to a paid plan only after a verified payment settles an invoice |
+| SSLCommerz as the first adapter; offline payments remain an operator action | It supplies the required abstraction without pretending unverified credentials work |
+| Gateway redirects and notifications never prove payment | `PaymentProcessor::confirm()` asks the provider's validation API; callbacks are stateless and idempotent |
+| One subscription row per workspace, with invoices and audit logs as history | Keeps current access inexpensive while preserving financial history |
+| Core is always entitled; optional modules come from a healthy plan | Deny-by-default behaviour is usable before the App Store introduces per-app licences |
+| Usage limits are declared in module manifests | Future apps share one gauge/metered enforcement contract and idempotency model |
+| Record scopes live on role grants and are applied explicitly by controllers | A route-level permission cannot decide whether one particular record is in scope |
+| Registration is configurable: open, approval or closed | The owner had not fixed one launch policy; the operator can choose without a code change |
+| Sign-up creates nothing until the emailed link is confirmed | Avoids abandoned tenants and treats possession of the mailbox as verification |
+| Support access is a short-lived, reason-required handoff rather than password impersonation | It is auditable, cross-origin, expires, and cannot open personal/security settings |
+
+Phase 1 decisions remain in ADRs 0001–0005 and `CLAUDE.md`.
 
 ## Known issues and debt
 
-Security and correctness
-- A password-reset token can be redeemed on any workspace host, not only the one it was requested on (low impact:
-  the person still has to be a member there to sign in).
-- Trusted proxies, security headers and a Content Security Policy are not configured. Needed before the first
-  deployment behind a load balancer.
-- After a 404 for an unknown workspace the previously active tenant stays initialised in the PHP process. Harmless
-  under PHP-FPM; needs a per-request reset before adopting Octane.
-- The dedicated-database seam (`tenants.db_connection`) is reserved but not usable; the gaps are listed in
-  `docs/DATABASE.md`.
-- Audit entries written by `Auditable` include technical columns (`tenant_id`, `guard_name`).
+Security and correctness:
 
-Product gaps inside Phase 1's own scope
-- No email verification and no way to change an email address (it needs a verification step).
-- The Super Admin panel has no language switch and no audit-log page of its own; its workspace directory is
-  read-only.
-- System role names (Owner, Admin, Manager, Employee) are stored data and appear in English in the Bengali
-  interface. Numbers inside server-written messages ignore the numerals preference.
-- The password hint states the production rule (12 characters, mixed case, a number); local development accepts 8.
+- A password-reset token can be redeemed on another workspace host where the person is a member; the password is
+  still bound to the emailed account, but the audit entry belongs to the host used.
+- An unknown-workspace 404 does not clear a tenant left in the same long-lived PHP process. This does not affect
+  PHP-FPM; fix it before using Octane.
+- Local-disk signed file URLs rely on their signature alone and answer on any host.
+- CSP is report-only and `style-src` permits inline styles. Observe reports and tighten it before enforcement.
+- `SESSION_SECURE_COOKIE` must be enabled wherever HTTPS is used.
+- Sign-up has throttling and email confirmation but no CAPTCHA or proof of work.
+- Support access is always as the owner; a workspace cannot pre-approve or refuse an individual session.
 
-Frontend
-- A dialog opened from a menu item, or whose opener has since left the page, has nowhere to return focus to;
-  the pages that need it handle it themselves (`Core/Components/Team/focus.ts`). It belongs in `Modal`.
-  `DataTable` has no row-details slot; the audit page works around it.
-- No `Textarea` component; `Button` labels cannot wrap; `SegmentedControl` has no arrow-key movement.
-- Wide tables scroll sideways on phones instead of collapsing.
+Billing and product:
 
-Contracts thinner than the specification
-- `ModuleManifest` has no routes list, scheduled jobs or install/uninstall hooks yet (specification section 15).
-  They belong with the App Store in Phase 3.
-- `CoreModulesEntitlementChecker` entitles every workspace to `core` and to nothing else. It is the seam Phase 2
-  replaces, not an entitlement system.
-- Inertia page names are checked for existence only where a test asserts the component; all 20 are asserted
-  today.
+- SSLCommerz has not been exercised against its sandbox.
+- A verified payment for an invoice voided in the meantime is retained and flagged as unapplied; refunds and
+  credits are not built.
+- There is no App Store, per-app installation/licensing, optional business module, coupon, tax engine or
+  automatic payment method.
+- Changing an account email, platform password recovery and login-session management are not built.
+- The dedicated-database seam (`tenants.db_connection`) is reserved but not operational; the migration plan and
+  gaps are documented in `docs/DATABASE.md`.
 
-Environment
-- On Windows, run Vitest from a path with an upper-case drive letter (`cd D:/...`). From Git Bash's `/d/...` every
-  test file fails before it starts.
-- On this machine PHPUnit was installed from source because an indexer held vendor files open, and a few temporary
-  directories remain under `vendor/composer/`. Neither is in the repository.
-- The local demo database still holds sign-in entries from the visual review, and there is an empty extra database
-  `oyosend_alt_testing`. `php artisan migrate:fresh --seed` and `DROP DATABASE oyosend_alt_testing` clear both.
+Frontend and operations:
+
+- Wide data tables scroll horizontally on small screens rather than becoming record cards.
+- Laravel Sail, Horizon, CI, S3, real mail and production deployment have not received an end-to-end run.
+- The local demo database may contain manual-review data. Do not clean it with a destructive command unless the
+  target is confirmed as a disposable `*_testing` database.
 
 ## Deferred, by phase
 
-- **Phase 2:** self-registration and onboarding, company settings, branches and departments (the `own` /
-  `department` / `branch` permission scopes exist but nothing narrows by them yet), shared contacts and companies,
-  plans, billing, payment gateways, real entitlements, usage limits and metering, Super Admin tenant and plan
-  management, impersonation with audit, Playwright.
-- **Phase 3:** App Store, module install lifecycle, the rest of the manifest.
-- **Phase 8:** notification centre and channels. **Phase 10:** the automation engine (its trigger and action
-  registry already exists). **Phase 13:** hardening, backups, load testing.
-- Whenever first needed: Sanctum (API tokens), Reverb (realtime), Meilisearch, S3, custom domains
-  (`tenant_domains.type` reserves `custom`).
+- **Phase 3:** App Store, install/activate/deactivate/uninstall lifecycle, dependency validation, per-app
+  entitlements and paid app checkout; complete the remaining manifest fields.
+- **Phase 4–7:** CRM, Projects, customer invoicing, then HRM/Payroll.
+- **Phase 8:** notification centre and communication providers. **Phase 9:** marketing apps.
+- **Phase 10:** the automation engine; only its definition registry exists today.
+- **Phase 11–12:** AI applications, Support and advanced reporting.
+- **Phase 13:** final production hardening, backups, load testing and deployment verification.
+- Whenever first needed: Sanctum, Reverb, Meilisearch, S3 and custom domains.
 
 ## Needs the owner's input
 
-1. **Production domain** for `APP_DOMAIN`, and a wildcard DNS record and certificate for it.
-2. **Registration model:** open self-service, or sign-up that a Super Admin approves? (`tenants.status` already has
-   `pending`.)
-3. **Payment gateways** for Phase 2 (for Bangladesh: bKash, Nagad, SSLCommerz? cards through whom?) and the plan
-   and pricing structure. No gateway will be simulated in production code.
-4. **Mail provider** for transactional mail.
-5. **A Git remote**, so the CI workflow can run for the first time.
-6. **Docker**, if Sail is to be the supported local setup: it must be run once to be verified.
-7. **A native reader's pass over the Bengali wording.** It is complete and consistent (glossary in
-   `resources/js/Core/i18n/locales/bn/index.ts`) but has not been read by a person.
-8. **Name and mark.** The "oyosend" wordmark and two-disc mark were drawn for this build; confirm or replace.
+1. Production `APP_DOMAIN`, wildcard DNS and wildcard certificate.
+2. Launch registration mode: `open`, `approval` or `closed`.
+3. Production plans, prices, included modules and limits; SSLCommerz merchant credentials and a sandbox account;
+   whether offline payment instructions should be shown.
+4. Transactional mail provider and sender domain.
+5. Git remote so the CI workflow can run.
+6. Docker if Sail is to be the supported local environment.
+7. A native Bengali speaker's review of the complete interface wording.
+8. Final name and brand mark approval.
+9. Production support-access policy and whether tenants must explicitly approve a session.
 
-## Next steps (Phase 2, in order)
+## Recommended Phase 3 scope, in order
 
-1. Before new features: run Sail once and the CI workflow once; add trusted-proxy and security-header
-   configuration; decide the items above.
-2. Shared core records the later apps depend on: branches, departments, contacts, companies - each with
-   `assertTenantIsolated()` and the scope-narrowing rules for `own` / `department` / `branch`.
-3. Company settings (profile, language, timezone, currency, logo through `TenantStorage`).
-4. Plans, subscriptions and the payment gateway abstraction; then entitlements, usage limits and metering behind
-   the existing `EntitlementChecker` contract.
-5. Self-registration and onboarding, with email verification.
-6. Super Admin: create, suspend and reactivate workspaces, manage plans, impersonate with an audit entry, panel
-   audit log.
-7. Playwright for sign-in, invitation, role change and registration.
+1. Finalise the first-party app manifest and lifecycle contracts: catalogue metadata, routes, scheduled jobs,
+   install/activate/deactivate/uninstall/upgrade hooks, dependency rules and data-retention guarantees.
+2. Add the central app catalogue, categories, installations, entitlements and app subscription items. Keep
+   tenant business data in place when an app is deactivated or uninstalled.
+3. Build the workspace App Store catalogue, app details and My Apps pages; add the operator catalogue controls.
+4. Implement free install and lifecycle operations with dependency/dependent validation and complete audit logs.
+5. Reuse the Phase 2 invoice/payment path for paid apps. Grant entitlement only after server-side payment
+   verification, and handle renewal, expiry and cancellation without weakening plan entitlements.
+6. Extend backend, Vitest and Playwright coverage for isolation, dependency failures, verified paid activation,
+   navigation/permission gating, reinstall and retained data.
+7. Update the deployment and operations docs, run every quality gate, and stop for review before Phase 4.
 
 ## Session log
 
-- **2026-10-08** - Phase 1 built and verified. Backend foundation, design system and shell written directly; the
-  remaining pages, the test suite, the documentation and the Bengali translation were produced by parallel agents
-  and then reviewed, integrated and corrected (contrast, cursor pagination on the audit page, member hierarchy,
-  workspace-bound "remember me", named rate limiters across tenants, invitation email language).
-- **2026-10-10** - Final checks re-run on the finished tree, documentation brought back in step with the code,
-  last commits made. Nothing of Phase 2 was started.
+- **2026-10-08** — Phase 1 built and initially verified: tenancy, identity, RBAC, audit, platform guard, module
+  contracts, design system, localisation, tooling and documentation.
+- **2026-10-10** — Phase 1 final checks and documentation completed.
+- **2026-10-10** — Phase 2 completed: organisation and shared customer records, record scopes, registration and
+  onboarding, workspace settings, plans/subscriptions/invoices/payments, entitlements and usage, platform
+  management, audited support access, complete bilingual UI and Playwright coverage. Final verification: Pint,
+  Larastan, 2,086 Pest tests, vue-tsc, 242 Vitest tests, production build and 18 Chrome E2E tests all passed.

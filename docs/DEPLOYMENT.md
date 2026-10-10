@@ -1,7 +1,7 @@
 # Deployment
 
-**Nothing on this page has been run in production.** Phase 1 was verified only natively on Windows (Laragon) with
-`php artisan serve`. Production hardening is Phase 13. Section 9 lists what is unverified.
+**Nothing on this page has been run in production.** Phases 1 and 2 were verified only natively on Windows
+(Laragon) with `php artisan serve`. Production hardening is Phase 13. Section 9 lists what is unverified.
 
 Target stack (spec section 2): Nginx, PHP-FPM 8.4, MySQL 8, Redis, Horizon under Supervisor or systemd, cron,
 S3-compatible storage, GitHub Actions.
@@ -38,10 +38,19 @@ Source of truth: `.env.example`. Values below are the ones that matter for this 
 | `HORIZON_DOMAIN`, `HORIZON_PATH` | defaults | Default to the admin host and `horizon` |
 | `BROADCAST_CONNECTION` | `log` | No realtime yet |
 | `VITE_APP_NAME` | | Read at build time |
+| `TRUSTED_PROXIES` | the proxy's address(es), or `*` | `config/trustedproxy.php`. Required behind a load balancer: without it the audit trail and throttles see the proxy's address and generated URLs may use `http` |
+| `SECURITY_CSP` | `report-only`, then `enforce` | The Content-Security-Policy is sent report-only until it has been watched in a browser (`docs/SECURITY.md` section 5b) |
+| `REGISTRATION_MODE` | `open`, `approval` or `closed` | Default only; the panel's Settings page overrides it |
+| `BILLING_ISSUER_NAME`, `_ADDRESS`, `_EMAIL`, `_TAX_ID` | the company that issues invoices | Printed on every invoice |
+| `BILLING_INVOICE_PREFIX` | `INV` (default) | Invoice numbers are `{prefix}-{year}-{6 digits}` |
+| `SSLCOMMERZ_STORE_ID`, `SSLCOMMERZ_STORE_PASSWORD`, `SSLCOMMERZ_SANDBOX` | merchant credentials; `false` for live | Empty = the gateway is off. **Run it against the sandbox before going live: it never has been** |
 
 Settings that are code, not environment (`config/platform.php`): reserved subdomains; tenant defaults (`en`,
 `Asia/Dhaka`, `BDT`); interface locales (`en`, `bn`); recovery codes (8); 2FA challenge lifetime (600 s);
-2FA lockout (10 wrong codes, 900 s); invitation lifetime (7 days); workspace handoff lifetime (60 s).
+2FA lockout (10 wrong codes, 900 s); invitation lifetime (7 days); workspace handoff lifetime (60 s); sign-up
+link lifetime (24 h); support session length (30 min); the currencies a workspace can choose. Grace days (7),
+invoice lead days (7), the offline payment instructions and the registration mode start from that file and are
+then changed in the panel (stored in `platform_settings`).
 
 ## 2. DNS and TLS
 
@@ -92,10 +101,13 @@ server {
 ```
 
 - Add a catch-all default server that drops other hostnames, so arbitrary `Host` headers never reach PHP.
-- If TLS ends on a load balancer in front of Nginx, configure trusted proxies in `bootstrap/app.php`
-  (`$middleware->trustProxies(...)`). It is not configured today, so client IPs in the audit log and the login
-  throttle would be the proxy's.
-- Security headers (HSTS, CSP, frame options) are not set by the application; add them here until they are.
+- If TLS ends on a load balancer in front of Nginx, set `TRUSTED_PROXIES`. Without it client IPs in the audit
+  log and the login throttle are the proxy's, HSTS is not sent, and generated links may use `http`.
+- The application sends its own security headers (`docs/SECURITY.md` section 5b); do not add a second,
+  different Content-Security-Policy here.
+- Payment gateways call back to `https://{tenant}.APP_DOMAIN/billing/payments/{reference}/return` and
+  `/billing/gateways/{gateway}/notify`. Both must be reachable from the provider's servers; do not put them
+  behind an IP allow-list that excludes it, or basic auth.
 
 ## 4. Queue workers
 
@@ -134,8 +146,15 @@ redirect_stderr=true
 * * * * * cd /var/www/oyosend/current && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-Nothing is scheduled yet (`routes/console.php` has only `inspire`). Horizon's metrics graphs stay empty until
-`horizon:snapshot` is scheduled.
+Scheduled in `routes/console.php`:
+
+| Command | When | Does |
+|---|---|---|
+| `billing:run` | hourly | Issues invoices that are due, marks subscriptions past due, expires and cancels them. **Billing does not move without the scheduler** |
+| `model:prune` (sign-ups) | daily | Removes registrations whose confirmation link expired |
+
+`billing:run` is safe to run by hand and to run twice; `--tenant=acme` limits it to one workspace. Horizon's
+metrics graphs stay empty until `horizon:snapshot` is scheduled.
 
 ## 6. Deploy sequence
 
@@ -161,8 +180,10 @@ php artisan horizon:terminate
   password is asked for and confirmed, never passed as an argument, and has to pass `Password::defaults()`
   (12+ characters, mixed case, numbers, uncompromised in production). The account enrols in two-step
   verification at its first sign-in. The creation is written to the audit trail (`platform.admin.created`).
-- **First tenant:** there is still no command or screen to create a workspace outside the local demo seeder
-  (Phase 2). Until then use `php artisan tinker` with `app(TenantProvisioner::class)->provision(...)`.
+- **First plans:** create them in the panel (Plans). Without a public, active plan, sign-up still works and
+  the workspace simply has no subscription.
+- **First tenant:** create it in the panel (Workspaces → Create workspace; the owner is mailed a link to choose
+  a password), or let people sign up at `https://APP_DOMAIN/register` when registration is not `closed`.
 
 ## 7. Secrets
 
@@ -202,4 +223,6 @@ jobs (`App\Platform\Support\SystemHealth`; each returns `key`, `ok`, `detail`, `
 - `.github/workflows/ci.yml` has never run on GitHub (`docs/TESTING.md` section 6).
 - Long-lived application servers (Octane): not used, and the tenant context is not ended after a 404 for an
   unknown workspace (`docs/SECURITY.md` section 8).
-- The Super Admin panel renders in `APP_LOCALE` only; it has no language switch.
+- The Content-Security-Policy in enforce mode; trusted proxies; HSTS (all need a real HTTPS deployment).
+- SSLCommerz against its sandbox and live hosts; gateway callbacks arriving from outside.
+- The scheduler under cron (`billing:run` was only run by hand and by the test suite).

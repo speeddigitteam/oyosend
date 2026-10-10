@@ -12,11 +12,13 @@ A complete non-core module, used only by the test suite, is in `tests/Support/Fi
 - Registration makes the code available to the platform. Access per tenant is decided by
   `App\Core\Entitlements\Contracts\EntitlementChecker`, on the server, every time.
 
-> **Phase 1 limitation.** The bound checker, `CoreModulesEntitlementChecker`, entitles `core: true` modules and
-> denies everything else. A non-core module registered today is unreachable for every tenant: its routes return
-> 404, its navigation and widgets are hidden, its permissions are ineffective and cannot be put on a role. That
-> is deliberate (denied rather than accidentally free) and lasts until the entitlement store exists. In tests,
-> use `registerModule()` and `entitle()` (`tests/Support/InteractsWithModules.php`).
+> **How a tenant gets a module today.** The bound checker, `PlanEntitlementChecker`, entitles `core: true`
+> modules for every accessible workspace, and an optional module when the workspace's **plan** lists its key
+> (`plans.modules`, edited in the Super Admin panel) and the subscription is in good standing. A non-core module
+> that no plan includes is unreachable for every tenant: its routes return 404, its navigation and widgets are
+> hidden, its permissions are ineffective and cannot be put on a role. That is deliberate (denied rather than
+> accidentally free). Installing and licensing single apps arrives with the App Store (Phase 3). In tests, use
+> `registerModule()` and `entitle()` (`tests/Support/InteractsWithModules.php`), or a plan with `modules`.
 
 ## 2. Folder layout (spec 3.1)
 
@@ -49,6 +51,7 @@ tests/Feature/<Module>/
 | `triggers` | list of class-strings implementing `TriggerDefinition` | Automation triggers |
 | `actions` | list of class-strings implementing `ActionDefinition` | Automation actions |
 | `morphMap` | `alias => class` | Morph aliases for the module's models |
+| `limits` | list of `LimitDefinition` | What a plan can cap for the module (section 5c) |
 
 Not in the manifest yet, although spec section 15 lists them: routes (loaded in `bootModule()` instead),
 scheduled jobs, and the install/activate lifecycle hooks. They arrive with the App Store (Phase 3).
@@ -59,12 +62,14 @@ scheduled jobs, and the install/activate lifecycle hooks. They arrive with the A
 
 - Name: `{module}.{resource}.{action}`, e.g. `crm.leads.edit`. The module is the first segment.
 - `group` groups permissions in the role editor. `sensitive` shows a warning there. `scopable` declares that a
-  grant may be narrowed to own / department / branch; it is not used yet (every grant is written as `all`).
+  grant may be narrowed to own / department / branch: the role editor then offers the choice, and the module's
+  controllers must apply it (section 5a).
 - Run `php artisan permissions:sync` after adding or renaming one. Until then `RoleManager` refuses to save roles
   (`The permission catalogue is out of date`). `--prune` deletes permissions no module declares any more,
   together with every grant of them in every tenant.
 - New permissions are granted to no role. The workspace owner holds everything implicitly; the system roles'
-  grants are listed in `App\Core\Access\DefaultRoles` and cover `core.*` only.
+  grants are listed in `App\Core\Access\DefaultRoles` and cover `core.*` only. They are applied when a
+  workspace is provisioned: an existing workspace's roles are not changed by a release.
 - Client labels: add `permissions`, `permissionGroups` and `modules` entries to
   `resources/js/Core/i18n/locales/en/catalogue.ts` and to its `bn` mirror. The Bengali catalogue is typed against
   the English one and `tests/js/locales.test.ts` compares their keys, so a missing translation fails the checks.
@@ -159,7 +164,68 @@ Schema::create('notes', function (Blueprint $table) {
 - Search filters: put user text into `LIKE` only through `App\Core\Support\Like::contains()` / `escape()`.
 - Cross-module data goes through events or a documented contract, not through another module's model.
 
-## 6. Events, jobs, files, cache
+## 5a. Records that belong to someone (permission scopes)
+
+A permission declared `scopable: true` can be granted for a person's **own** records, their **department**'s,
+their **branch**'s, or **all** (ADR 0007). Declaring it is a promise the module has to keep:
+
+```php
+final class Lead extends Model
+{
+    use BelongsToTenant, HasRecordOwner, HasUlids;   // App\Core\Access\Concerns\HasRecordOwner
+}
+```
+
+```php
+// migration: the three columns HasRecordOwner needs, each with an index led by tenant_id
+$table->foreignUlid('owner_id')->nullable()->constrained('tenant_memberships')->nullOnDelete();
+$table->foreignUlid('department_id')->nullable()->constrained('departments')->nullOnDelete();
+$table->foreignUlid('branch_id')->nullable()->constrained('branches')->nullOnDelete();
+```
+
+```php
+// controller: the route names the permission, RecordAccess applies its scope
+$leads = $records->constrain(Lead::query(), $actor, 'crm.leads.view')->paginate(25);   // lists
+$records->authorize($actor, 'crm.leads.edit', $lead);                                  // one record: 404 outside the scope
+```
+
+- A record created by a signed-in member becomes theirs; department and branch are copied from the owner
+  whenever the owner is set (`assignOwner()`).
+- Let only someone who holds the manage permission for `all` hand a record to another member.
+- `app/Core/Contacts/Http/Controllers/ContactController.php` is the reference implementation, and
+  `tests/Feature/Contacts` shows how to test it.
+
+## 5b. Customers: contacts and companies
+
+There is one customer identity per workspace: `App\Core\Contacts\Models\Contact` (a person) and `Company` (an
+organisation). **A module never creates its own customer table.** It stores `contact_id` / `company_id` on its
+own records and reads the shared ones.
+
+- Write through `App\Core\Contacts\ContactDirectory` (`createContact`, `updateContact`, `deleteContact` and the
+  same for companies), so the audit entry and the domain event always follow.
+- React to `core.contact.created|updated|deleted` and `core.company.created|updated|deleted`.
+- Contacts are soft-deleted: keep rows that point at one, and expect `contact` relations to be null.
+- Access is governed by `core.contacts.view` / `.manage` / `.delete`, each scopable. A module that shows a
+  customer picker must narrow it with `RecordAccess` for the person looking.
+
+## 5c. Limits and metering
+
+Declare what a plan may cap in the manifest:
+
+```php
+limits: [
+    new LimitDefinition('sms.messages'),                                   // metered: counted from UsageMeter
+    new LimitDefinition('crm.pipelines', LimitKind::Gauge, static fn (): int => Pipeline::query()->count()),
+],
+```
+
+- The key is prefixed with the module key and must be unique. A plan sets the maximum per key in the panel; no
+  entry means unlimited. Label it in `catalogue.ts` under `limits` (both languages).
+- Before using more: `app(UsageLimits::class)->ensure('sms.messages', $count)` - a validation error at the limit.
+- After using: `app(UsageMeter::class)->record('sms.messages', $count, "sms:{$message->id}")`. The idempotency key
+  must identify the event, so a retried job or a duplicate webhook counts nothing.
+- See `docs/BILLING.md` section 6.
+
 
 | Need | Use |
 |---|---|
@@ -228,12 +294,15 @@ Override `register()` only to add container bindings, and call `parent::register
 
 1. Provider, manifest, entry in `config/modules.php`.
 2. Migrations with `tenant_id` and tenant-first unique indexes; models with `BelongsToTenant` + `HasUlids`.
+   Customers are `contact_id` / `company_id`, never a table of the module's own (section 5b). Records with a
+   scopable permission use `HasRecordOwner` and `RecordAccess` (section 5a).
 3. Morph aliases for audited or polymorphic models.
 4. Routes through `loadTenantRoutes()`, with `auth:web`, `auth.session`, `member` and a `can:` on each.
 5. `php artisan permissions:sync` (also on every deploy).
 6. Pages under `resources/js/Modules/<Module>/Pages`, rendered as `Inertia::render('Modules/<Module>/Pages/…')`;
    labels in the i18n catalogue; icon and widget component registered.
-7. Domain events for what other modules or workflows may react to; triggers and actions declared.
+7. Domain events for what other modules or workflows may react to; triggers and actions declared; limits
+   declared for anything a plan should be able to cap (section 5c).
 8. Tests: a cross-tenant test for every new model and every new route (`docs/TESTING.md`), plus the
    not-entitled case (404). `tests/Feature/Modules/EntitlementTest.php` and the `Crm` fixture show the pattern;
    every page a test asserts with `assertInertia()->component()` must exist as a Vue file.

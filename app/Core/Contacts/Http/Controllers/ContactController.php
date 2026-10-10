@@ -64,6 +64,8 @@ final class ContactController
             ->when($search !== '', fn ($query) => $query->where(fn ($match) => $match
                 ->where('first_name', 'like', Like::contains($search))
                 ->orWhere('last_name', 'like', Like::contains($search))
+                // The name as the list shows it: "Imran Hossain" is in neither column on its own.
+                ->orWhereRaw("concat_ws(' ', first_name, last_name) like ?", [Like::contains($search)])
                 ->orWhere('email', 'like', Like::contains($search))
                 ->orWhere('phone', 'like', Like::contains($search))))
             ->when($company !== null, fn ($query) => $query->where('company_id', $company?->getKey()))
@@ -184,7 +186,9 @@ final class ContactController
             $attributes['email'] = mb_strtolower($attributes['email']);
         }
 
-        if (($attributes['company_id'] ?? null) !== null) {
+        // Leaving a contact in the company it is already in asks for nothing new,
+        // even when someone else put it in one the person cannot see.
+        if (($attributes['company_id'] ?? null) !== null && $attributes['company_id'] !== $contact?->company_id) {
             // A company the person can see - never one outside their scope or workspace.
             $attributes['company_id'] = $this->records->constrain(Company::query(), $actor, self::VIEW)
                 ->findOrFail($attributes['company_id'])
@@ -193,7 +197,7 @@ final class ContactController
 
         return [
             'attributes' => $attributes,
-            'owner' => $this->requestedOwner($input, $actor),
+            'owner' => $this->requestedOwner($input, $actor, $contact),
         ];
     }
 
@@ -203,9 +207,15 @@ final class ContactController
      *
      * @param  array<string, mixed>  $input
      */
-    private function requestedOwner(array $input, User $actor): TenantMembership|false|null
+    private function requestedOwner(array $input, User $actor, ?Contact $contact = null): TenantMembership|false|null
     {
         if (! array_key_exists('owner_id', $input) || $this->access->scopeFor($actor, self::MANAGE) !== AccessScope::All) {
+            return false;
+        }
+
+        // The owner it already has: nothing is being handed over, so they need
+        // not be someone a contact could be given to now (suspended since, say).
+        if ($contact !== null && $input['owner_id'] === $contact->owner_id) {
             return false;
         }
 

@@ -32,8 +32,8 @@ remember cookie names a person and no workspace, so on its own it would open eve
 of this workspace fail identically and take the same minimum time (`CredentialVerifier`, `VerifyWorkspaceCredentials`).
 The forgot-password form answers the same way for everyone and sends the link after the response.
 
-**Email verification.** The verification flow for self-registration arrives with Phase 2. Accepting an invitation
-counts as verifying the address, because the link was delivered to it.
+**Email verification.** Accepting an invitation counts as verifying the address, because the link was delivered
+to it. Sign-up (Phase 2, ADR 0008) works the same way: nothing is created until the emailed link is confirmed.
 
 **Two-factor.** TOTP via `pragmarx/google2fa`, with recovery codes. Secret and codes are encrypted at rest
 (encrypted casts). An accepted code cannot be replayed: the last accepted time step is remembered in the central

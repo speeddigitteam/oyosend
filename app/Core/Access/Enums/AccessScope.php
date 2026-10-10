@@ -7,9 +7,9 @@ namespace App\Core\Access\Enums;
 /**
  * How far a granted permission reaches.
  *
- * Stored per role grant. Policies use it to narrow record-level access, for
- * example "may edit leads, but only their own". Department and branch scopes
- * become meaningful once those structures exist (Phase 2).
+ * Stored per role grant, for permissions that declare themselves scopable.
+ * RecordAccess uses it to narrow record-level access, for example "may edit
+ * contacts, but only their own".
  */
 enum AccessScope: string
 {

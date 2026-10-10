@@ -4,11 +4,20 @@ A multi-tenant business SaaS platform: one workspace per company on its own subd
 CRM, invoicing, marketing, support, automation) added through a built-in App Store. The full product
 specification is [`MASTER_PROMPT.md`](MASTER_PROMPT.md).
 
-**Current state: Phase 1 (Architecture & Foundation).** What exists is the foundation: subdomain tenancy with
-fail-closed isolation, sign-in with two-factor authentication, memberships and invitations, tenant-scoped roles and
-permissions, an audit trail, the module / entitlement / automation contracts, the design system and layouts, a
-workspace dashboard and a Super Admin panel, in English and Bengali. No business app, billing or App Store
-exists yet.
+**Current state: Phase 2 (Core SaaS & Billing) is complete.** What exists:
+
+- **Foundation (Phase 1):** subdomain tenancy with fail-closed isolation, sign-in with two-factor authentication,
+  memberships and invitations, tenant-scoped roles and permissions, an audit trail, the module / entitlement /
+  automation contracts, the design system and layouts, a workspace dashboard and a Super Admin panel, in English
+  and Bengali.
+- **Core SaaS (Phase 2):** sign-up with email confirmation and first-run setup; workspace settings and logo;
+  branches and departments; permissions that reach a person's own, their department's, their branch's or all
+  records; shared contacts and companies; plans, subscriptions with trials, invoices and payments; plan limits and
+  a metering service; Super Admin management of workspaces, plans and invoices, with audited support access.
+
+No business app (CRM, HRM, projects, …) and no App Store exists yet. One payment gateway (SSLCommerz) is
+implemented but has not been run against the provider's sandbox; until credentials are set, invoices are paid
+by recording an offline payment in the Super Admin panel. See [`docs/BILLING.md`](docs/BILLING.md).
 
 ## Stack
 
@@ -58,12 +67,15 @@ route is bound to a hostname, so the bare IP answers 404.
 
 | Area | URL |
 |---|---|
-| Central site | http://localhost:8000 |
+| Central site | http://localhost:8000 (sign up at `/register`) |
 | Super Admin panel | http://admin.localhost:8000 |
 | Workspaces | http://acme.localhost:8000 and http://globex.localhost:8000 |
 
-With `MAIL_MAILER=log`, invitation and password-reset links are written to `storage/logs/laravel.log`.
-Invitation mail is queued, so the queue listener has to be running.
+With `MAIL_MAILER=log`, the links in mail (invitation, password reset, sign-up confirmation, invoices) are
+written to `storage/logs/laravel.log`. Mail is queued, so the queue listener has to be running.
+
+Subscriptions move in time (next invoice, overdue, expiry) only when `php artisan billing:run` runs. In
+production the scheduler runs it hourly; locally run it by hand, or `php artisan schedule:work`.
 
 ## Local setup with Laravel Sail (not verified)
 
@@ -105,9 +117,14 @@ Seeded by `database/seeders/DemoSeeder.php` in the `local` environment only. Eve
 The Super Admin must enrol in two-factor authentication on first sign-in (any TOTP authenticator app). To skip
 that locally, set `PLATFORM_REQUIRE_2FA=false` in `.env`; the switch is ignored in production.
 
+The seeder also creates four example plans - Free, Starter, Business, Enterprise - with placeholder prices and
+seat limits. Acme starts a 14-day trial of Business; Globex is on Free, which allows five members: it has
+four, so one more invitation is accepted and the next is refused - the seat limit at work. To pay an invoice locally, open it in the Super Admin panel
+(Invoices) and record a payment.
+
 Outside `local` nothing is seeded. Create the first Super Admin with `php artisan platform:create-admin
-you@example.com`: it runs in an interactive terminal and asks for the name and password. There is no command or
-screen to create a workspace yet (Phase 2).
+you@example.com`: it runs in an interactive terminal and asks for the name and password. Plans and workspaces
+are then created in the panel; workspaces can also sign up on the central site.
 
 ## Daily commands
 
@@ -121,8 +138,10 @@ screen to create a workspace yet (Phase 2).
 | `npm run dev` / `npm run build` | Vite dev server / production build |
 | `npm run typecheck` | `vue-tsc --noEmit` |
 | `npm run test` | Vitest. On Windows Git Bash, start it from `D:/…`, not `/d/…` (see `docs/TESTING.md`) |
+| `npm run test:e2e` | Playwright critical flows in Chrome against the isolated `oyosend_e2e_testing` database |
 | `php artisan permissions:sync [--prune]` | Write the permissions declared by modules to the database. Run after adding a permission and on every deploy |
 | `php artisan platform:create-admin {email} [--name=] [--role=]` | Create a Super Admin panel account (`super_admin` or `support_admin`). Interactive; the password is asked for |
+| `php artisan billing:run [--tenant=slug]` | Issue due invoices; apply overdue, expiry and cancellation. Scheduled hourly; safe to run by hand |
 
 Never run `migrate:fresh` or any destructive database command against anything but the disposable test database.
 
@@ -141,5 +160,6 @@ CI is `.github/workflows/ci.yml` (Pint, Larastan, Pest, vue-tsc, Vitest, build).
 | [`docs/TESTING.md`](docs/TESTING.md) | Running tests, the test database, helpers |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Environment, DNS/TLS, Nginx, workers, deploy steps |
 | [`resources/js/README.md`](resources/js/README.md) | Frontend guide and the design language |
-| `docs/APP_STORE.md`, `BILLING.md`, `AUTOMATION.md`, `INTEGRATIONS.md` | What exists today for each, and what is planned |
-| [`docs/adr/`](docs/adr) | Decisions: tenancy, RBAC, identity and sessions, local environment, design system |
+| [`docs/BILLING.md`](docs/BILLING.md) | Plans, subscriptions, invoices, payments, gateways, limits |
+| `docs/APP_STORE.md`, `AUTOMATION.md`, `INTEGRATIONS.md` | What exists today for each, and what is planned |
+| [`docs/adr/`](docs/adr) | Decisions: tenancy, RBAC, identity and sessions, local environment, design system, platform billing, permission scopes, sign-up and support access |

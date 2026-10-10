@@ -21,8 +21,8 @@ use InvalidArgumentException;
 
 /**
  * Creates a workspace in a usable state: the tenant, its subdomain, its
- * system roles and its owner. Used by seeding today and by self-registration
- * and the Super Admin panel from Phase 2.
+ * system roles and its owner. Used by sign-up, by the Super Admin panel and by
+ * the local demo seeder.
  */
 final class TenantProvisioner
 {

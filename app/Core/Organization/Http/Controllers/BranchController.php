@@ -19,7 +19,10 @@ final class BranchController
 
     public function store(Request $request): RedirectResponse
     {
-        $branch = Branch::query()->create($this->validated($request));
+        $input = $this->validated($request);
+
+        // The row and its audit entry are written together or not at all.
+        $branch = DB::transaction(fn (): Branch => Branch::query()->create($input));
 
         Toast::success(__('Branch ":name" created.', ['name' => $branch->name]));
 
@@ -28,7 +31,9 @@ final class BranchController
 
     public function update(Request $request, Branch $branch): RedirectResponse
     {
-        $branch->update($this->validated($request, $branch));
+        $input = $this->validated($request, $branch);
+
+        DB::transaction(fn (): bool => $branch->update($input));
 
         Toast::success(__('Branch ":name" updated.', ['name' => $branch->name]));
 

@@ -2,7 +2,9 @@
  * Messages for the `platform` pages (the Super Admin panel). English is the
  * source of truth for keys.
  *
- * The panel is English-only for now, but every string still lives here.
+ * Sign-in, the dashboard and the workspace directory live here. The other
+ * panel pages have a namespace each: `platformWorkspaces`, `platformPlans`,
+ * `platformAudit`, `platformSettings`, `platformBilling`.
  */
 export default {
     // Signed-out screens. Operators have no "remember me" and no self-service recovery.
@@ -42,8 +44,13 @@ export default {
             signedInAs: 'Signed in as',
         },
     },
+    // The operator's role, under their name in the account menu. Keyed by PlatformRole.
+    roles: {
+        super_admin: 'Super Admin',
+        support_admin: 'Support admin',
+    },
     dashboard: {
-        description: 'Workspaces, people and the services the platform runs on.',
+        description: 'Workspaces, people, what is owed, and the services the platform runs on.',
         stats: {
             tenants: 'Workspaces',
             newThisMonth: '{count} new this month',
@@ -54,6 +61,21 @@ export default {
             pendingHint: 'Registered, not yet approved',
             suspended: 'Suspended',
             suspendedHint: 'Access blocked, data kept',
+        },
+        billing: {
+            title: 'Subscriptions and invoices',
+            description: 'Where the workspaces stand with their plans, and what is waiting on you.',
+            subscriptions: 'Subscriptions by status',
+            noSubscriptions: 'No workspace is on a plan yet.',
+            attention: 'Waiting',
+            openInvoices: 'Unpaid invoices',
+            openInvoicesHint: 'Issued and not paid yet',
+            overdueInvoices: 'Overdue invoices',
+            overdueInvoicesHint: 'Unpaid past their due date',
+            pendingApprovals: 'Sign-ups to approve',
+            pendingApprovalsHint: 'Closed to their members until an operator approves them',
+            viewInvoices: 'Unpaid invoices',
+            reviewPending: 'Review sign-ups',
         },
         totals: {
             title: 'Platform totals',
@@ -106,12 +128,14 @@ export default {
         emptyBody: 'Sign-ins to this panel and platform-level events will be listed here.',
     },
     tenants: {
-        description: 'Each workspace belongs to one customer and is served on its own address. This directory is read-only.',
+        description: 'Each workspace belongs to one customer and is served on its own address. Open one to see its plan, invoices and activity.',
         caption: 'Workspaces on the platform',
+        create: 'Create workspace',
         columns: {
             name: 'Workspace',
             address: 'Address',
             status: 'Status',
+            plan: 'Plan',
             members: 'Members',
             locale: 'Language',
             currency: 'Currency',

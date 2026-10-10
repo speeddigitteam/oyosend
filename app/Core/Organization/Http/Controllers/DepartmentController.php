@@ -19,7 +19,10 @@ final class DepartmentController
 
     public function store(Request $request): RedirectResponse
     {
-        $department = Department::query()->create($this->validated($request));
+        $input = $this->validated($request);
+
+        // The row and its audit entry are written together or not at all.
+        $department = DB::transaction(fn (): Department => Department::query()->create($input));
 
         Toast::success(__('Department ":name" created.', ['name' => $department->name]));
 
@@ -28,7 +31,9 @@ final class DepartmentController
 
     public function update(Request $request, Department $department): RedirectResponse
     {
-        $department->update($this->validated($request, $department));
+        $input = $this->validated($request, $department);
+
+        DB::transaction(fn (): bool => $department->update($input));
 
         Toast::success(__('Department ":name" updated.', ['name' => $department->name]));
 

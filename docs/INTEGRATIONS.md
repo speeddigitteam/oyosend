@@ -1,13 +1,15 @@
 # Integrations
 
-State: end of Phase 1. **Nothing is built**: no integration centre, no OAuth connections, no provider adapters, no
-webhooks (in or out), no API tokens, no tables. The application talks to no third-party service.
+State: end of Phase 2. **There is no integration centre**: no OAuth connections, no provider adapters for
+messaging, no outgoing webhooks, no API tokens, no tables for any of it. The one outside service the application
+can talk to is a payment gateway, and only once its credentials are configured.
 
 ## What exists today
 
 | Piece | State |
 |---|---|
-| Outgoing mail | Laravel mailer only. Two mails exist: the workspace invitation (`App\Core\Identity\Mail\InvitationMail`, queued, in the invitee's or the workspace's language) and the framework's password-reset notification (sent after the response). Local: Mailpit under Sail, or `MAIL_MAILER=log` |
+| Outgoing mail | Laravel mailer only. Mail that exists: workspace invitation, sign-up confirmation, "workspace ready", invoice issued, payment received (all queued, each in the recipient's language) and the framework's password-reset notification (sent after the response). Local: Mailpit under Sail, or `MAIL_MAILER=log` |
+| Payment gateway | `App\Core\Billing\Contracts\PaymentGateway` with one implementation, SSLCommerz, **not yet run against the provider's sandbox**. Incoming notifications arrive at stateless routes on the workspace host and are verified by asking the provider (`docs/BILLING.md` section 5) |
 | Object storage | `TenantStorage` works on any Laravel disk (`TENANT_FILESYSTEM_DISK`). The S3 driver package (`league/flysystem-aws-s3-v3`) is not installed |
 | API | No API routes. `laravel/sanctum` is verified compatible but not installed |
 | Realtime | `laravel/reverb` is verified compatible but not installed; `BROADCAST_CONNECTION=log` |
@@ -26,7 +28,7 @@ Patterns already in the code that integrations should reuse:
 ## Planned
 
 Spec section 21 describes the Integration Centre; spec section 27 does not give it a phase of its own. Related
-phases: API tokens with Sanctum (Phase 2+), payment gateways (Phase 2), email / SMS / WhatsApp providers
+phases: API tokens with Sanctum (when first needed), email / SMS / WhatsApp providers
 (Phase 8), social platforms (Phase 9), AI providers (Phase 11).
 
 Scope from the spec: OAuth connections, encrypted credential storage, webhook registration and signature
