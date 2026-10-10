@@ -21,7 +21,7 @@ use Tests\Support\Fixtures\Crm\LeadCreatedTrigger;
 use Tests\Support\Fixtures\Crm\PipelineWidget;
 
 /*
- * An optional module ("CRM") is added to the build. Being in the build makes
+ * An optional test module is added to the build. Being in the build makes
  * its code available; whether a tenant may use it is the entitlement check.
  */
 beforeEach(function () {
@@ -51,28 +51,28 @@ beforeEach(function () {
 it('registers the module, its permissions and its trigger', function () {
     $registry = app(ModuleRegistry::class);
 
-    expect(array_keys($registry->all()))->toBe(['core', 'crm'])
-        ->and($registry->get('crm')->core)->toBeFalse()
-        ->and($registry->findPermission('crm.leads.view')?->module())->toBe('crm')
+    expect(array_keys($registry->all()))->toBe(['core', 'crm', 'test_crm'])
+        ->and($registry->get('test_crm')->core)->toBeFalse()
+        ->and($registry->findPermission('test_crm.leads.view')?->module())->toBe('test_crm')
         ->and($registry->missingDependencies())->toBe([])
-        ->and(Permission::query()->where('module', 'crm')->pluck('name')->sort()->values()->all())->toBe(['crm.leads.edit', 'crm.leads.view'])
-        ->and(app(AutomationRegistry::class)->trigger('crm.lead.created'))->toBe(LeadCreatedTrigger::class);
+        ->and(Permission::query()->where('module', 'test_crm')->pluck('name')->sort()->values()->all())->toBe(['test_crm.leads.edit', 'test_crm.leads.view'])
+        ->and(app(AutomationRegistry::class)->trigger('test_crm.lead.created'))->toBe(LeadCreatedTrigger::class);
 });
 
 describe('a workspace that is not entitled', function () {
     it('denies the module\'s permissions to everyone, the owner included', function () {
         expect(app(EntitlementChecker::class))->toBeInstanceOf(PlanEntitlementChecker::class)
-            ->and(app(EntitlementChecker::class)->allows($this->acme, 'crm'))->toBeFalse()
+            ->and(app(EntitlementChecker::class)->allows($this->acme, 'test_crm'))->toBeFalse()
             ->and(app(EntitlementChecker::class)->entitledModules($this->acme))->toBe(['core']);
 
-        expect(($this->can)($this->owner, 'crm.leads.view'))->toBeFalse()
-            ->and(($this->can)($this->owner, 'crm.leads.edit'))->toBeFalse()
+        expect(($this->can)($this->owner, 'test_crm.leads.view'))->toBeFalse()
+            ->and(($this->can)($this->owner, 'test_crm.leads.edit'))->toBeFalse()
             // The core module is unaffected.
             ->and(($this->can)($this->owner, 'core.members.manage'))->toBeTrue();
 
         expect($this->inTenant(
             $this->acme,
-            fn () => app(AutomationRegistry::class)->trigger('crm.lead.created'),
+            fn () => app(AutomationRegistry::class)->trigger('test_crm.lead.created'),
         ))->toBeNull();
 
         $held = $this->inTenant($this->acme, fn (): array => array_keys(app(AccessChecker::class)->effectivePermissions($this->owner)));
@@ -84,14 +84,14 @@ describe('a workspace that is not entitled', function () {
         $sales = $this->createRole($this->acme, 'Sales', ['core.members.view']);
         $rep = $this->addMember($this->acme, $sales);
 
-        ($this->forceGrant)($sales, 'crm.leads.view', 'crm.leads.edit');
+        ($this->forceGrant)($sales, 'test_crm.leads.view', 'test_crm.leads.edit');
 
         // The grant is really there ...
-        expect(app(RoleManager::class)->grantedNames($sales))->toContain('crm.leads.view', 'crm.leads.edit');
+        expect(app(RoleManager::class)->grantedNames($sales))->toContain('test_crm.leads.view', 'test_crm.leads.edit');
 
         // ... and it is worth nothing without the entitlement.
-        expect(($this->can)($rep, 'crm.leads.view'))->toBeFalse()
-            ->and(($this->can)($rep, 'crm.leads.edit'))->toBeFalse()
+        expect(($this->can)($rep, 'test_crm.leads.view'))->toBeFalse()
+            ->and(($this->can)($rep, 'test_crm.leads.edit'))->toBeFalse()
             ->and(($this->can)($rep, 'core.members.view'))->toBeTrue()
             ->and($this->inTenant($this->acme, fn (): array => array_keys(app(AccessChecker::class)->effectivePermissions($rep))))->toBe(['core.members.view']);
     });
@@ -99,30 +99,30 @@ describe('a workspace that is not entitled', function () {
     it('answers 404 on the module\'s routes so the app is not disclosed', function () {
         $sales = $this->createRole($this->acme, 'Sales');
         $rep = $this->addMember($this->acme, $sales);
-        ($this->forceGrant)($sales, 'crm.leads.view');
+        ($this->forceGrant)($sales, 'test_crm.leads.view');
 
         foreach ([$this->owner, $rep] as $user) {
             $this->startNewBrowserSession()
                 ->actingAsMember($this->acme, $user)
-                ->get('http://acme.localhost/crm/leads')
+                ->get('http://acme.localhost/test-crm/leads')
                 ->assertNotFound()
                 ->assertInertia(fn (AssertableInertia $page) => $page->component('Core/Pages/Errors/Error')->where('status', 404));
         }
 
         // A route of the module that asks for no permission at all is gated just the same.
-        $this->startNewBrowserSession()->get('http://acme.localhost/crm/ping')->assertNotFound();
+        $this->startNewBrowserSession()->get('http://acme.localhost/test-crm/ping')->assertNotFound();
     });
 
     it('does not let a role be given the module\'s permissions', function () {
         $this->inTenant($this->acme, function (): void {
             expect(app(RoleManager::class)->assignablePermissionNames())->toHaveCount(16)->each->toStartWith('core.');
 
-            expect(fn () => app(RoleManager::class)->create($this->owner, 'Sales', null, ['crm.leads.view']))
+            expect(fn () => app(RoleManager::class)->create($this->owner, 'Sales', null, ['test_crm.leads.view']))
                 ->toThrow(ValidationException::class, 'not available to this workspace');
         });
 
         $this->actingAsOwner($this->acme)
-            ->post('http://acme.localhost/team/roles', ['name' => 'Sales', 'permissions' => ['crm.leads.view']])
+            ->post('http://acme.localhost/team/roles', ['name' => 'Sales', 'permissions' => ['test_crm.leads.view']])
             ->assertSessionHasErrors('permissions');
 
         // The role editor does not even offer them.
@@ -141,7 +141,7 @@ describe('a workspace that is not entitled', function () {
                 expect(collect($props['navigation'])->pluck('key')->all())->toBe(['workspace', 'apps', 'manage'])
                     ->and(collect($props['navigation'])->flatMap(fn (array $section): array => array_column($section['items'], 'key'))->all())->not->toContain('leads')
                     ->and(array_column($props['widgets'], 'key'))->toBe(['core.team', 'core.security', 'core.activity'])
-                    ->and($props['auth']['permissions'])->not->toContain('crm.leads.view')
+                    ->and($props['auth']['permissions'])->not->toContain('test_crm.leads.view')
                     // Compiled into the build is not "installed".
                     ->and($props['installedApps'])->toBe(0);
             });
@@ -152,46 +152,46 @@ describe('a workspace that is not entitled', function () {
 
 describe('a workspace that is entitled', function () {
     beforeEach(function () {
-        $this->entitle($this->acme, 'crm');
+        $this->entitle($this->acme, 'test_crm');
     });
 
     it('makes the module automation definitions available only inside an entitled workspace', function () {
         expect($this->inTenant(
             $this->acme,
-            fn () => app(AutomationRegistry::class)->trigger('crm.lead.created'),
+            fn () => app(AutomationRegistry::class)->trigger('test_crm.lead.created'),
         ))->toBe(LeadCreatedTrigger::class)
             ->and($this->inTenant(
                 $this->globex,
-                fn () => app(AutomationRegistry::class)->trigger('crm.lead.created'),
+                fn () => app(AutomationRegistry::class)->trigger('test_crm.lead.created'),
             ))->toBeNull();
     });
 
     it('holds the module\'s permissions as owner and can grant them to roles', function () {
-        expect(($this->can)($this->owner, 'crm.leads.view'))->toBeTrue()
-            ->and(($this->can)($this->owner, 'crm.leads.edit'))->toBeTrue();
+        expect(($this->can)($this->owner, 'test_crm.leads.view'))->toBeTrue()
+            ->and(($this->can)($this->owner, 'test_crm.leads.edit'))->toBeTrue();
 
-        $sales = $this->createRole($this->acme, 'Sales', ['crm.leads.view']);
+        $sales = $this->createRole($this->acme, 'Sales', ['test_crm.leads.view']);
         $rep = $this->addMember($this->acme, $sales);
 
-        expect(($this->can)($rep, 'crm.leads.view'))->toBeTrue()
-            ->and(($this->can)($rep, 'crm.leads.edit'))->toBeFalse();
+        expect(($this->can)($rep, 'test_crm.leads.view'))->toBeTrue()
+            ->and(($this->can)($rep, 'test_crm.leads.edit'))->toBeFalse();
     });
 
     it('opens the module\'s routes to people who hold the permission, and only to them', function () {
-        $rep = $this->addMember($this->acme, $this->createRole($this->acme, 'Sales', ['crm.leads.view']));
+        $rep = $this->addMember($this->acme, $this->createRole($this->acme, 'Sales', ['test_crm.leads.view']));
         $employee = $this->addMember($this->acme, Role::EMPLOYEE);
 
-        $this->actingAsMember($this->acme, $rep)->get('http://acme.localhost/crm/leads')->assertOk()->assertExactJson(['leads' => []]);
+        $this->actingAsMember($this->acme, $rep)->get('http://acme.localhost/test-crm/leads')->assertOk()->assertExactJson(['leads' => []]);
 
         // Entitled workspace, no permission: a plain 403 - the app is no secret here.
-        $this->startNewBrowserSession()->actingAsMember($this->acme, $employee)->get('http://acme.localhost/crm/leads')->assertForbidden();
+        $this->startNewBrowserSession()->actingAsMember($this->acme, $employee)->get('http://acme.localhost/test-crm/leads')->assertForbidden();
 
-        $this->startNewBrowserSession()->get('http://acme.localhost/crm/leads')->assertRedirect('http://acme.localhost/login');
-        $this->get('http://acme.localhost/crm/ping')->assertOk();
+        $this->startNewBrowserSession()->get('http://acme.localhost/test-crm/leads')->assertRedirect('http://acme.localhost/login');
+        $this->get('http://acme.localhost/test-crm/ping')->assertOk();
     });
 
     it('shows the module in the sidebar and on the dashboard to people who may see it', function () {
-        $rep = $this->addMember($this->acme, $this->createRole($this->acme, 'Sales', ['crm.leads.view']));
+        $rep = $this->addMember($this->acme, $this->createRole($this->acme, 'Sales', ['test_crm.leads.view']));
         $employee = $this->addMember($this->acme, Role::EMPLOYEE);
 
         $this->actingAsMember($this->acme, $rep)
@@ -201,13 +201,13 @@ describe('a workspace that is entitled', function () {
                 $apps = collect($props['navigation'])->firstWhere('key', 'apps');
 
                 expect($apps['items'])->toBe([[
-                    'key' => 'leads',
-                    'route' => 'crm.leads.index',
-                    'href' => 'http://acme.localhost/crm/leads',
+                    'key' => 'test_leads',
+                    'route' => 'test_crm.leads.index',
+                    'href' => 'http://acme.localhost/test-crm/leads',
                     'icon' => 'target',
-                    'active' => 'crm.leads.*',
+                    'active' => 'test_crm.leads.*',
                 ]])
-                    ->and(array_column($props['widgets'], 'key'))->toBe(['crm.pipeline', 'core.security'])
+                    ->and(array_column($props['widgets'], 'key'))->toBe(['test_crm.pipeline', 'core.security'])
                     ->and($props['installedApps'])->toBe(1);
             });
 
@@ -232,25 +232,25 @@ describe('a workspace that is entitled', function () {
     it('is entitled alone: another workspace still has nothing', function () {
         $theirOwner = $this->ownerOf($this->globex);
 
-        expect(($this->can)($theirOwner, 'crm.leads.view', $this->globex))->toBeFalse();
+        expect(($this->can)($theirOwner, 'test_crm.leads.view', $this->globex))->toBeFalse();
 
-        $this->actingAsOwner($this->globex)->get('http://globex.localhost/crm/leads')->assertNotFound();
-        $this->get('http://globex.localhost/crm/ping')->assertNotFound();
+        $this->actingAsOwner($this->globex)->get('http://globex.localhost/test-crm/leads')->assertNotFound();
+        $this->get('http://globex.localhost/test-crm/ping')->assertNotFound();
 
         $this->get('http://globex.localhost/')
             ->assertInertia(fn (AssertableInertia $page) => $page->where('installedApps', 0));
     });
 
     it('loses everything again the moment the entitlement or the workspace lapses', function () {
-        $sales = $this->createRole($this->acme, 'Sales', ['crm.leads.view']);
+        $sales = $this->createRole($this->acme, 'Sales', ['test_crm.leads.view']);
         $rep = $this->addMember($this->acme, $sales);
 
-        expect(($this->can)($rep, 'crm.leads.view'))->toBeTrue();
+        expect(($this->can)($rep, 'test_crm.leads.view'))->toBeTrue();
 
         // Suspended workspace: no module at all, core included.
         $this->acme->update(['status' => TenantStatus::Suspended]);
 
-        expect(($this->can)($rep, 'crm.leads.view'))->toBeFalse()
+        expect(($this->can)($rep, 'test_crm.leads.view'))->toBeFalse()
             ->and(($this->can)($this->owner, 'core.members.view'))->toBeFalse();
 
         // Active again, but the entitlement is gone: the grant stays in the table and means nothing.
@@ -258,9 +258,9 @@ describe('a workspace that is entitled', function () {
         $this->app->forgetInstance(EntitlementChecker::class);
         $this->app->forgetScopedInstances();
 
-        expect(app(RoleManager::class)->grantedNames($sales))->toBe(['crm.leads.view'])
-            ->and(($this->can)($rep, 'crm.leads.view'))->toBeFalse();
+        expect(app(RoleManager::class)->grantedNames($sales))->toBe(['test_crm.leads.view'])
+            ->and(($this->can)($rep, 'test_crm.leads.view'))->toBeFalse();
 
-        $this->actingAsMember($this->acme, $rep)->get('http://acme.localhost/crm/leads')->assertNotFound();
+        $this->actingAsMember($this->acme, $rep)->get('http://acme.localhost/test-crm/leads')->assertNotFound();
     });
 });

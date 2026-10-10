@@ -30,7 +30,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
-use Tests\Support\Fixtures\Crm\CrmServiceProvider;
 
 /*
  * What SubscriptionLifecycleTest leaves out: the operator's tools (grant,
@@ -311,8 +310,6 @@ describe('a plan granted by the operator', function () {
     });
 
     it('entitles the workspace to the plan\'s modules in the same breath', function () {
-        $this->registerModule(CrmServiceProvider::class);
-
         $withCrm = $this->createPlan(['key' => 'crm-plan', 'modules' => ['crm']]);
 
         $entitled = $this->inTenant($this->acme, function () use ($withCrm): array {

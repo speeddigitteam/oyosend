@@ -31,8 +31,8 @@ it('dispatches a compiled scheduled job only for accessible entitled tenants', f
     $unlicensed = $this->createTenant('scheduled-unlicensed');
     $suspended = $this->createTenant('scheduled-suspended', ['status' => TenantStatus::Suspended]);
 
-    $this->entitle($entitled, 'crm');
-    $this->entitle($suspended, 'crm');
+    $this->entitle($entitled, 'test_crm');
+    $this->entitle($suspended, 'test_crm');
 
     $this->artisan('apps:run-scheduled')
         ->expectsOutputToContain('Dispatched 1 app job(s), 0 failed.')
@@ -44,7 +44,7 @@ it('dispatches a compiled scheduled job only for accessible entitled tenants', f
 
 it('dispatches each tenant job only once in a schedule slot', function () {
     $tenant = $this->createTenant('scheduled-once');
-    $this->entitle($tenant, 'crm');
+    $this->entitle($tenant, 'test_crm');
 
     $this->artisan('apps:run-scheduled')->assertSuccessful();
     $this->artisan('apps:run-scheduled')->assertSuccessful();
@@ -65,12 +65,12 @@ it('rechecks the module entitlement when the queued schedule reaches a worker', 
 
         public function allows(Tenant $tenant, string $moduleKey): bool
         {
-            return $this->allowed && $tenant->isAccessible() && $moduleKey === 'crm';
+            return $this->allowed && $tenant->isAccessible() && $moduleKey === 'test_crm';
         }
 
         public function entitledModules(Tenant $tenant): array
         {
-            return $this->allowed && $tenant->isAccessible() ? ['core', 'crm'] : ['core'];
+            return $this->allowed && $tenant->isAccessible() ? ['core', 'test_crm'] : ['core'];
         }
     };
     $this->app->instance(EntitlementChecker::class, $checker);
@@ -82,7 +82,7 @@ it('rechecks the module entitlement when the queued schedule reaches a worker', 
     Queue::assertPushed(RunScheduledAppJob::class, function (RunScheduledAppJob $job) use (&$queued): bool {
         $queued = $job;
 
-        return $job->module === 'crm' && $job->definition === 'crm.pipeline_refresh';
+        return $job->module === 'test_crm' && $job->definition === 'test_crm.pipeline_refresh';
     });
     expect($queued)->toBeInstanceOf(RunScheduledAppJob::class);
 
@@ -99,8 +99,8 @@ it('rechecks the module entitlement when the queued schedule reaches a worker', 
 it('can limit a schedule run to one workspace', function () {
     $first = $this->createTenant('scheduled-first');
     $second = $this->createTenant('scheduled-second');
-    $this->entitle($first, 'crm');
-    $this->entitle($second, 'crm');
+    $this->entitle($first, 'test_crm');
+    $this->entitle($second, 'test_crm');
 
     $this->artisan('apps:run-scheduled', ['--tenant' => $second->slug])->assertSuccessful();
 
@@ -130,13 +130,13 @@ it('publishes safe schedule metadata with the immutable app version', function (
     app(AppCatalogSynchronizer::class)->sync();
 
     $version = CatalogApp::query()
-        ->where('module_key', 'crm')
+        ->where('module_key', 'test_crm')
         ->firstOrFail()
         ->currentVersion()
         ->firstOrFail();
 
     expect($version->scheduled_jobs)->toEqual([[
-        'key' => 'crm.pipeline_refresh',
+        'key' => 'test_crm.pipeline_refresh',
         'job' => CrmScheduledJob::class,
         'frequency' => ScheduledJobFrequency::EveryMinute->value,
     ]]);

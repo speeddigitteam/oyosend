@@ -1,6 +1,7 @@
 <?php
 
 use App\Core\CoreServiceProvider;
+use App\Modules\CRM\CRMServiceProvider;
 
 return [
 
@@ -20,6 +21,7 @@ return [
 
     'providers' => [
         CoreServiceProvider::class,
+        CRMServiceProvider::class,
     ],
 
 ];

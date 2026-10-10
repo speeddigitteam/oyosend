@@ -10,7 +10,13 @@ use App\Core\Contacts\Automation\CompanyCreatedTrigger;
 use App\Core\Contacts\Automation\ContactCreatedTrigger;
 use App\Core\Events\DomainEvent;
 use App\Core\Identity\Events\MemberJoined;
-use Tests\Support\Fixtures\Crm\LeadCreatedTrigger;
+use App\Modules\CRM\Automation\Actions\AssignLeadAction as CrmAssignLeadAction;
+use App\Modules\CRM\Automation\Actions\CreateFollowUpAction;
+use App\Modules\CRM\Automation\Actions\MoveDealStageAction;
+use App\Modules\CRM\Automation\Triggers\ActivityCompletedTrigger;
+use App\Modules\CRM\Automation\Triggers\DealWonTrigger;
+use App\Modules\CRM\Automation\Triggers\LeadCreatedTrigger as CrmLeadCreatedTrigger;
+use App\Modules\CRM\Automation\Triggers\LeadQualifiedTrigger;
 
 /*
  * Small definitions, declared inline: each one is wrong (or right) in exactly one way.
@@ -66,6 +72,14 @@ final class LookalikePrefixTrigger extends BaseTestTrigger
 }
 
 final class DuplicateKeyTrigger extends BaseTestTrigger
+{
+    public static function key(): string
+    {
+        return 'crm.lead.created';
+    }
+}
+
+final class ValidLeadCreatedTrigger extends BaseTestTrigger
 {
     public static function key(): string
     {
@@ -154,12 +168,12 @@ beforeEach(function () {
 });
 
 it('registers triggers and actions by key', function () {
-    $this->registry->registerTrigger(LeadCreatedTrigger::class);
+    $this->registry->registerTrigger(ValidLeadCreatedTrigger::class);
     $this->registry->registerAction(AssignLeadAction::class);
 
-    expect($this->registry->triggers())->toBe(['crm.lead.created' => LeadCreatedTrigger::class])
+    expect($this->registry->triggers())->toBe(['crm.lead.created' => ValidLeadCreatedTrigger::class])
         ->and($this->registry->actions())->toBe(['crm.lead.assign' => AssignLeadAction::class])
-        ->and($this->registry->trigger('crm.lead.created'))->toBe(LeadCreatedTrigger::class)
+        ->and($this->registry->trigger('crm.lead.created'))->toBe(ValidLeadCreatedTrigger::class)
         ->and($this->registry->action('crm.lead.assign'))->toBe(AssignLeadAction::class)
         ->and($this->registry->trigger('crm.lead.assign'))->toBeNull()
         ->and($this->registry->action('crm.lead.created'))->toBeNull();
@@ -176,26 +190,26 @@ it('requires a key to be namespaced under the module that owns it', function (st
 ]);
 
 it('refuses to register the same key twice', function () {
-    $this->registry->registerTrigger(LeadCreatedTrigger::class);
+    $this->registry->registerTrigger(ValidLeadCreatedTrigger::class);
 
     expect(fn () => $this->registry->registerTrigger(DuplicateKeyTrigger::class))
         ->toThrow(InvalidArgumentException::class, 'Automation key [crm.lead.created] is registered twice');
 
-    expect($this->registry->trigger('crm.lead.created'))->toBe(LeadCreatedTrigger::class);
+    expect($this->registry->trigger('crm.lead.created'))->toBe(ValidLeadCreatedTrigger::class);
 });
 
 it('keeps triggers and actions in separate namespaces', function () {
-    $this->registry->registerTrigger(LeadCreatedTrigger::class);
+    $this->registry->registerTrigger(ValidLeadCreatedTrigger::class);
     $this->registry->registerAction(SameKeyAsTriggerAction::class);
 
-    expect($this->registry->trigger('crm.lead.created'))->toBe(LeadCreatedTrigger::class)
+    expect($this->registry->trigger('crm.lead.created'))->toBe(ValidLeadCreatedTrigger::class)
         ->and($this->registry->action('crm.lead.created'))->toBe(SameKeyAsTriggerAction::class);
 });
 
 it('only accepts real definitions', function () {
     expect(fn () => $this->registry->registerTrigger(AssignLeadAction::class))
         ->toThrow(InvalidArgumentException::class, 'is not a trigger definition');
-    expect(fn () => $this->registry->registerAction(LeadCreatedTrigger::class))
+    expect(fn () => $this->registry->registerAction(ValidLeadCreatedTrigger::class))
         ->toThrow(InvalidArgumentException::class, 'is not an action definition');
     expect(fn () => $this->registry->registerTrigger(stdClass::class))
         ->toThrow(InvalidArgumentException::class);
@@ -204,15 +218,23 @@ it('only accepts real definitions', function () {
 });
 
 describe('the application\'s own registry', function () {
-    it('has the core trigger registered from the core manifest', function () {
+    it('has the first-party triggers and actions registered from their manifests', function () {
         $registry = app(AutomationRegistry::class);
 
         expect($registry->triggers())->toBe([
             'core.member.joined' => MemberJoinedTrigger::class,
             'core.contact.created' => ContactCreatedTrigger::class,
             'core.company.created' => CompanyCreatedTrigger::class,
+            'crm.lead.created' => CrmLeadCreatedTrigger::class,
+            'crm.lead.qualified' => LeadQualifiedTrigger::class,
+            'crm.deal.won' => DealWonTrigger::class,
+            'crm.activity.completed' => ActivityCompletedTrigger::class,
         ])
-            ->and($registry->actions())->toBe([])
+            ->and($registry->actions())->toBe([
+                'crm.lead.assign' => CrmAssignLeadAction::class,
+                'crm.activity.create_follow_up' => CreateFollowUpAction::class,
+                'crm.deal.move_stage' => MoveDealStageAction::class,
+            ])
             ->and(app(AutomationRegistry::class))->toBe($registry);
     });
 

@@ -9,7 +9,6 @@ use App\Platform\Enums\PlatformRole;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia;
-use Tests\Support\Fixtures\Crm\CrmServiceProvider;
 
 /*
  * The plans workspaces subscribe to, managed from the Super Admin panel.
@@ -117,22 +116,18 @@ describe('creating a plan', function () {
                 ->component('Platform/Pages/Plans/Edit')
                 ->where('plan', null)
                 // The core module belongs to every workspace: it is not a plan's to give.
-                ->where('modules', [])
+                ->where('modules', [['key' => 'crm', 'name' => 'CRM & Sales']])
                 ->where('limits', [['key' => 'core.members', 'kind' => 'gauge']])
                 ->where('currencies', config('platform.currencies')));
     });
 
     it('offers the optional modules that are registered', function () {
-        $this->registerModule(CrmServiceProvider::class);
-
         $this->actingAsPlatformUser($this->admin)
             ->get('http://admin.localhost/plans/create')
-            ->assertInertia(fn (AssertableInertia $page) => $page->where('modules', [['key' => 'crm', 'name' => 'CRM']]));
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('modules', [['key' => 'crm', 'name' => 'CRM & Sales']]));
     });
 
     it('creates a plan and records it in the platform\'s trail', function () {
-        $this->registerModule(CrmServiceProvider::class);
-
         ($this->store)(['modules' => ['crm'], 'limits' => ['core.members' => '25']])
             ->assertRedirect('http://admin.localhost/plans')
             ->assertSessionHasNoErrors()
@@ -202,8 +197,6 @@ describe('creating a plan', function () {
     });
 
     it('leaves out a module that is named twice', function () {
-        $this->registerModule(CrmServiceProvider::class);
-
         ($this->store)(['modules' => ['crm', 'crm']])->assertSessionHasNoErrors();
 
         expect(Plan::query()->where('key', 'growth')->sole()->modules)->toBe(['crm']);
@@ -301,8 +294,6 @@ describe('validation', function () {
     ]);
 
     it('only includes optional modules that are registered', function (string $module) {
-        $this->registerModule(CrmServiceProvider::class);
-
         ($this->store)(['modules' => ['crm', $module]])->assertSessionHasErrors('modules.1');
 
         expect(Plan::query()->count())->toBe(0);
@@ -313,8 +304,7 @@ describe('validation', function () {
     ]);
 
     it('does not include a module that is not registered, even one that exists elsewhere', function () {
-        // The CRM fixture is not registered in this test.
-        ($this->store)(['modules' => ['crm']])->assertSessionHasErrors('modules.0');
+        ($this->store)(['modules' => ['payroll']])->assertSessionHasErrors('modules.0');
 
         expect(Plan::query()->count())->toBe(0);
     });

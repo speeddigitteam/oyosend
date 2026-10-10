@@ -41,7 +41,7 @@ describe('the dashboard', function () {
                 // 3 owners + 2 added people (one of them in two workspaces).
                 ->where('stats.users', 5)
                 ->where('stats.memberships', 6)
-                ->where('stats.modules', 1)
+                ->where('stats.modules', 2)
                 ->has('recentTenants', 3)
                 ->has('health', 4));
 

@@ -24,7 +24,7 @@ beforeEach(function () {
     CrmLifecycle::reset();
     $this->registerModule(CrmServiceProvider::class);
     app(AppCatalogSynchronizer::class)->sync();
-    $this->crm = CatalogApp::query()->where('module_key', 'crm')->sole();
+    $this->crm = CatalogApp::query()->where('module_key', 'test_crm')->sole();
     $this->acme = $this->createTenant('acme');
     $this->globex = $this->createTenant('globex');
 });
@@ -40,8 +40,8 @@ it('installs a free app and gates every tenant independently', function () {
         ->and(AppInstallation::forTenant($this->acme)->count())->toBe(1)
         ->and(AppInstallation::forTenant($this->globex)->count())->toBe(0)
         ->and(AppEntitlement::forTenant($this->acme)->where('status', EntitlementStatus::Active)->count())->toBe(1)
-        ->and(app(EntitlementChecker::class)->allows($this->acme, 'crm'))->toBeTrue()
-        ->and(app(EntitlementChecker::class)->allows($this->globex, 'crm'))->toBeFalse();
+        ->and(app(EntitlementChecker::class)->allows($this->acme, 'test_crm'))->toBeTrue()
+        ->and(app(EntitlementChecker::class)->allows($this->globex, 'test_crm'))->toBeFalse();
 });
 
 it('deactivates, reactivates, uninstalls and reinstalls without deleting data or the licence', function () {
@@ -50,12 +50,12 @@ it('deactivates, reactivates, uninstalls and reinstalls without deleting data or
         $manager->installFree($this->crm, 'community');
         $manager->deactivate($this->crm);
 
-        expect(app(EntitlementChecker::class)->allows($this->acme, 'crm'))->toBeFalse();
+        expect(app(EntitlementChecker::class)->allows($this->acme, 'test_crm'))->toBeFalse();
 
         $manager->activate($this->crm);
         $manager->uninstall($this->crm);
 
-        expect(app(EntitlementChecker::class)->allows($this->acme, 'crm'))->toBeFalse();
+        expect(app(EntitlementChecker::class)->allows($this->acme, 'test_crm'))->toBeFalse();
 
         $manager->reinstall($this->crm);
     });
@@ -66,7 +66,7 @@ it('deactivates, reactivates, uninstalls and reinstalls without deleting data or
     expect($installation->status)->toBe(InstallationStatus::Active)
         ->and($installation->uninstalled_at)->toBeNull()
         ->and($entitlement->status)->toBe(EntitlementStatus::Active)
-        ->and(app(EntitlementChecker::class)->allows($this->acme, 'crm'))->toBeTrue()
+        ->and(app(EntitlementChecker::class)->allows($this->acme, 'test_crm'))->toBeTrue()
         ->and(CrmLifecycle::$calls)->toContain(
             'deactivating',
             'deactivated',
@@ -82,7 +82,7 @@ it('requires dependencies and prevents removing one while a dependent app is act
         key: 'reports',
         name: 'Reports',
         version: '1.0.0',
-        dependencies: ['core', 'crm'],
+        dependencies: ['core', 'test_crm'],
         description: 'Build reports from CRM pipeline data.',
         category: AppCategory::Reporting,
         offers: [new AppOffer('free', 'Free', AppBillingType::Free)],
@@ -94,7 +94,7 @@ it('requires dependencies and prevents removing one while a dependent app is act
         $manager = app(AppStoreManager::class);
 
         expect(fn () => $manager->installFree($reports, 'free'))
-            ->toThrow(ValidationException::class, 'Activate the required apps first: crm');
+            ->toThrow(ValidationException::class, 'Activate the required apps first: test_crm');
 
         $manager->installFree($this->crm, 'community');
         $manager->installFree($reports, 'free');

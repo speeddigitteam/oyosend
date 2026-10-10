@@ -26,7 +26,7 @@ beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-10-10 09:00:00'));
     $this->registerModule(CrmServiceProvider::class);
     app(AppCatalogSynchronizer::class)->sync();
-    $this->crm = CatalogApp::query()->where('module_key', 'crm')->sole();
+    $this->crm = CatalogApp::query()->where('module_key', 'test_crm')->sole();
     $this->acme = $this->createTenant('acme');
 });
 

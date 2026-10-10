@@ -28,6 +28,33 @@ const DECLARED_BY_CORE = [
     'core.settings.manage',
 ];
 
+const DECLARED_BY_CRM = [
+    'crm.activities.edit',
+    'crm.activities.view',
+    'crm.contracts.manage',
+    'crm.contracts.view',
+    'crm.customers.manage',
+    'crm.customers.view',
+    'crm.deals.assign',
+    'crm.deals.edit',
+    'crm.deals.view',
+    'crm.leads.assign',
+    'crm.leads.edit',
+    'crm.leads.qualify',
+    'crm.leads.view',
+    'crm.orders.manage',
+    'crm.orders.view',
+    'crm.products.manage',
+    'crm.products.view',
+    'crm.quotes.accept',
+    'crm.quotes.manage',
+    'crm.quotes.view',
+    'crm.reports.view',
+    'crm.settings.manage',
+    'crm.targets.manage',
+    'crm.targets.view',
+];
+
 beforeEach(function () {
     $this->synchronizer = app(PermissionSynchronizer::class);
     $this->names = fn (): array => Permission::query()->orderBy('name')->pluck('name')->all();
@@ -40,11 +67,12 @@ it('creates the permissions the registered modules declare', function () {
 
     sort($result['created']);
 
-    expect($result['created'])->toBe(DECLARED_BY_CORE)
+    expect($result['created'])->toBe([...DECLARED_BY_CORE, ...DECLARED_BY_CRM])
         ->and($result['stale'])->toBe([])
         ->and($result['pruned'])->toBe([])
-        ->and(($this->names)())->toBe(DECLARED_BY_CORE)
-        ->and(Permission::query()->where('guard_name', 'web')->where('module', 'core')->count())->toBe(16);
+        ->and(($this->names)())->toBe([...DECLARED_BY_CORE, ...DECLARED_BY_CRM])
+        ->and(Permission::query()->where('guard_name', 'web')->where('module', 'core')->count())->toBe(16)
+        ->and(Permission::query()->where('guard_name', 'web')->where('module', 'crm')->count())->toBe(24);
 });
 
 it('is idempotent', function () {
@@ -66,8 +94,9 @@ it('picks up the permissions of a module added later', function () {
     $result = $this->synchronizer->sync();
     sort($result['created']);
 
-    expect($result['created'])->toBe(['crm.leads.edit', 'crm.leads.view'])
-        ->and(Permission::query()->where('module', 'crm')->count())->toBe(2)
+    expect($result['created'])->toBe(['test_crm.leads.edit', 'test_crm.leads.view'])
+        ->and(Permission::query()->where('module', 'test_crm')->count())->toBe(2)
+        ->and(Permission::query()->where('module', 'crm')->count())->toBe(24)
         ->and(Permission::query()->where('module', 'core')->count())->toBe(16);
 });
 
@@ -114,7 +143,7 @@ describe('permissions no module declares any more', function () {
             ->and(Permission::query()->whereKey($this->legacy->id)->exists())->toBeFalse()
             ->and(DB::table('role_has_permissions')->where('permission_id', $this->legacy->id)->count())->toBe(0)
             // Everything still declared survives, grants included.
-            ->and(($this->names)())->toBe(DECLARED_BY_CORE)
+            ->and(($this->names)())->toBe([...DECLARED_BY_CORE, ...DECLARED_BY_CRM])
             ->and(app(RoleManager::class)->grantedNames($this->roleOf($this->acme, Role::MANAGER)))
             ->toBe(['core.apps.view', 'core.contacts.manage', 'core.contacts.view', 'core.members.invite', 'core.members.view', 'core.organization.view', 'core.roles.view']);
     });
@@ -132,11 +161,11 @@ describe('permissions no module declares any more', function () {
 describe('php artisan permissions:sync', function () {
     it('reports what it added', function () {
         $this->artisan('permissions:sync')
-            ->expectsOutputToContain('16 permission(s) added.')
+            ->expectsOutputToContain('40 permission(s) added.')
             ->expectsOutputToContain('core.members.view')
             ->assertSuccessful();
 
-        expect(($this->names)())->toBe(DECLARED_BY_CORE);
+        expect(($this->names)())->toBe([...DECLARED_BY_CORE, ...DECLARED_BY_CRM]);
 
         $this->artisan('permissions:sync')->expectsOutputToContain('0 permission(s) added.')->assertSuccessful();
     });
@@ -157,6 +186,6 @@ describe('php artisan permissions:sync', function () {
             ->doesntExpectOutputToContain('Re-run with --prune')
             ->assertSuccessful();
 
-        expect(($this->names)())->toBe(DECLARED_BY_CORE);
+        expect(($this->names)())->toBe([...DECLARED_BY_CORE, ...DECLARED_BY_CRM]);
     });
 });

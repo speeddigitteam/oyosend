@@ -14,7 +14,7 @@ use Tests\Support\Fixtures\Crm\CrmServiceProvider;
 beforeEach(function () {
     $this->registerModule(CrmServiceProvider::class);
     app(AppCatalogSynchronizer::class)->sync();
-    $this->crm = CatalogApp::query()->where('module_key', 'crm')->sole();
+    $this->crm = CatalogApp::query()->where('module_key', 'test_crm')->sole();
     $this->acme = $this->createTenant('acme');
     $this->globex = $this->createTenant('globex');
     $plan = Plan::factory()->free()->create();
@@ -28,7 +28,7 @@ beforeEach(function () {
 
 it('validates and encrypts tenant app settings without returning secret values', function () {
     $response = $this->actingAsOwner($this->acme)->put(
-        $this->tenantUrl($this->acme, '/apps/crm/settings'),
+        $this->tenantUrl($this->acme, '/apps/test_crm/settings'),
         ['settings' => [
             'pipeline_view' => 'list',
             'daily_digest' => false,
@@ -51,7 +51,7 @@ it('validates and encrypts tenant app settings without returning secret values',
     ])->and($raw)->toBeString()
         ->and($raw)->not->toContain('crm-signing-secret');
 
-    $page = $this->get($this->tenantUrl($this->acme, '/apps/crm'));
+    $page = $this->get($this->tenantUrl($this->acme, '/apps/test_crm'));
     $page->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->where('app.settings.0.value', 'list')
@@ -63,7 +63,7 @@ it('validates and encrypts tenant app settings without returning secret values',
 
     $audit = $this->auditTrail($this->acme, 'app_store.settings_updated')->sole();
     expect($audit->properties)->toEqual([
-        'app' => 'crm',
+        'app' => 'test_crm',
         'changed_keys' => ['pipeline_view', 'daily_digest', 'webhook_secret'],
         'secret_keys' => ['webhook_secret'],
     ])->and($audit->toJson())->not->toContain('crm-signing-secret');
@@ -71,16 +71,16 @@ it('validates and encrypts tenant app settings without returning secret values',
 
 it('rejects unknown fields and values outside the compiled schema', function () {
     $this->actingAsOwner($this->acme)
-        ->put($this->tenantUrl($this->acme, '/apps/crm/settings'), [
+        ->put($this->tenantUrl($this->acme, '/apps/test_crm/settings'), [
             'settings' => ['unknown' => 'value'],
         ])
         ->assertSessionHasErrors('settings');
 
-    $this->put($this->tenantUrl($this->acme, '/apps/crm/settings'), [
+    $this->put($this->tenantUrl($this->acme, '/apps/test_crm/settings'), [
         'settings' => ['pipeline_view' => 'calendar', 'daily_digest' => 'not-a-boolean'],
     ])->assertSessionHasErrors(['settings.pipeline_view', 'settings.daily_digest']);
 
-    $this->put($this->tenantUrl($this->acme, '/apps/crm/settings'), [
+    $this->put($this->tenantUrl($this->acme, '/apps/test_crm/settings'), [
         'settings' => ['daily_digest' => false],
     ])->assertSessionHasErrors('settings.pipeline_view');
 
@@ -93,8 +93,8 @@ it('rejects unknown fields and values outside the compiled schema', function () 
 it('never flashes a rejected secret value into the session', function () {
     $secret = str_repeat('sensitive-', 60);
 
-    $response = $this->actingAsOwner($this->acme)->from($this->tenantUrl($this->acme, '/apps/crm'))
-        ->put($this->tenantUrl($this->acme, '/apps/crm/settings'), [
+    $response = $this->actingAsOwner($this->acme)->from($this->tenantUrl($this->acme, '/apps/test_crm'))
+        ->put($this->tenantUrl($this->acme, '/apps/test_crm/settings'), [
             'settings' => [
                 'pipeline_view' => 'board',
                 'daily_digest' => true,
@@ -109,7 +109,7 @@ it('never flashes a rejected secret value into the session', function () {
 
 it('only updates an installed app in the current workspace', function () {
     $this->actingAsOwner($this->globex)
-        ->put($this->tenantUrl($this->globex, '/apps/crm/settings'), [
+        ->put($this->tenantUrl($this->globex, '/apps/test_crm/settings'), [
             'settings' => ['pipeline_view' => 'list', 'daily_digest' => false],
         ])
         ->assertSessionHasErrors('app');
@@ -124,7 +124,7 @@ it('requires the app management permission', function () {
 
     $this->startNewBrowserSession()
         ->actingAsMember($this->acme, $viewer)
-        ->put($this->tenantUrl($this->acme, '/apps/crm/settings'), [
+        ->put($this->tenantUrl($this->acme, '/apps/test_crm/settings'), [
             'settings' => ['pipeline_view' => 'list', 'daily_digest' => false],
         ])
         ->assertForbidden();

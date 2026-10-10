@@ -28,20 +28,20 @@ final class CrmServiceProvider extends ModuleServiceProvider
     protected function describe(): ModuleManifest
     {
         return new ModuleManifest(
-            key: 'crm',
-            name: 'CRM',
+            key: 'test_crm',
+            name: 'Test CRM',
             version: '0.1.0',
             core: false,
             dependencies: ['core'],
             permissions: [
-                new PermissionDefinition('crm.leads.view', 'leads', scopable: true),
-                new PermissionDefinition('crm.leads.edit', 'leads', scopable: true),
+                new PermissionDefinition('test_crm.leads.view', 'leads', scopable: true),
+                new PermissionDefinition('test_crm.leads.edit', 'leads', scopable: true),
             ],
             navigation: [
-                new NavigationItem('leads', 'crm.leads.index', 'target', 'crm.leads.view', 'apps', 10, 'crm.leads.*'),
+                new NavigationItem('test_leads', 'test_crm.leads.index', 'target', 'test_crm.leads.view', 'apps', 10, 'test_crm.leads.*'),
             ],
             widgets: [
-                new WidgetDefinition('crm.pipeline', 'PipelineWidget', PipelineWidget::class, 'crm.leads.view', span: 6, order: 15),
+                new WidgetDefinition('test_crm.pipeline', 'PipelineWidget', PipelineWidget::class, 'test_crm.leads.view', span: 6, order: 15),
             ],
             triggers: [
                 LeadCreatedTrigger::class,
@@ -59,9 +59,9 @@ final class CrmServiceProvider extends ModuleServiceProvider
                 new AppOffer('lifetime', 'Lifetime', AppBillingType::OneTime, 'BDT', 2500000),
             ],
             releaseNotes: 'Initial App Store release.',
-            routes: ['crm.leads.index', 'crm.ping'],
+            routes: ['test_crm.leads.index', 'test_crm.ping'],
             scheduledJobs: [
-                new ScheduledJobDefinition('crm.pipeline_refresh', CrmScheduledJob::class, ScheduledJobFrequency::EveryMinute),
+                new ScheduledJobDefinition('test_crm.pipeline_refresh', CrmScheduledJob::class, ScheduledJobFrequency::EveryMinute),
             ],
             settings: [
                 new AppSettingDefinition(

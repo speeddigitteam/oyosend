@@ -13,6 +13,7 @@ use App\Core\Modules\ModuleRegistry;
 use App\Core\Modules\ModulesServiceProvider;
 use App\Core\Modules\PermissionDefinition;
 use App\Core\Tenancy\Models\Tenant;
+use App\Modules\CRM\CRMServiceProvider;
 use App\Platform\Models\PlatformUser;
 use Illuminate\Database\Eloquent\Relations\Relation;
 
@@ -145,10 +146,18 @@ describe('the application\'s own registry', function () {
         $registry = app(ModuleRegistry::class);
         $core = $registry->get('core');
 
-        expect(array_keys($registry->all()))->toBe(['core'])
+        $corePermissions = array_values(array_filter(
+            array_keys($registry->permissions()),
+            fn (string $permission): bool => str_starts_with($permission, 'core.'),
+        ));
+
+        expect(array_keys($registry->all()))->toBe(['core', 'crm'])
             ->and($core->core)->toBeTrue()
             ->and($core)->toBe(app()->getProvider(CoreServiceProvider::class)->manifest())
-            ->and(array_keys($registry->permissions()))->toEqualCanonicalizing([
+            ->and($registry->get('crm'))->toBe(app()->getProvider(CRMServiceProvider::class)->manifest())
+            ->and($registry->get('crm')->permissions)->toHaveCount(24)
+            ->and(array_keys($registry->permissions()))->toHaveCount(40)
+            ->and($corePermissions)->toEqualCanonicalizing([
                 'core.members.view', 'core.members.invite', 'core.members.manage',
                 'core.roles.view', 'core.roles.manage', 'core.audit.view', 'core.settings.manage',
                 'core.organization.view', 'core.organization.manage',
@@ -164,10 +173,10 @@ describe('the application\'s own registry', function () {
     });
 
     it('refuses to boot with a module whose dependency is missing', function () {
-        app(ModuleRegistry::class)->register(manifest('invoicing', ['dependencies' => ['crm']]));
+        app(ModuleRegistry::class)->register(manifest('invoicing', ['dependencies' => ['billing']]));
 
         expect(fn () => (new ModulesServiceProvider(app()))->boot())
-            ->toThrow(RuntimeException::class, 'invoicing needs crm');
+            ->toThrow(RuntimeException::class, 'invoicing needs billing');
     });
 
     it('never stores a class name in a polymorphic column: every model has a morph alias', function () {

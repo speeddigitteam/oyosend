@@ -14,7 +14,6 @@ use App\Core\Entitlements\Contracts\EntitlementChecker;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
-use Tests\Support\Fixtures\Crm\CrmServiceProvider;
 
 /*
  * The subscription of a workspace from its first day to its last, driven the
@@ -428,8 +427,6 @@ describe('cancelling', function () {
 
 describe('what a plan entitles a workspace to', function () {
     beforeEach(function () {
-        $this->registerModule(CrmServiceProvider::class);
-
         $this->withCrm = $this->createPlan(['key' => 'crm-plan', 'modules' => ['crm'], 'trial_days' => 14]);
         $this->entitled = fn (): array => $this->inTenant($this->acme, fn (): array => app(EntitlementChecker::class)->entitledModules($this->acme));
     });

@@ -14,33 +14,33 @@ use Tests\Support\Fixtures\Crm\CrmServiceProvider;
 beforeEach(function () {
     $this->registerModule(CrmServiceProvider::class);
     app(AppCatalogSynchronizer::class)->sync();
-    $this->crm = CatalogApp::query()->where('module_key', 'crm')->sole();
+    $this->crm = CatalogApp::query()->where('module_key', 'test_crm')->sole();
     $this->acme = $this->createTenant('acme');
     $this->subscribe($this->acme, Plan::factory()->free()->create(), withTrial: false);
 });
 
 it('shows the compiled catalogue and app detail to a workspace member', function () {
     $this->actingAsOwner($this->acme)
-        ->get($this->tenantUrl($this->acme, '/apps'))
+        ->get($this->tenantUrl($this->acme, '/apps?q=Test%20CRM'))
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->component('Core/Pages/AppStore/Index')
             ->has('apps', 1)
-            ->where('apps.0.key', 'crm')
+            ->where('apps.0.key', 'test_crm')
             ->where('apps.0.installation', null));
 
-    $this->get($this->tenantUrl($this->acme, '/apps/crm'))
+    $this->get($this->tenantUrl($this->acme, '/apps/test_crm'))
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->component('Core/Pages/AppStore/Show')
-            ->where('app.key', 'crm')
+            ->where('app.key', 'test_crm')
             ->has('app.offers', 4));
 });
 
 it('installs a free offer over the authorised tenant route', function () {
     $this->actingAsOwner($this->acme)
-        ->post($this->tenantUrl($this->acme, '/apps/crm/install'), ['offer' => 'community'])
-        ->assertRedirect($this->tenantUrl($this->acme, '/apps/crm'));
+        ->post($this->tenantUrl($this->acme, '/apps/test_crm/install'), ['offer' => 'community'])
+        ->assertRedirect($this->tenantUrl($this->acme, '/apps/test_crm'));
 
     $this->get($this->tenantUrl($this->acme, '/apps/my'))
         ->assertOk()
@@ -54,10 +54,10 @@ it('does not expose unpublished or uncompiled catalogue rows', function () {
     $this->crm->update(['is_published' => false]);
 
     $this->actingAsOwner($this->acme)
-        ->get($this->tenantUrl($this->acme, '/apps'))
+        ->get($this->tenantUrl($this->acme, '/apps?q=Test%20CRM'))
         ->assertInertia(fn (AssertableInertia $page) => $page->where('apps', []));
 
-    $this->get($this->tenantUrl($this->acme, '/apps/crm'))->assertNotFound();
+    $this->get($this->tenantUrl($this->acme, '/apps/test_crm'))->assertNotFound();
 });
 
 it('requires billing control for paid app cancellation and uninstall', function () {
@@ -79,7 +79,7 @@ it('requires billing control for paid app cancellation and uninstall', function 
     $this->startNewBrowserSession()->actingAsMember($this->acme, $appManager)
         ->post($this->tenantUrl($this->acme, "/apps/subscriptions/{$item->id}/cancel"))
         ->assertForbidden();
-    $this->delete($this->tenantUrl($this->acme, '/apps/crm'))->assertForbidden();
+    $this->delete($this->tenantUrl($this->acme, '/apps/test_crm'))->assertForbidden();
 
     expect($item->refresh()->cancel_at_period_end)->toBeFalse();
 });

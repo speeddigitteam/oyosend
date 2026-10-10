@@ -10,17 +10,17 @@ final class LeadCreatedTrigger implements TriggerDefinition
 {
     public static function key(): string
     {
-        return 'crm.lead.created';
+        return 'test_crm.lead.created';
     }
 
     public static function label(): string
     {
-        return 'automation.triggers.crm.lead.created';
+        return 'automation.triggers.test_crm.lead.created';
     }
 
     public static function module(): string
     {
-        return 'crm';
+        return 'test_crm';
     }
 
     public static function event(): ?string
@@ -30,7 +30,7 @@ final class LeadCreatedTrigger implements TriggerDefinition
 
     public static function requiredPermission(): ?string
     {
-        return 'crm.leads.edit';
+        return 'test_crm.leads.edit';
     }
 
     public static function inputSchema(): array

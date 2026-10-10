@@ -6,6 +6,7 @@ use App\Core\Billing\Http\Controllers\BillingController;
 use App\Core\Billing\Http\Controllers\InvoiceController;
 use App\Core\Contacts\Http\Controllers\CompanyController;
 use App\Core\Contacts\Http\Controllers\ContactController;
+use App\Core\Contacts\Http\Controllers\ContactMergeController;
 use App\Core\Dashboard\Http\Controllers\DashboardController;
 use App\Core\Http\Controllers\LocaleController;
 use App\Core\Identity\Http\Controllers\Auth\InvitationAcceptanceController;
@@ -196,11 +197,16 @@ Route::middleware(['auth:web', 'auth.session', 'member'])->group(function () {
         // controllers narrow each permission to the scope it was granted with.
         Route::middleware('can:core.contacts.view')->group(function () {
             Route::get('contacts', [ContactController::class, 'index'])->name('core.contacts.index');
+            Route::get('contacts/duplicates', [ContactMergeController::class, 'detect'])->name('core.contacts.duplicates');
+            Route::get('contacts/{contact}/duplicates', [ContactMergeController::class, 'candidates'])->name('core.contacts.duplicates.show');
             Route::get('companies', [CompanyController::class, 'index'])->name('core.contacts.companies.index');
         });
         Route::middleware('can:core.contacts.manage')->group(function () {
             Route::post('contacts', [ContactController::class, 'store'])->name('core.contacts.store');
             Route::put('contacts/{contact}', [ContactController::class, 'update'])->name('core.contacts.update');
+            Route::post('contacts/{contact}/merge', [ContactMergeController::class, 'merge'])
+                ->middleware('can:core.contacts.delete')
+                ->name('core.contacts.merge');
             Route::post('companies', [CompanyController::class, 'store'])->name('core.contacts.companies.store');
             Route::put('companies/{company}', [CompanyController::class, 'update'])->name('core.contacts.companies.update');
         });
