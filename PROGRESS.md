@@ -5,7 +5,7 @@ Rules for working in this repository are in `CLAUDE.md`; the product specificati
 
 ## Status
 
-**Phase 1 (Architecture & Foundation) is complete as of 2026-10-08.** Phase 2 has not been started.
+**Phase 1 (Architecture & Foundation) is complete as of 2026-10-10.** Phase 2 has not been started.
 
 ## What Phase 1 delivered
 
@@ -24,7 +24,7 @@ Rules for working in this repository are in `CLAUDE.md`; the product specificati
 | Tooling | Pest, Vitest, Pint, Larastan level 6, vue-tsc, GitHub Actions workflow, Sail `compose.yaml`, development-only seeders |
 | Docs | `README.md`, `CLAUDE.md`, `docs/` (architecture, database, modules, security, testing, deployment, and short notes for the phases to come), five ADRs, `resources/js/README.md` |
 
-## Verification on 2026-10-08
+## Verification on 2026-10-10
 
 Run natively on Laragon (Windows 10): PHP 8.4.13, MySQL 8.0.30, Redis 5.0.14, Node 24.19.
 
@@ -32,16 +32,16 @@ Run natively on Laragon (Windows 10): PHP 8.4.13, MySQL 8.0.30, Redis 5.0.14, No
 |---|---|---|
 | Code style | `vendor/bin/pint --test` | passed |
 | Static analysis | `vendor/bin/phpstan analyse` (level 6) | no errors |
-| Backend tests | `php artisan test` | 655 passed, 5009 assertions |
+| Backend tests | `php artisan test` | 660 passed, 5035 assertions |
 | Type check | `npm run typecheck` | no errors |
 | Frontend tests | `npm run test` | 69 passed |
 | Production build | `npm run build` | built |
-| Database | `php artisan migrate --seed` on an empty database | succeeded |
-| Visual review | every page in a real browser: light, dark, 390px, Bengali | done, no console errors |
+| Database | `php artisan migrate --seed` on an empty database | succeeded (run on 2026-10-08; migrations unchanged since, and the seeder is now under test) |
+| Visual review | every page in a real browser: light, dark, 390px, Bengali | done on 2026-10-08, no console errors |
 
-Among the 655 backend tests: cross-tenant isolation for every tenant-owned model and every route that takes an id,
+Among the 660 backend tests: cross-tenant isolation for every tenant-owned model and every route that takes an id,
 cache and storage isolation, queue context, the whole sign-in surface, role and member rules, entitlements with a
-fixture module.
+fixture module, and the demo seeder the local setup depends on.
 
 ### Not verified
 
@@ -165,3 +165,5 @@ Environment
   remaining pages, the test suite, the documentation and the Bengali translation were produced by parallel agents
   and then reviewed, integrated and corrected (contrast, cursor pagination on the audit page, member hierarchy,
   workspace-bound "remember me", named rate limiters across tenants, invitation email language).
+- **2026-10-10** - Final checks re-run on the finished tree, documentation brought back in step with the code,
+  last commits made. Nothing of Phase 2 was started.
