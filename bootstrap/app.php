@@ -1,8 +1,10 @@
 <?php
 
 use App\Core\Access\Http\Middleware\EnsureModuleEntitled;
+use App\Core\Billing\Http\Middleware\EnsureWorkspaceIsSubscribed;
 use App\Core\Http\Middleware\HandleCentralInertia;
 use App\Core\Http\Middleware\HandleTenantInertia;
+use App\Core\Http\Middleware\SecurityHeaders;
 use App\Core\Http\Middleware\SetLocale;
 use App\Core\Identity\Http\Middleware\EnsureTenantMember;
 use App\Core\Support\ErrorPageResponder;
@@ -14,6 +16,7 @@ use App\Platform\Console\CreatePlatformAdminCommand;
 use App\Platform\Http\Middleware\EnsurePlatformTwoFactor;
 use App\Platform\Http\Middleware\HandlePlatformInertia;
 use App\Platform\Http\Middleware\InitializePlatformContext;
+use App\Platform\Impersonation\Http\EnforceSupportSession;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -49,11 +52,23 @@ return Application::configure(basePath: dirname(__DIR__))
         CreatePlatformAdminCommand::class,
     ])
     ->withMiddleware(function (Middleware $middleware): void {
+        // Reverse proxies are trusted from config/trustedproxy.php (TRUSTED_PROXIES),
+        // which the framework's TrustProxies middleware reads by itself.
+        $middleware->web(append: [SecurityHeaders::class]);
+
         $middleware->group('tenant', [
             InitializeTenancy::class,
             SetLocale::class,
             HandleTenantInertia::class,
             EnsureTenantIsActive::class,
+            EnforceSupportSession::class,
+        ]);
+
+        // Payment gateway callbacks: the tenant from the hostname and nothing
+        // else - no session, no cookies. See routes/tenant-callbacks.php.
+        $middleware->group('tenant.callback', [
+            InitializeTenancy::class,
+            'throttle:60,1',
         ]);
 
         $middleware->group('central', [
@@ -64,12 +79,14 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->group('platform', [
             InitializePlatformContext::class,
+            SetLocale::class,
             HandlePlatformInertia::class,
         ]);
 
         $middleware->alias([
             'member' => EnsureTenantMember::class,
             'entitled' => EnsureModuleEntitled::class,
+            'subscribed' => EnsureWorkspaceIsSubscribed::class,
             'platform.2fa' => EnsurePlatformTwoFactor::class,
         ]);
 

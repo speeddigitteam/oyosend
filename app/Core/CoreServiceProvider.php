@@ -11,28 +11,49 @@ use App\Core\Access\PermissionResolver;
 use App\Core\Audit\AuditLogger;
 use App\Core\Audit\Models\AuditLog;
 use App\Core\Automation\Triggers\MemberJoinedTrigger;
+use App\Core\Billing\Console\RunBillingCycleCommand;
+use App\Core\Billing\CurrentSubscription;
+use App\Core\Billing\Enums\LimitKind;
+use App\Core\Billing\Gateways\GatewayRegistry;
+use App\Core\Billing\Gateways\SslCommerzGateway;
+use App\Core\Billing\Models\Invoice;
+use App\Core\Billing\Models\Payment;
+use App\Core\Billing\Models\Plan;
+use App\Core\Billing\Models\Subscription;
+use App\Core\Contacts\Automation\CompanyCreatedTrigger;
+use App\Core\Contacts\Automation\ContactCreatedTrigger;
+use App\Core\Contacts\Models\Company;
+use App\Core\Contacts\Models\Contact;
 use App\Core\Dashboard\Widgets\RecentActivityWidget;
 use App\Core\Dashboard\Widgets\SecurityWidget;
 use App\Core\Dashboard\Widgets\TeamWidget;
 use App\Core\Entitlements\Contracts\EntitlementChecker;
-use App\Core\Entitlements\CoreModulesEntitlementChecker;
+use App\Core\Entitlements\PlanEntitlementChecker;
+use App\Core\Identity\Auth\WorkspaceHandoff;
 use App\Core\Identity\Models\Invitation;
 use App\Core\Identity\Models\TenantMembership;
 use App\Core\Identity\Models\User;
 use App\Core\Identity\TwoFactor\TwoFactorService;
+use App\Core\Modules\LimitDefinition;
 use App\Core\Modules\ModuleManifest;
 use App\Core\Modules\ModuleRegistry;
 use App\Core\Modules\ModuleServiceProvider;
 use App\Core\Modules\NavigationItem;
 use App\Core\Modules\PermissionDefinition;
 use App\Core\Modules\WidgetDefinition;
+use App\Core\Organization\Models\Branch;
+use App\Core\Organization\Models\Department;
+use App\Core\Settings\PlatformSettings;
 use App\Core\Tenancy\Models\Tenant;
+use App\Core\Tenancy\Support\TenantHost;
 use App\Platform\Models\PlatformUser;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\CanResetPassword;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
+use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Route;
 
 /**
  * The `core` module: the workspace foundation every tenant has.
@@ -48,7 +69,7 @@ final class CoreServiceProvider extends ModuleServiceProvider
         return new ModuleManifest(
             key: 'core',
             name: 'Workspace',
-            version: '1.0.0',
+            version: '1.1.0',
             core: true,
             permissions: [
                 new PermissionDefinition('core.members.view', 'members'),
@@ -56,14 +77,27 @@ final class CoreServiceProvider extends ModuleServiceProvider
                 new PermissionDefinition('core.members.manage', 'members', sensitive: true),
                 new PermissionDefinition('core.roles.view', 'roles'),
                 new PermissionDefinition('core.roles.manage', 'roles', sensitive: true),
+                new PermissionDefinition('core.organization.view', 'organization'),
+                new PermissionDefinition('core.organization.manage', 'organization'),
+                // Contacts and companies share these three; each can be
+                // narrowed to a person's own, department's or branch's records.
+                new PermissionDefinition('core.contacts.view', 'contacts', scopable: true),
+                new PermissionDefinition('core.contacts.manage', 'contacts', scopable: true),
+                new PermissionDefinition('core.contacts.delete', 'contacts', scopable: true, sensitive: true),
                 new PermissionDefinition('core.audit.view', 'audit', sensitive: true),
                 new PermissionDefinition('core.settings.manage', 'settings', sensitive: true),
+                new PermissionDefinition('core.billing.view', 'billing', sensitive: true),
+                new PermissionDefinition('core.billing.manage', 'billing', sensitive: true),
             ],
             navigation: [
                 new NavigationItem('dashboard', 'core.dashboard', 'layout-dashboard', section: 'workspace', order: 10),
+                new NavigationItem('contacts', 'core.contacts.index', 'contact', 'core.contacts.view', 'workspace', 20, 'core.contacts.*'),
                 new NavigationItem('members', 'core.members.index', 'users', 'core.members.view', 'manage', 10, 'core.members.*'),
                 new NavigationItem('roles', 'core.roles.index', 'shield-check', 'core.roles.view', 'manage', 20, 'core.roles.*'),
+                new NavigationItem('organization', 'core.organization.index', 'network', 'core.organization.view', 'manage', 25, 'core.organization.*'),
                 new NavigationItem('audit', 'core.audit.index', 'scroll-text', 'core.audit.view', 'manage', 30, 'core.audit.*'),
+                new NavigationItem('workspaceSettings', 'core.settings.workspace', 'settings', 'core.settings.manage', 'manage', 40, 'core.settings.workspace*'),
+                new NavigationItem('billing', 'core.billing.index', 'credit-card', 'core.billing.view', 'manage', 50, 'core.billing.*'),
             ],
             widgets: [
                 new WidgetDefinition('core.team', 'TeamWidget', TeamWidget::class, 'core.members.view', span: 7, order: 10),
@@ -72,6 +106,8 @@ final class CoreServiceProvider extends ModuleServiceProvider
             ],
             triggers: [
                 MemberJoinedTrigger::class,
+                ContactCreatedTrigger::class,
+                CompanyCreatedTrigger::class,
             ],
             morphMap: [
                 'user' => User::class,
@@ -81,6 +117,19 @@ final class CoreServiceProvider extends ModuleServiceProvider
                 'invitation' => Invitation::class,
                 'role' => Role::class,
                 'audit_log' => AuditLog::class,
+                'branch' => Branch::class,
+                'department' => Department::class,
+                'contact' => Contact::class,
+                'company' => Company::class,
+                'plan' => Plan::class,
+                'subscription' => Subscription::class,
+                'invoice' => Invoice::class,
+                'payment' => Payment::class,
+            ],
+            limits: [
+                // Seats: everyone in the workspace, and everyone invited who can still join.
+                new LimitDefinition('core.members', LimitKind::Gauge, static fn (): int => TenantMembership::query()->count()
+                    + Invitation::query()->pending()->count()),
             ],
         );
     }
@@ -92,19 +141,43 @@ final class CoreServiceProvider extends ModuleServiceProvider
         $this->app->scoped(AccessChecker::class);
         $this->app->scoped(PermissionResolver::class);
         $this->app->scoped(AuditLogger::class);
+        $this->app->scoped(CurrentSubscription::class);
 
-        // Replaced by the real entitlement store in Phase 2 (plans and billing).
-        $this->app->bind(EntitlementChecker::class, CoreModulesEntitlementChecker::class);
+        // One checker per request, so the subscription is read once however
+        // many permissions, menu entries and widgets ask about it.
+        $this->app->scoped(PlanEntitlementChecker::class);
+        $this->app->bind(EntitlementChecker::class, static fn ($app): EntitlementChecker => $app->make(PlanEntitlementChecker::class));
 
-        // Replay protection must hold across workspaces, so it is not tenant-prefixed.
-        $this->app->when(TwoFactorService::class)
-            ->needs(CacheRepository::class)
-            ->give(fn ($app): CacheRepository => $app->make('cache.central'));
+        // Platform data must not land in a tenant's cache namespace: replay
+        // protection has to hold across workspaces, operator settings are the
+        // same for all of them, and a handoff is redeemed in another one.
+        foreach ([TwoFactorService::class, PlatformSettings::class, WorkspaceHandoff::class] as $platformWide) {
+            $this->app->when($platformWide)
+                ->needs(CacheRepository::class)
+                ->give(fn ($app): CacheRepository => $app->make('cache.central'));
+        }
+
+        $this->app->scoped(PlatformSettings::class);
+
+        $this->app->singleton(GatewayRegistry::class, static function ($app): GatewayRegistry {
+            $registry = new GatewayRegistry;
+
+            // Offered only once its credentials are in the environment.
+            $registry->register(new SslCommerzGateway(
+                $app->make(HttpFactory::class),
+                config('platform.gateways.sslcommerz.store_id'),
+                config('platform.gateways.sslcommerz.store_password'),
+                (bool) config('platform.gateways.sslcommerz.sandbox', true),
+            ));
+
+            return $registry;
+        });
     }
 
     protected function bootModule(): void
     {
         $this->loadTenantRoutes(base_path('routes/tenant.php'));
+        $this->loadCallbackRoutes();
         $this->registerGate();
 
         // Reset links open in the workspace the reset was requested from.
@@ -114,8 +187,19 @@ final class CoreServiceProvider extends ModuleServiceProvider
         ));
 
         if ($this->app->runningInConsole()) {
-            $this->commands([SyncPermissionsCommand::class]);
+            $this->commands([SyncPermissionsCommand::class, RunBillingCycleCommand::class]);
         }
+    }
+
+    /**
+     * Where payment gateways call back: on the workspace's host, with tenant
+     * resolution but none of the `web` group. See routes/tenant-callbacks.php.
+     */
+    private function loadCallbackRoutes(): void
+    {
+        Route::domain('{tenant}.'.$this->app->make(TenantHost::class)->domain())
+            ->middleware('tenant.callback')
+            ->group(base_path('routes/tenant-callbacks.php'));
     }
 
     /**

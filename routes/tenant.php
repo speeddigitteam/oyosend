@@ -1,6 +1,10 @@
 <?php
 
 use App\Core\Audit\Http\Controllers\AuditLogController;
+use App\Core\Billing\Http\Controllers\BillingController;
+use App\Core\Billing\Http\Controllers\InvoiceController;
+use App\Core\Contacts\Http\Controllers\CompanyController;
+use App\Core\Contacts\Http\Controllers\ContactController;
 use App\Core\Dashboard\Http\Controllers\DashboardController;
 use App\Core\Http\Controllers\LocaleController;
 use App\Core\Identity\Http\Controllers\Auth\InvitationAcceptanceController;
@@ -15,6 +19,12 @@ use App\Core\Identity\Http\Controllers\Settings\TwoFactorController;
 use App\Core\Identity\Http\Controllers\Team\InvitationController;
 use App\Core\Identity\Http\Controllers\Team\MemberController;
 use App\Core\Identity\Http\Controllers\Team\RoleController;
+use App\Core\Organization\Http\Controllers\BranchController;
+use App\Core\Organization\Http\Controllers\DepartmentController;
+use App\Core\Organization\Http\Controllers\OrganizationController;
+use App\Core\Settings\Http\Controllers\OnboardingController;
+use App\Core\Settings\Http\Controllers\WorkspaceSettingsController;
+use App\Platform\Impersonation\Http\WorkspaceImpersonationController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -29,7 +39,12 @@ use Illuminate\Support\Facades\Route;
 |  - bind tenant-scoped models only (TenantMembership, never User);
 |  - name the permission on the route with `can:`;
 |  - a non-core module's routes also carry its `entitled:` middleware, which
-|    ModuleServiceProvider::loadTenantRoutes() adds for you.
+|    ModuleServiceProvider::loadTenantRoutes() adds for you;
+|  - anything that is part of working in the workspace goes inside the
+|    `subscribed` group (the paywall). Only signing out, personal settings
+|    and billing stay reachable when the subscription has ended.
+|
+| The stateless gateway callbacks are in routes/tenant-callbacks.php.
 |
 */
 
@@ -64,6 +79,11 @@ Route::get('auth/handoff', [WorkspaceHandoffController::class, 'consume'])
     ->middleware('throttle:20,1')
     ->name('auth.handoff');
 
+// Where a support session opened in the Super Admin panel arrives.
+Route::get('auth/impersonate', [WorkspaceImpersonationController::class, 'begin'])
+    ->middleware('throttle:20,1')
+    ->name('auth.impersonate');
+
 Route::post('locale', LocaleController::class)->name('core.locale.update');
 
 Route::middleware(['auth:web', 'auth.session', 'member'])->group(function () {
@@ -71,42 +91,109 @@ Route::middleware(['auth:web', 'auth.session', 'member'])->group(function () {
     Route::post('workspaces/{workspace}/switch', [WorkspaceHandoffController::class, 'issue'])
         ->name('core.workspaces.switch');
 
-    Route::get('/', DashboardController::class)->name('core.dashboard');
+    Route::post('auth/impersonate/stop', [WorkspaceImpersonationController::class, 'stop'])->name('auth.impersonate.stop');
 
-    // Team
-    Route::get('team/members', [MemberController::class, 'index'])
-        ->middleware('can:core.members.view')
-        ->name('core.members.index');
-    Route::patch('team/members/{membership}', [MemberController::class, 'update'])
-        ->middleware('can:core.members.manage')
-        ->name('core.members.update');
-    Route::delete('team/members/{membership}', [MemberController::class, 'destroy'])
-        ->middleware('can:core.members.manage')
-        ->name('core.members.destroy');
-
-    Route::post('team/invitations', [InvitationController::class, 'store'])
-        ->middleware('can:core.members.invite')
-        ->name('core.invitations.store');
-    Route::delete('team/invitations/{invitation}', [InvitationController::class, 'destroy'])
-        ->middleware('can:core.members.invite')
-        ->name('core.invitations.destroy');
-
-    // Roles
-    Route::get('team/roles', [RoleController::class, 'index'])
-        ->middleware('can:core.roles.view')
-        ->name('core.roles.index');
-    Route::middleware('can:core.roles.manage')->group(function () {
-        Route::get('team/roles/create', [RoleController::class, 'create'])->name('core.roles.create');
-        Route::post('team/roles', [RoleController::class, 'store'])->name('core.roles.store');
-        Route::get('team/roles/{role}/edit', [RoleController::class, 'edit'])->name('core.roles.edit');
-        Route::put('team/roles/{role}', [RoleController::class, 'update'])->name('core.roles.update');
-        Route::delete('team/roles/{role}', [RoleController::class, 'destroy'])->name('core.roles.destroy');
+    // Billing: what the workspace pays the platform. Outside the paywall,
+    // because this is where a locked workspace is brought back.
+    Route::middleware('can:core.billing.view')->group(function () {
+        Route::get('billing', [BillingController::class, 'index'])->name('core.billing.index');
+        Route::get('billing/invoices/{invoice}', [InvoiceController::class, 'show'])->name('core.billing.invoices.show');
+    });
+    Route::middleware('can:core.billing.manage')->group(function () {
+        Route::post('billing/subscription', [BillingController::class, 'change'])->name('core.billing.subscription.change');
+        Route::post('billing/subscription/cancel', [BillingController::class, 'cancel'])->name('core.billing.subscription.cancel');
+        Route::post('billing/subscription/resume', [BillingController::class, 'resume'])->name('core.billing.subscription.resume');
+        Route::post('billing/invoices/{invoice}/pay', [InvoiceController::class, 'pay'])
+            ->middleware('throttle:10,1')
+            ->name('core.billing.invoices.pay');
     });
 
-    // Audit trail
-    Route::get('audit-log', [AuditLogController::class, 'index'])
-        ->middleware('can:core.audit.view')
-        ->name('core.audit.index');
+    // Everything that is part of working in the workspace.
+    Route::middleware('subscribed')->group(function () {
+        Route::get('/', DashboardController::class)->name('core.dashboard');
+
+        // First-run setup of a workspace someone signed up for.
+        Route::middleware('can:core.settings.manage')->group(function () {
+            Route::get('onboarding', [OnboardingController::class, 'show'])->name('core.onboarding.show');
+            Route::post('onboarding', [OnboardingController::class, 'store'])->name('core.onboarding.store');
+        });
+
+        // Team
+        Route::get('team/members', [MemberController::class, 'index'])
+            ->middleware('can:core.members.view')
+            ->name('core.members.index');
+        Route::patch('team/members/{membership}', [MemberController::class, 'update'])
+            ->middleware('can:core.members.manage')
+            ->name('core.members.update');
+        Route::delete('team/members/{membership}', [MemberController::class, 'destroy'])
+            ->middleware('can:core.members.manage')
+            ->name('core.members.destroy');
+
+        Route::post('team/invitations', [InvitationController::class, 'store'])
+            ->middleware('can:core.members.invite')
+            ->name('core.invitations.store');
+        Route::delete('team/invitations/{invitation}', [InvitationController::class, 'destroy'])
+            ->middleware('can:core.members.invite')
+            ->name('core.invitations.destroy');
+
+        // Roles
+        Route::get('team/roles', [RoleController::class, 'index'])
+            ->middleware('can:core.roles.view')
+            ->name('core.roles.index');
+        Route::middleware('can:core.roles.manage')->group(function () {
+            Route::get('team/roles/create', [RoleController::class, 'create'])->name('core.roles.create');
+            Route::post('team/roles', [RoleController::class, 'store'])->name('core.roles.store');
+            Route::get('team/roles/{role}/edit', [RoleController::class, 'edit'])->name('core.roles.edit');
+            Route::put('team/roles/{role}', [RoleController::class, 'update'])->name('core.roles.update');
+            Route::delete('team/roles/{role}', [RoleController::class, 'destroy'])->name('core.roles.destroy');
+        });
+
+        // Audit trail
+        Route::get('audit-log', [AuditLogController::class, 'index'])
+            ->middleware('can:core.audit.view')
+            ->name('core.audit.index');
+
+        // Organisation: branches and departments
+        Route::get('organization', [OrganizationController::class, 'index'])
+            ->middleware('can:core.organization.view')
+            ->name('core.organization.index');
+        Route::middleware('can:core.organization.manage')->group(function () {
+            Route::post('organization/branches', [BranchController::class, 'store'])->name('core.branches.store');
+            Route::put('organization/branches/{branch}', [BranchController::class, 'update'])->name('core.branches.update');
+            Route::delete('organization/branches/{branch}', [BranchController::class, 'destroy'])->name('core.branches.destroy');
+            Route::post('organization/departments', [DepartmentController::class, 'store'])->name('core.departments.store');
+            Route::put('organization/departments/{department}', [DepartmentController::class, 'update'])->name('core.departments.update');
+            Route::delete('organization/departments/{department}', [DepartmentController::class, 'destroy'])->name('core.departments.destroy');
+        });
+
+        // Contacts and companies: the shared customer directory. The
+        // controllers narrow each permission to the scope it was granted with.
+        Route::middleware('can:core.contacts.view')->group(function () {
+            Route::get('contacts', [ContactController::class, 'index'])->name('core.contacts.index');
+            Route::get('companies', [CompanyController::class, 'index'])->name('core.contacts.companies.index');
+        });
+        Route::middleware('can:core.contacts.manage')->group(function () {
+            Route::post('contacts', [ContactController::class, 'store'])->name('core.contacts.store');
+            Route::put('contacts/{contact}', [ContactController::class, 'update'])->name('core.contacts.update');
+            Route::post('companies', [CompanyController::class, 'store'])->name('core.contacts.companies.store');
+            Route::put('companies/{company}', [CompanyController::class, 'update'])->name('core.contacts.companies.update');
+        });
+        Route::middleware('can:core.contacts.delete')->group(function () {
+            Route::delete('contacts/{contact}', [ContactController::class, 'destroy'])->name('core.contacts.destroy');
+            Route::delete('companies/{company}', [CompanyController::class, 'destroy'])->name('core.contacts.companies.destroy');
+        });
+
+        // Workspace settings
+        Route::middleware('can:core.settings.manage')->group(function () {
+            Route::get('settings/workspace', [WorkspaceSettingsController::class, 'edit'])->name('core.settings.workspace');
+            Route::put('settings/workspace', [WorkspaceSettingsController::class, 'update'])->name('core.settings.workspace.update');
+            Route::post('settings/workspace/logo', [WorkspaceSettingsController::class, 'storeLogo'])
+                ->middleware('throttle:10,1')
+                ->name('core.settings.workspace.logo.store');
+            Route::delete('settings/workspace/logo', [WorkspaceSettingsController::class, 'destroyLogo'])
+                ->name('core.settings.workspace.logo.destroy');
+        });
+    });
 
     // Personal settings
     Route::get('settings/profile', [ProfileController::class, 'edit'])->name('core.settings.profile');

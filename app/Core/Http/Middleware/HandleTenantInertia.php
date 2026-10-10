@@ -5,11 +5,15 @@ declare(strict_types=1);
 namespace App\Core\Http\Middleware;
 
 use App\Core\Access\AccessChecker;
+use App\Core\Billing\CurrentSubscription;
 use App\Core\Identity\Models\TenantMembership;
 use App\Core\Identity\Models\User;
 use App\Core\Modules\NavigationBuilder;
+use App\Core\Settings\WorkspaceLogo;
 use App\Core\Tenancy\TenantContext;
+use App\Platform\Impersonation\ImpersonationManager;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 /**
  * Props every workspace page receives.
@@ -24,6 +28,8 @@ final class HandleTenantInertia extends HandleInertiaRequests
         private readonly TenantContext $context,
         private readonly AccessChecker $access,
         private readonly NavigationBuilder $navigation,
+        private readonly CurrentSubscription $subscription,
+        private readonly WorkspaceLogo $logo,
     ) {}
 
     protected function area(): string
@@ -44,6 +50,8 @@ final class HandleTenantInertia extends HandleInertiaRequests
                 ? []
                 : $this->navigation->for($this->user($request)),
             'workspaces' => fn (): array => $this->workspaces($request),
+            'subscription' => fn (): ?array => $this->member($request) === null ? null : $this->subscription(),
+            'supportSession' => fn (): ?array => $this->supportSession($request),
         ];
     }
 
@@ -60,7 +68,7 @@ final class HandleTenantInertia extends HandleInertiaRequests
     }
 
     /**
-     * @return array{id: string, name: string, slug: string}|null
+     * @return array{id: string, name: string, slug: string, logoUrl: string|null}|null
      */
     private function tenant(): ?array
     {
@@ -70,6 +78,44 @@ final class HandleTenantInertia extends HandleInertiaRequests
             'id' => $tenant->id,
             'name' => $tenant->name,
             'slug' => $tenant->slug,
+            'logoUrl' => $this->logo->url($tenant),
+        ];
+    }
+
+    /**
+     * Where the workspace stands with its plan, for the notice the layout
+     * shows (trial ending, payment overdue, locked). Null without a subscription.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function subscription(): ?array
+    {
+        $subscription = $this->subscription->get();
+
+        return $subscription === null ? null : [
+            'status' => $subscription->status->value,
+            'plan' => $subscription->plan->name,
+            'locked' => $subscription->isLocked(),
+            'trialEndsAt' => $subscription->trial_ends_at?->toIso8601String(),
+            'graceEndsAt' => $subscription->grace_ends_at?->toIso8601String(),
+            'cancelAtPeriodEnd' => $subscription->cancel_at_period_end,
+            'periodEnd' => $subscription->current_period_end?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Set while an operator is signed in as a member, so the layout can say
+     * so on every page and offer the way out.
+     *
+     * @return array{by: string, expiresAt: string}|null
+     */
+    private function supportSession(Request $request): ?array
+    {
+        $session = ImpersonationManager::of($request);
+
+        return $session === null ? null : [
+            'by' => $session['by'],
+            'expiresAt' => Carbon::createFromTimestamp($session['expires_at'])->toIso8601String(),
         ];
     }
 
@@ -110,7 +156,8 @@ final class HandleTenantInertia extends HandleInertiaRequests
      */
     private function workspaces(Request $request): array
     {
-        if ($this->member($request) === null) {
+        // A support session stays in the workspace it was opened for.
+        if ($this->member($request) === null || ImpersonationManager::of($request) !== null) {
             return [];
         }
 

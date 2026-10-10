@@ -11,7 +11,7 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 
     {{-- Resolve the theme before first paint so there is no flash of the wrong one. --}}
-    <script>
+    <script @if ($nonce = Vite::cspNonce()) nonce="{{ $nonce }}" @endif>
         (function () {
             try {
                 var stored = localStorage.getItem('oyo:theme');
@@ -22,7 +22,7 @@
     </script>
 
     {{-- Only the named routes of the current area are sent to the browser. --}}
-    @routes($area ?? 'central')
+    @routes($area ?? 'central', Vite::cspNonce())
     @vite(['resources/css/app.css', 'resources/js/app.ts'])
     @inertiaHead
 </head>

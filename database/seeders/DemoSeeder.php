@@ -3,6 +3,9 @@
 namespace Database\Seeders;
 
 use App\Core\Access\Models\Role;
+use App\Core\Billing\Enums\BillingInterval;
+use App\Core\Billing\Models\Plan;
+use App\Core\Billing\SubscriptionManager;
 use App\Core\Identity\Enums\MembershipStatus;
 use App\Core\Identity\Models\TenantMembership;
 use App\Core\Identity\Models\User;
@@ -16,8 +19,8 @@ use Illuminate\Support\Carbon;
 use RuntimeException;
 
 /**
- * Local demo data: one Super Admin and two workspaces with a few people in
- * each. Every account uses the password "password".
+ * Local demo data: one Super Admin, four example plans and two workspaces
+ * with a few people in each. Every account uses the password "password".
  *
  * Refuses to run anywhere but the local environment.
  */
@@ -36,17 +39,19 @@ class DemoSeeder extends Seeder
             ['name' => 'Platform Admin', 'password' => self::PASSWORD, 'role' => PlatformRole::SuperAdmin],
         );
 
+        $plans = $this->plans();
+
         // Belongs to both workspaces, to exercise the workspace switcher.
         $shared = $this->user('Farhan Kabir', 'farhan@oyosend.test');
 
-        $this->workspace($provisioner, 'Acme Trading', 'acme', 'en', $this->user('Ayesha Rahman', 'owner@acme.test'), [
+        $this->workspace($provisioner, $plans['business'], 'Acme Trading', 'acme', 'en', $this->user('Ayesha Rahman', 'owner@acme.test'), [
             [Role::ADMIN, $this->user('Tanvir Hasan', 'admin@acme.test')],
             [Role::MANAGER, $this->user('Nusrat Jahan', 'manager@acme.test')],
             [Role::EMPLOYEE, $this->user('Imran Hossain', 'employee@acme.test')],
             [Role::MANAGER, $shared],
         ]);
 
-        $this->workspace($provisioner, 'Globex Bangladesh', 'globex', 'bn', $this->user('রফিকুল ইসলাম', 'owner@globex.test'), [
+        $this->workspace($provisioner, $plans['free'], 'Globex Bangladesh', 'globex', 'bn', $this->user('রফিকুল ইসলাম', 'owner@globex.test'), [
             [Role::ADMIN, $this->user('সাদিয়া আক্তার', 'admin@globex.test')],
             [Role::EMPLOYEE, $this->user('মাহমুদ হাসান', 'employee@globex.test')],
             [Role::EMPLOYEE, $shared],
@@ -58,6 +63,7 @@ class DemoSeeder extends Seeder
      */
     private function workspace(
         TenantProvisioner $provisioner,
+        Plan $plan,
         string $name,
         string $slug,
         string $locale,
@@ -70,7 +76,10 @@ class DemoSeeder extends Seeder
 
         $tenant = $provisioner->provision($name, $slug, $owner, ['locale' => $locale]);
 
-        app(TenantContext::class)->run($tenant, function () use ($members): void {
+        app(TenantContext::class)->run($tenant, function () use ($members, $plan): void {
+            // Acme starts a trial of a paid plan; Globex is on the free one.
+            app(SubscriptionManager::class)->start($plan, BillingInterval::Monthly);
+
             foreach ($members as [$roleName, $user]) {
                 TenantMembership::query()->create([
                     'user_id' => $user->getKey(),
@@ -81,6 +90,40 @@ class DemoSeeder extends Seeder
                 $user->assignRole(Role::query()->forCurrentTenant()->where('name', $roleName)->firstOrFail());
             }
         });
+    }
+
+    /**
+     * Example plans, so that sign-up, billing and limits can be tried
+     * locally. The names follow the specification; the prices and limits are
+     * placeholders for local development and are seeded nowhere else.
+     *
+     * @return array<string, Plan> keyed by plan key
+     */
+    private function plans(): array
+    {
+        $definitions = [
+            'free' => ['Free', 'For trying things out with a small team.', 0, null, 0, 3, 10],
+            'starter' => ['Starter', 'For a small business getting organised.', 150000, 1500000, 14, 10, 20],
+            'business' => ['Business', 'For a growing company with several teams.', 450000, 4500000, 14, 50, 30],
+            'enterprise' => ['Enterprise', 'For a large organisation. No limit on members.', 1200000, 12000000, 14, null, 40],
+        ];
+
+        $plans = [];
+
+        foreach ($definitions as $key => [$name, $description, $monthly, $yearly, $trialDays, $members, $order]) {
+            $plans[$key] = Plan::query()->firstOrCreate(['key' => $key], [
+                'name' => $name,
+                'description' => $description,
+                'currency' => 'BDT',
+                'monthly_amount' => $monthly,
+                'yearly_amount' => $yearly,
+                'trial_days' => $trialDays,
+                'limits' => $members === null ? [] : ['core.members' => $members],
+                'sort_order' => $order,
+            ]);
+        }
+
+        return $plans;
     }
 
     private function user(string $name, string $email): User

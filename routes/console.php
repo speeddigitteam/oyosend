@@ -1,8 +1,20 @@
 <?php
 
-use Illuminate\Foundation\Inspiring;
-use Illuminate\Support\Facades\Artisan;
+use App\Core\Registration\Models\WorkspaceRegistration;
+use Illuminate\Support\Facades\Schedule;
 
-Artisan::command('inspire', function () {
-    $this->comment(Inspiring::quote());
-})->purpose('Display an inspiring quote');
+/*
+|--------------------------------------------------------------------------
+| Scheduled work
+|--------------------------------------------------------------------------
+|
+| Run by `php artisan schedule:run` every minute (cron) or `schedule:work`.
+| Everything here is safe to run twice.
+|
+*/
+
+// Invoices that are due, subscriptions that are overdue, expired or canceled.
+Schedule::command('billing:run')->hourly()->withoutOverlapping();
+
+// Sign-ups whose confirmation link expired, and finished ones after a month.
+Schedule::command('model:prune', ['--model' => [WorkspaceRegistration::class]])->daily();
