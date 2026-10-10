@@ -44,7 +44,7 @@ Translucent, blurred panels floating over a warm backdrop that carries a few sol
 - No marketing voice ("Supercharge", "Seamlessly", "Unlock") and no exclamation marks.
 - Do not show a control for something the person cannot do or that does not exist yet.
 
-Every text colour must keep WCAG AA contrast on glass; the tokens are tuned for it, so stay on them. Everything must work with the keyboard and in both themes, and at 360px wide.
+Every text colour must keep WCAG AA contrast on glass. The tokens guarantee it and `tests/js/contrast.test.ts` recomputes it from `app.css`, so stay on them, and keep backdrop discs at or below 80% opacity. Everything must work with the keyboard and in both themes, and at 360px wide.
 
 ## Components (`@/Core/Components`)
 
