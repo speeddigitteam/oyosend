@@ -6,6 +6,7 @@ namespace App\Core\Audit;
 
 use App\Core\Audit\Models\AuditLog;
 use App\Core\Tenancy\TenantContext;
+use App\Platform\Impersonation\ImpersonationManager;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -43,6 +44,12 @@ final class AuditLogger
     ): AuditLog {
         $actor ??= Auth::user();
         $request = $this->request();
+
+        // Done by an operator signed in as a member: say so on every entry,
+        // whoever the entry names as its actor.
+        if ($request !== null && ($support = ImpersonationManager::of($request)) !== null) {
+            $properties['support_session'] = ['id' => $support['id'], 'by' => $support['by']];
+        }
 
         return AuditLog::query()->create([
             'tenant_id' => $this->context->id(),

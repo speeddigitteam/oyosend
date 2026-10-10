@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Platform\Http\Controllers;
 
 use App\Core\Audit\Models\AuditLog;
+use App\Core\Billing\Enums\InvoiceStatus;
+use App\Core\Billing\Models\Invoice;
+use App\Core\Billing\Models\Subscription;
 use App\Core\Identity\Models\TenantMembership;
 use App\Core\Identity\Models\User;
 use App\Core\Modules\ModuleRegistry;
@@ -35,6 +38,21 @@ final class DashboardController
                 // Deliberate cross-tenant count: this is the platform's own view.
                 'memberships' => TenantMembership::withoutTenancy()->count(),
                 'modules' => count($modules->all()),
+            ],
+            // Deliberate cross-tenant counts: where every subscription stands, and what is owed.
+            'billing' => [
+                'subscriptions' => Subscription::withoutTenancy()
+                    ->selectRaw('status, count(*) as total')
+                    ->groupBy('status')
+                    ->pluck('total', 'status')
+                    ->map(static fn (mixed $total): int => (int) $total)
+                    ->all(),
+                'openInvoices' => Invoice::withoutTenancy()->where('status', InvoiceStatus::Open)->count(),
+                'overdueInvoices' => Invoice::withoutTenancy()
+                    ->where('status', InvoiceStatus::Open)
+                    ->where('due_at', '<', Carbon::now())
+                    ->count(),
+                'pendingApprovals' => (int) ($byStatus[TenantStatus::Pending->value] ?? 0),
             ],
             'recentTenants' => Tenant::query()
                 ->withCount('memberships')

@@ -34,6 +34,8 @@ final class HandlePlatformInertia extends HandleInertiaRequests
                         'role' => $user->role->value,
                         'twoFactorEnabled' => $user->hasEnabledTwoFactor(),
                     ] : null,
+                    // For hiding what this operator may not do; every route checks again.
+                    'abilities' => $user instanceof PlatformUser ? $user->role->abilities() : [],
                 ];
             },
         ];
