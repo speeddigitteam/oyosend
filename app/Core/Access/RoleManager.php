@@ -38,10 +38,11 @@ final class RoleManager
 
     /**
      * @param  list<string>  $permissions
+     * @param  array<string, AccessScope|string>  $scopes  Scope per permission; anything not named is granted for `all`.
      */
-    public function create(User $actor, string $name, ?string $description, array $permissions): Role
+    public function create(User $actor, string $name, ?string $description, array $permissions, array $scopes = []): Role
     {
-        return DB::transaction(function () use ($actor, $name, $description, $permissions): Role {
+        return DB::transaction(function () use ($actor, $name, $description, $permissions, $scopes): Role {
             /** @var Role $role */
             $role = Role::query()->create([
                 'tenant_id' => $this->context->requireId(),
@@ -51,7 +52,7 @@ final class RoleManager
                 'is_system' => false,
             ]);
 
-            $this->syncPermissions($actor, $role, $permissions);
+            $this->syncPermissions($actor, $role, $permissions, $scopes);
 
             return $role;
         });
@@ -59,19 +60,20 @@ final class RoleManager
 
     /**
      * @param  list<string>  $permissions
+     * @param  array<string, AccessScope|string>  $scopes
      */
-    public function update(User $actor, Role $role, string $name, ?string $description, array $permissions): Role
+    public function update(User $actor, Role $role, string $name, ?string $description, array $permissions, array $scopes = []): Role
     {
         $this->guardEditable($role);
 
-        return DB::transaction(function () use ($actor, $role, $name, $description, $permissions): Role {
+        return DB::transaction(function () use ($actor, $role, $name, $description, $permissions, $scopes): Role {
             // System roles keep their name: other code refers to them by it.
             $role->fill([
                 'name' => $role->is_system ? $role->name : $name,
                 'description' => $description,
             ])->save();
 
-            $this->syncPermissions($actor, $role, $permissions);
+            $this->syncPermissions($actor, $role, $permissions, $scopes);
 
             return $role;
         });
@@ -112,8 +114,8 @@ final class RoleManager
 
         $held = $this->access->effectivePermissions($actor);
 
-        foreach ($this->grantedNames($role) as $permission) {
-            if (! isset($held[$permission])) {
+        foreach ($this->grants($role) as $permission => $scope) {
+            if (! isset($held[$permission]) || ! $held[$permission]->covers($scope)) {
                 return false;
             }
         }
@@ -125,31 +127,41 @@ final class RoleManager
      * Replace a role's grants. Used by provisioning too, where there is no actor.
      *
      * @param  list<string>  $permissions
+     * @param  array<string, AccessScope|string>  $scopes  Scope per permission. Only a scopable
+     *                                                     permission can be narrowed; the rest are always `all`.
      */
-    public function syncPermissions(?User $actor, Role $role, array $permissions): void
+    public function syncPermissions(?User $actor, Role $role, array $permissions, array $scopes = []): void
     {
         $this->guardOwnedByTenant($role);
 
-        $requested = array_values(array_unique($permissions));
-        sort($requested);
+        $requested = $this->requestedGrants($permissions, $scopes);
         $allowed = $this->assignablePermissionNames();
 
-        if (array_diff($requested, $allowed) !== []) {
+        if (array_diff(array_keys($requested), $allowed) !== []) {
             throw ValidationException::withMessages([
                 'permissions' => __('One or more selected permissions are not available to this workspace.'),
             ]);
         }
 
+        $current = $this->grants($role);
+
         if ($actor !== null) {
             $held = $this->access->effectivePermissions($actor);
-            $current = $this->grantedNames($role);
 
-            // Adding and removing both require holding the permission, so a
+            // Adding, removing and re-scoping all require holding the
+            // permission at least as widely as the grant being touched, so a
             // role editor can neither escalate nor strip what is above them.
-            $touched = [...array_diff($requested, $current), ...array_diff($current, $requested)];
+            foreach (array_keys($requested + $current) as $permission) {
+                $before = $current[$permission] ?? null;
+                $after = $requested[$permission] ?? null;
 
-            foreach ($touched as $permission) {
-                if (! isset($held[$permission])) {
+                if ($before === $after) {
+                    continue;
+                }
+
+                $widest = $before !== null && $after !== null ? $before->widest($after) : ($before ?? $after);
+
+                if (! isset($held[$permission]) || ! $held[$permission]->covers($widest)) {
                     throw ValidationException::withMessages([
                         'permissions' => __('You can only grant or remove permissions that you hold yourself.'),
                     ]);
@@ -158,28 +170,45 @@ final class RoleManager
         }
 
         $ids = Permission::query()
-            ->whereIn('name', $requested)
+            ->whereIn('name', array_keys($requested))
             ->where('guard_name', 'web')
-            ->pluck('id');
+            ->pluck('id', 'name');
 
         if ($ids->count() !== count($requested)) {
             throw new RuntimeException('The permission catalogue is out of date. Run `php artisan permissions:sync`.');
         }
 
-        $before = $this->grantedNames($role);
+        $pivot = [];
 
-        $role->permissions()->sync(
-            $ids->mapWithKeys(static fn (int $id): array => [$id => ['scope' => AccessScope::All->value]])->all(),
-        );
+        foreach ($requested as $permission => $scope) {
+            $pivot[$ids[$permission]] = ['scope' => $scope->value];
+        }
+
+        $role->permissions()->sync($pivot);
 
         $this->flush();
 
-        if ($before !== $requested) {
-            $this->audit->record('role.permissions_changed', $role, [
-                'added' => array_values(array_diff($requested, $before)),
-                'removed' => array_values(array_diff($before, $requested)),
-            ]);
+        if ($current === $requested) {
+            return;
         }
+
+        $changes = [
+            'added' => array_values(array_diff(array_keys($requested), array_keys($current))),
+            'removed' => array_values(array_diff(array_keys($current), array_keys($requested))),
+        ];
+
+        // Only grants that are narrower than "everything" are worth spelling out.
+        $narrowed = array_filter(
+            $requested,
+            static fn (AccessScope $scope, string $permission): bool => $scope !== ($current[$permission] ?? AccessScope::All),
+            ARRAY_FILTER_USE_BOTH,
+        );
+
+        if ($narrowed !== []) {
+            $changes['scopes'] = array_map(static fn (AccessScope $scope): string => $scope->value, $narrowed);
+        }
+
+        $this->audit->record('role.permissions_changed', $role, $changes);
     }
 
     /**
@@ -206,12 +235,53 @@ final class RoleManager
      */
     public function grantedNames(Role $role): array
     {
-        return DB::table('role_has_permissions')
+        return array_keys($this->grants($role));
+    }
+
+    /**
+     * What a role grants, and how far each grant reaches.
+     *
+     * @return array<string, AccessScope> permission name => scope, in name order
+     */
+    public function grants(Role $role): array
+    {
+        $grants = DB::table('role_has_permissions')
             ->join('permissions', 'permissions.id', '=', 'role_has_permissions.permission_id')
             ->where('role_has_permissions.role_id', $role->getKey())
-            ->orderBy('permissions.name')
-            ->pluck('permissions.name')
+            ->pluck('role_has_permissions.scope', 'permissions.name')
+            ->map(static fn (string $scope): AccessScope => AccessScope::tryFrom($scope) ?? AccessScope::Own)
             ->all();
+
+        // Ordered here, not by the database: its collation sorts differently from PHP.
+        ksort($grants);
+
+        return $grants;
+    }
+
+    /**
+     * @param  list<string>  $permissions
+     * @param  array<string, AccessScope|string>  $scopes
+     * @return array<string, AccessScope> in name order
+     */
+    private function requestedGrants(array $permissions, array $scopes): array
+    {
+        $names = array_values(array_unique($permissions));
+        sort($names);
+
+        $grants = [];
+
+        foreach ($names as $name) {
+            $scope = $scopes[$name] ?? AccessScope::All;
+            $scope = $scope instanceof AccessScope ? $scope : AccessScope::tryFrom($scope);
+
+            if ($scope === null) {
+                throw ValidationException::withMessages(['scopes' => __('One of the selected scopes is not valid.')]);
+            }
+
+            $grants[$name] = $this->modules->findPermission($name)?->scopable === true ? $scope : AccessScope::All;
+        }
+
+        return $grants;
     }
 
     /**

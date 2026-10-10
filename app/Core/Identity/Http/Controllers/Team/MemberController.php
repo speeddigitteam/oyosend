@@ -11,6 +11,8 @@ use App\Core\Identity\Enums\MembershipStatus;
 use App\Core\Identity\Models\Invitation;
 use App\Core\Identity\Models\TenantMembership;
 use App\Core\Identity\Models\User;
+use App\Core\Organization\Models\Branch;
+use App\Core\Organization\Models\Department;
 use App\Core\Support\Like;
 use App\Core\Support\Toast;
 use Illuminate\Http\RedirectResponse;
@@ -33,7 +35,7 @@ final class MemberController
         $search = trim((string) ($filters['search'] ?? ''));
 
         $members = TenantMembership::query()
-            ->with(['user:id,name,email,two_factor_confirmed_at,last_login_at', 'user.roles'])
+            ->with(['user:id,name,email,two_factor_confirmed_at,last_login_at', 'user.roles', 'branch:id,name', 'department:id,name'])
             ->when($search !== '', fn ($query) => $query->whereHas(
                 'user',
                 fn ($user) => $user->where(fn ($match) => $match
@@ -50,11 +52,16 @@ final class MemberController
                 'email' => $membership->user->email,
                 'initials' => $membership->user->initials(),
                 'role' => $membership->user->roles->first()?->only(['id', 'name']),
+                'branch' => $membership->branch?->only(['id', 'name']),
+                'department' => $membership->department?->only(['id', 'name']),
                 'status' => $membership->status->value,
                 'isOwner' => $membership->is_owner,
                 'isSelf' => $membership->user_id === $actor->id,
                 // Whether this viewer gets an actions menu on the row; the same rule is enforced on every change.
                 'manageable' => $managesMembers && $manager->canManage($actor, $membership),
+                // The owner is the one person who may set their own branch and department.
+                'placeable' => $managesMembers && ($manager->canManage($actor, $membership)
+                    || ($membership->is_owner && $membership->user_id === $actor->id)),
                 'twoFactorEnabled' => $membership->user->two_factor_confirmed_at !== null,
                 'joinedAt' => $membership->joined_at?->toIso8601String(),
                 'lastSeenAt' => $membership->last_seen_at?->toIso8601String(),
@@ -92,6 +99,8 @@ final class MemberController
                 ->map(fn (Role $role): array => ['id' => $role->id, 'name' => $role->name])
                 ->values()
                 ->all(),
+            'branches' => Branch::query()->orderBy('name')->get(['id', 'name'])->map->only(['id', 'name'])->all(),
+            'departments' => Department::query()->orderBy('name')->get(['id', 'name'])->map->only(['id', 'name'])->all(),
         ]);
     }
 
@@ -100,6 +109,8 @@ final class MemberController
         $input = $request->validate([
             'role_id' => ['sometimes', 'required', 'string', 'size:26'],
             'status' => ['sometimes', 'required', Rule::enum(MembershipStatus::class)],
+            'branch_id' => ['sometimes', 'nullable', 'string', 'size:26'],
+            'department_id' => ['sometimes', 'nullable', 'string', 'size:26'],
         ]);
 
         /** @var User $actor */
@@ -114,6 +125,19 @@ final class MemberController
 
         if (isset($input['status'])) {
             $members->setStatus($actor, $membership, MembershipStatus::from($input['status']));
+        }
+
+        if (array_key_exists('branch_id', $input) || array_key_exists('department_id', $input)) {
+            // Tenant-scoped lookups: an id from another workspace is simply not found.
+            $branchId = array_key_exists('branch_id', $input) ? $input['branch_id'] : $membership->branch_id;
+            $departmentId = array_key_exists('department_id', $input) ? $input['department_id'] : $membership->department_id;
+
+            $members->place(
+                $actor,
+                $membership,
+                $branchId === null ? null : Branch::query()->findOrFail($branchId),
+                $departmentId === null ? null : Department::query()->findOrFail($departmentId),
+            );
         }
 
         Toast::success(__('Member updated.'));

@@ -14,7 +14,9 @@ use App\Core\Access\Models\Role;
 final class DefaultRoles
 {
     /**
-     * @return array<string, array{description: string, permissions: list<string>}>
+     * `scopes` narrows a grant; a permission not named there reaches every record.
+     *
+     * @return array<string, array{description: string, permissions: list<string>, scopes?: array<string, string>}>
      */
     public static function definitions(): array
     {
@@ -25,7 +27,7 @@ final class DefaultRoles
                 'permissions' => [],
             ],
             Role::ADMIN => [
-                'description' => 'Manages people, roles and workspace settings.',
+                'description' => 'Manages people, roles, contacts and workspace settings.',
                 'permissions' => [
                     'core.members.view',
                     'core.members.invite',
@@ -34,20 +36,35 @@ final class DefaultRoles
                     'core.roles.manage',
                     'core.audit.view',
                     'core.settings.manage',
+                    'core.organization.view',
+                    'core.organization.manage',
+                    'core.contacts.view',
+                    'core.contacts.manage',
+                    'core.contacts.delete',
                 ],
             ],
             Role::MANAGER => [
-                'description' => 'Leads a team: can see who is in the workspace and invite people.',
+                'description' => 'Leads a team: can see who is in the workspace, invite people and work with every contact.',
                 'permissions' => [
                     'core.members.view',
                     'core.members.invite',
                     'core.roles.view',
+                    'core.organization.view',
+                    'core.contacts.view',
+                    'core.contacts.manage',
                 ],
             ],
             Role::EMPLOYEE => [
                 'description' => 'Works in the apps they have been given access to.',
                 'permissions' => [
                     'core.members.view',
+                    'core.organization.view',
+                    'core.contacts.view',
+                    'core.contacts.manage',
+                ],
+                // Sees every contact, changes only their own.
+                'scopes' => [
+                    'core.contacts.manage' => 'own',
                 ],
             ],
         ];

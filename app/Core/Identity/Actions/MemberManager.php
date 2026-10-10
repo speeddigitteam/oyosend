@@ -11,6 +11,8 @@ use App\Core\Identity\Enums\MembershipStatus;
 use App\Core\Identity\Events\MemberRemoved;
 use App\Core\Identity\Models\TenantMembership;
 use App\Core\Identity\Models\User;
+use App\Core\Organization\Models\Branch;
+use App\Core\Organization\Models\Department;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -77,6 +79,30 @@ final class MemberManager
         DB::transaction(function () use ($membership, $status): void {
             // The Auditable trait records the status change.
             $membership->update(['status' => $status]);
+            $this->roles->flush();
+        });
+    }
+
+    /**
+     * Put a member in a branch and a department (either may be none).
+     *
+     * Where someone sits decides what a `branch` or `department` grant lets
+     * them reach, so this follows the same rules as any other change - with
+     * one exception: the owner places themselves, because their access does
+     * not depend on it and nobody else may change the owner.
+     */
+    public function place(User $actor, TenantMembership $membership, ?Branch $branch, ?Department $department): void
+    {
+        if (! $membership->is_owner || $membership->user_id !== $actor->getKey()) {
+            $this->guardMutable($actor, $membership);
+        }
+
+        DB::transaction(function () use ($membership, $branch, $department): void {
+            // The Auditable trait records the change.
+            $membership->update([
+                'branch_id' => $branch?->getKey(),
+                'department_id' => $department?->getKey(),
+            ]);
             $this->roles->flush();
         });
     }

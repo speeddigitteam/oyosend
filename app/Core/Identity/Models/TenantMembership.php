@@ -6,6 +6,8 @@ namespace App\Core\Identity\Models;
 
 use App\Core\Audit\Concerns\Auditable;
 use App\Core\Identity\Enums\MembershipStatus;
+use App\Core\Organization\Models\Branch;
+use App\Core\Organization\Models\Department;
 use App\Core\Tenancy\Concerns\BelongsToTenant;
 use App\Core\Tenancy\Concerns\UsesCentralConnection;
 use Database\Factories\TenantMembershipFactory;
@@ -28,9 +30,13 @@ use Illuminate\Support\Carbon;
  * @property string $user_id
  * @property MembershipStatus $status
  * @property bool $is_owner
+ * @property string|null $branch_id
+ * @property string|null $department_id
  * @property Carbon|null $joined_at
  * @property Carbon|null $last_seen_at
  * @property-read User $user
+ * @property-read Branch|null $branch
+ * @property-read Department|null $department
  */
 #[UseFactory(TenantMembershipFactory::class)]
 class TenantMembership extends Model
@@ -53,6 +59,8 @@ class TenantMembership extends Model
         'user_id',
         'status',
         'is_owner',
+        'branch_id',
+        'department_id',
         'joined_at',
         'last_seen_at',
     ];
@@ -76,6 +84,22 @@ class TenantMembership extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * @return BelongsTo<Branch, $this>
+     */
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
+    }
+
+    /**
+     * @return BelongsTo<Department, $this>
+     */
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class);
     }
 
     public function isActive(): bool

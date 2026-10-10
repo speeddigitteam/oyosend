@@ -32,7 +32,7 @@ final class TenantProvisioner
     ) {}
 
     /**
-     * @param  array<string, mixed>  $attributes  Optional locale, timezone, currency, status, trial_ends_at.
+     * @param  array<string, mixed>  $attributes  Optional locale, timezone, currency, status, trial_ends_at, onboarded.
      */
     public function provision(string $name, string $slug, User $owner, array $attributes = []): Tenant
     {
@@ -59,6 +59,8 @@ final class TenantProvisioner
                 'timezone' => $attributes['timezone'] ?? config('platform.defaults.timezone'),
                 'currency' => $attributes['currency'] ?? config('platform.defaults.currency'),
                 'trial_ends_at' => $attributes['trial_ends_at'] ?? null,
+                // Only a workspace someone signed up for goes through first-run setup.
+                'onboarded_at' => ($attributes['onboarded'] ?? true) ? Carbon::now() : null,
             ]);
 
             $tenant->domains()->create([
@@ -110,7 +112,7 @@ final class TenantProvisioner
             ]);
 
             if ($definition['permissions'] !== []) {
-                $manager->syncPermissions(null, $role, $definition['permissions']);
+                $manager->syncPermissions(null, $role, $definition['permissions'], $definition['scopes'] ?? []);
             }
 
             $roles[$name] = $role;

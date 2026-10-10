@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Core\Identity\Http\Controllers\Team;
 
 use App\Core\Access\AccessChecker;
+use App\Core\Access\Enums\AccessScope;
 use App\Core\Access\Models\Role;
 use App\Core\Access\RoleManager;
 use App\Core\Identity\Models\User;
@@ -15,6 +16,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -82,7 +84,13 @@ final class RoleController
         /** @var User $actor */
         $actor = $request->user('web');
 
-        $role = $this->roles->create($actor, $input['name'], $input['description'] ?? null, $input['permissions'] ?? []);
+        $role = $this->roles->create(
+            $actor,
+            $input['name'],
+            $input['description'] ?? null,
+            $input['permissions'] ?? [],
+            $input['scopes'] ?? [],
+        );
 
         Toast::success(__('Role ":name" created.', ['name' => $role->name]));
 
@@ -99,6 +107,11 @@ final class RoleController
                 'isSystem' => $role->is_system,
                 'isOwner' => $role->isOwnerRole(),
                 'permissions' => $this->roles->grantedNames($role),
+                // How far each grant reaches: own, department, branch or all.
+                'scopes' => array_map(
+                    static fn (AccessScope $scope): string => $scope->value,
+                    $this->roles->grants($role),
+                ),
             ],
             'catalogue' => $this->catalogue($request, $modules, $access),
         ]);
@@ -111,7 +124,14 @@ final class RoleController
         /** @var User $actor */
         $actor = $request->user('web');
 
-        $this->roles->update($actor, $role, $input['name'], $input['description'] ?? null, $input['permissions'] ?? []);
+        $this->roles->update(
+            $actor,
+            $role,
+            $input['name'],
+            $input['description'] ?? null,
+            $input['permissions'] ?? [],
+            $input['scopes'] ?? [],
+        );
 
         Toast::success(__('Role ":name" updated.', ['name' => $role->name]));
 
@@ -128,11 +148,11 @@ final class RoleController
     }
 
     /**
-     * @return array{name: string, description?: string|null, permissions?: list<string>}
+     * @return array{name: string, description?: string|null, permissions?: list<string>, scopes?: array<string, string>}
      */
     private function validated(Request $request, ?Role $role = null): array
     {
-        /** @var array{name: string, description?: string|null, permissions?: list<string>} $input */
+        /** @var array{name: string, description?: string|null, permissions?: list<string>, scopes?: array<string, mixed>} $input */
         $input = $request->validate([
             'name' => [
                 'required', 'string', 'max:80',
@@ -145,7 +165,15 @@ final class RoleController
             'description' => ['nullable', 'string', 'max:255'],
             'permissions' => ['array'],
             'permissions.*' => ['string', 'max:150'],
+            // Permission name => scope. Names contain dots, so the map is validated as a whole.
+            'scopes' => ['array'],
         ]);
+
+        foreach ($input['scopes'] ?? [] as $permission => $scope) {
+            if (! is_string($scope) || AccessScope::tryFrom($scope) === null) {
+                throw ValidationException::withMessages(['scopes' => __('One of the selected scopes is not valid.')]);
+            }
+        }
 
         return $input;
     }
@@ -177,6 +205,9 @@ final class RoleController
                     'name' => $permission->name,
                     'sensitive' => $permission->sensitive,
                     'grantable' => isset($held[$permission->name]),
+                    'scopable' => $permission->scopable,
+                    // The widest scope the editor may hand out: the one they hold themselves.
+                    'maxScope' => ($held[$permission->name] ?? null)?->value,
                 ];
             }
 
