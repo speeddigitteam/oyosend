@@ -95,7 +95,7 @@ it('provisions a workspace that is not active yet, complete with its roles', fun
     expect($tenant->refresh()->status)->toBe($expected)
         ->and($tenant->isAccessible())->toBeFalse()
         ->and(Role::query()->where('tenant_id', $tenant->id)->count())->toBe(4)
-        ->and(app(RoleManager::class)->grantedNames($this->roleOf($tenant, 'Admin')))->toHaveCount(7)
+        ->and(app(RoleManager::class)->grantedNames($this->roleOf($tenant, 'Admin')))->toHaveCount(12)
         ->and(TenantMembership::forTenant($tenant)->where('is_owner', true)->count())->toBe(1);
 })->with([
     'pending' => [TenantStatus::Pending],

@@ -60,10 +60,17 @@ describe('the sidebar', function () {
     it('only lists what the person may open', function (string $role, array $expected) {
         expect(($this->sidebar)(($this->memberWith)($role)))->toBe($expected);
     })->with([
-        'owner' => [Role::OWNER, ['workspace' => ['dashboard'], 'manage' => ['members', 'roles', 'audit']]],
-        'admin' => [Role::ADMIN, ['workspace' => ['dashboard'], 'manage' => ['members', 'roles', 'audit']]],
-        'manager' => [Role::MANAGER, ['workspace' => ['dashboard'], 'manage' => ['members', 'roles']]],
-        'employee' => [Role::EMPLOYEE, ['workspace' => ['dashboard'], 'manage' => ['members']]],
+        'owner' => [Role::OWNER, [
+            'workspace' => ['dashboard', 'contacts'],
+            'manage' => ['members', 'roles', 'organization', 'audit', 'workspaceSettings', 'billing'],
+        ]],
+        // Billing stays with the owner.
+        'admin' => [Role::ADMIN, [
+            'workspace' => ['dashboard', 'contacts'],
+            'manage' => ['members', 'roles', 'organization', 'audit', 'workspaceSettings'],
+        ]],
+        'manager' => [Role::MANAGER, ['workspace' => ['dashboard', 'contacts'], 'manage' => ['members', 'roles', 'organization']]],
+        'employee' => [Role::EMPLOYEE, ['workspace' => ['dashboard', 'contacts'], 'manage' => ['members', 'organization']]],
     ]);
 
     it('leaves out a whole section when nothing in it is allowed', function () {
@@ -107,7 +114,7 @@ describe('the sidebar', function () {
 
         $sections = $this->inTenant($this->acme, fn (): array => app(NavigationBuilder::class)->for($this->ownerOf($this->acme)));
 
-        expect(array_column($sections[0]['items'], 'key'))->toBe(['profile', 'dashboard']);
+        expect(array_column($sections[0]['items'], 'key'))->toBe(['profile', 'dashboard', 'contacts']);
     });
 
     it('cannot be built without a tenant', function () {

@@ -36,12 +36,38 @@ export interface AuthProps {
     membership?: { id: string; isOwner: boolean } | null;
     /** Workspace area only: effective permission names, for hiding UI. Never a security boundary. */
     permissions?: string[];
+    /** Super Admin panel only: the `platform.*` abilities of the signed-in operator, for hiding UI. */
+    abilities?: string[];
 }
 
 export interface TenantProps {
     id: string;
     name: string;
     slug: string;
+    /** Short-lived signed URL of the workspace's logo, or null when it has none. */
+    logoUrl: string | null;
+}
+
+export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'expired' | 'canceled';
+
+/** Where the workspace stands with its plan; drives the notice in the layout. */
+export interface SubscriptionNotice {
+    status: SubscriptionStatus;
+    /** Name of the plan. */
+    plan: string;
+    /** Ended: only billing, personal settings and signing out are reachable. */
+    locked: boolean;
+    trialEndsAt: string | null;
+    graceEndsAt: string | null;
+    cancelAtPeriodEnd: boolean;
+    periodEnd: string | null;
+}
+
+/** Set while a Super Admin is signed in as a member of the workspace. */
+export interface SupportSession {
+    /** Email of the operator. */
+    by: string;
+    expiresAt: string;
 }
 
 export interface NavigationItem {
@@ -77,6 +103,10 @@ export interface SharedProps {
     tenant?: TenantProps | null;
     navigation?: NavigationSection[];
     workspaces?: Workspace[];
+    /** Workspace area only; null when the workspace has no subscription. */
+    subscription?: SubscriptionNotice | null;
+    /** Workspace area only. */
+    supportSession?: SupportSession | null;
 }
 
 /** Laravel's length-aware paginator, as serialised for Inertia. */

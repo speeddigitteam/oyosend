@@ -3,8 +3,13 @@ import {
     Blocks,
     Building2,
     Circle,
+    Contact,
+    CreditCard,
     LayoutDashboard,
+    Layers,
     ListChecks,
+    Network,
+    Receipt,
     ScrollText,
     Settings,
     ShieldCheck,
@@ -29,6 +34,11 @@ const REGISTRY: Record<string, Component> = {
     'list-checks': ListChecks,
     blocks: Blocks,
     settings: Settings,
+    contact: Contact,
+    network: Network,
+    'credit-card': CreditCard,
+    receipt: Receipt,
+    'layers': Layers,
 };
 
 defineProps<{ name: string }>();

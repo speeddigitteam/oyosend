@@ -1,3 +1,13 @@
+import billing from './billing';
+import contacts from './contacts';
+import organization from './organization';
+import platformAudit from './platformAudit';
+import platformBilling from './platformBilling';
+import platformPlans from './platformPlans';
+import platformSettings from './platformSettings';
+import platformWorkspaces from './platformWorkspaces';
+import register from './register';
+import workspace from './workspace';
 import audit from './audit';
 import auth from './auth';
 import catalogue from './catalogue';
@@ -28,4 +38,14 @@ export default {
     central,
     catalogue,
     errors,
+    organization,
+    contacts,
+    workspace,
+    billing,
+    register,
+    platformWorkspaces,
+    platformPlans,
+    platformBilling,
+    platformAudit,
+    platformSettings,
 };

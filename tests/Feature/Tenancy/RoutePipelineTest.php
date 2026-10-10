@@ -57,7 +57,18 @@ const PUBLIC_WORKSPACE_ROUTES = [
     'auth.password.request', 'auth.password.email', 'auth.password.reset', 'auth.password.update',
     'auth.invitations.show', 'auth.invitations.accept',
     'auth.handoff',
+    'auth.impersonate',
     'core.locale.update',
+];
+
+/**
+ * Payment gateway callbacks. They run on the workspace host with tenant
+ * resolution and nothing else - no session, no cookies, no Inertia - because a
+ * gateway returns the payer with a cross-site POST. See routes/tenant-callbacks.php.
+ */
+const STATELESS_WORKSPACE_ROUTES = [
+    'core.billing.payments.return',
+    'core.billing.gateways.notify',
 ];
 
 it('settles the tenant before anything that depends on it', function () {
@@ -69,6 +80,15 @@ it('settles the tenant before anything that depends on it', function () {
         $pipeline = pipelineOf($route);
         $at = static fn (string $middleware): int|false => array_search($middleware, $pipeline, true);
         $name = (string) $route->getName();
+
+        if (in_array($name, STATELESS_WORKSPACE_ROUTES, true)) {
+            // The tenant from the hostname, a throttle, and no state of any kind.
+            expect($at(InitializeTenancy::class))->not->toBeFalse("[{$name}] does not resolve a tenant")
+                ->and($at(InitializeTenancy::class))->toBeLessThan($at(ThrottleRequests::class))
+                ->and($pipeline)->not->toContain(StartSession::class, Authenticate::class, HandleTenantInertia::class);
+
+            continue;
+        }
 
         expect($at(InitializeTenancy::class))->not->toBeFalse("[{$name}] does not resolve a tenant")
             ->and($at(EnsureTenantIsActive::class))->not->toBeFalse("[{$name}] is reachable on a suspended workspace")
@@ -93,7 +113,7 @@ it('requires sign-in and a membership check on every workspace route that is not
         $pipeline = pipelineOf($route);
         $name = (string) $route->getName();
 
-        if (in_array($name, PUBLIC_WORKSPACE_ROUTES, true)) {
+        if (in_array($name, [...PUBLIC_WORKSPACE_ROUTES, ...STATELESS_WORKSPACE_ROUTES], true)) {
             expect($pipeline)->not->toContain(Authenticate::class);
 
             continue;
@@ -134,7 +154,7 @@ it('binds only tenant-scoped models on workspace routes', function () {
 });
 
 it('puts the admin panel in the central context behind the platform guard and two-factor', function () {
-    $open = ['platform.login', 'platform.login.store', 'platform.two-factor.challenge', 'platform.two-factor.verify'];
+    $open = ['platform.login', 'platform.login.store', 'platform.two-factor.challenge', 'platform.two-factor.verify', 'platform.locale.update'];
     $beforeEnrolment = ['platform.logout', 'platform.two-factor.setup', 'platform.two-factor.confirm'];
 
     $routes = array_filter(

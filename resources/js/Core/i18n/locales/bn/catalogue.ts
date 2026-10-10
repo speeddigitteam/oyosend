@@ -2,7 +2,8 @@ import type { MessageSchema } from '@/Core/i18n';
 
 /**
  * Labels for things the server names by key: permissions (registered by
- * modules), permission groups, modules and audit events.
+ * modules), permission groups, modules, plan limits, permission scopes and
+ * audit events.
  *
  * The dotted keys are identifiers and stay exactly as in English; only the
  * values are translated.
@@ -19,8 +20,11 @@ const catalogue: MessageSchema['catalogue'] = {
     permissionGroups: {
         members: 'সদস্য',
         roles: 'ভূমিকা',
+        organization: 'শাখা ও বিভাগ',
+        contacts: 'কন্টাক্ট ও প্রতিষ্ঠান',
         audit: 'অডিট লগ',
         settings: 'ওয়ার্কস্পেস সেটিংস',
+        billing: 'বিলিং',
     },
     permissions: {
         'core.members.view': {
@@ -33,7 +37,7 @@ const catalogue: MessageSchema['catalogue'] = {
         },
         'core.members.manage': {
             label: 'সদস্য পরিচালনা',
-            description: 'সদস্যদের ভূমিকা পরিবর্তন করতে, তাঁদের স্থগিত করতে ও সরিয়ে দিতে পারবেন।',
+            description: 'সদস্যদের ভূমিকা, শাখা ও বিভাগ পরিবর্তন করতে, তাঁদের স্থগিত করতে ও সরিয়ে দিতে পারবেন।',
         },
         'core.roles.view': {
             label: 'ভূমিকা দেখা',
@@ -43,13 +47,55 @@ const catalogue: MessageSchema['catalogue'] = {
             label: 'ভূমিকা পরিচালনা',
             description: 'ভূমিকা তৈরি করতে ও সেগুলোর অনুমতি পরিবর্তন করতে পারবেন।',
         },
+        'core.organization.view': {
+            label: 'শাখা ও বিভাগ দেখা',
+            description: 'প্রতিষ্ঠানের শাখা ও বিভাগগুলো দেখতে পারবেন।',
+        },
+        'core.organization.manage': {
+            label: 'শাখা ও বিভাগ পরিচালনা',
+            description: 'শাখা ও বিভাগ যোগ করতে, পরিবর্তন করতে ও মুছে ফেলতে পারবেন।',
+        },
+        'core.contacts.view': {
+            label: 'কন্টাক্ট দেখা',
+            description: 'কন্টাক্ট ও প্রতিষ্ঠানগুলো দেখতে পারবেন।',
+        },
+        'core.contacts.manage': {
+            label: 'কন্টাক্ট যোগ ও সম্পাদনা',
+            description: 'কন্টাক্ট ও প্রতিষ্ঠান যোগ করতে এবং সেগুলোর তথ্য পরিবর্তন করতে পারবেন।',
+        },
+        'core.contacts.delete': {
+            label: 'কন্টাক্ট মুছে ফেলা',
+            description: 'কন্টাক্ট ও প্রতিষ্ঠান মুছে ফেলতে পারবেন।',
+        },
         'core.audit.view': {
             label: 'অডিট লগ দেখা',
             description: 'কে, কখন, কী করেছেন তা দেখতে পারবেন।',
         },
         'core.settings.manage': {
             label: 'ওয়ার্কস্পেস সেটিংস পরিচালনা',
-            description: 'ওয়ার্কস্পেসের প্রোফাইল, ভাষা, টাইম জোন ও মুদ্রা পরিবর্তন করতে পারবেন।',
+            description: 'প্রতিষ্ঠানের প্রোফাইল, লোগো, ভাষা, টাইম জোন ও মুদ্রা পরিবর্তন করতে পারবেন।',
+        },
+        'core.billing.view': {
+            label: 'বিলিং দেখা',
+            description: 'ওয়ার্কস্পেসের প্ল্যান, ব্যবহার ও ইনভয়েস দেখতে পারবেন।',
+        },
+        'core.billing.manage': {
+            label: 'বিলিং পরিচালনা',
+            description: 'প্ল্যান পরিবর্তন বা বাতিল করতে এবং ইনভয়েস পরিশোধ করতে পারবেন।',
+        },
+    },
+    // How far a grant reaches, for permissions that can be narrowed.
+    scopes: {
+        own: { label: 'নিজের', description: 'শুধু যে রেকর্ডগুলোর দায়িত্বে তিনি নিজে আছেন।' },
+        department: { label: 'বিভাগ', description: 'নিজের রেকর্ড এবং তাঁর বিভাগের রেকর্ড।' },
+        branch: { label: 'শাখা', description: 'নিজের রেকর্ড এবং তাঁর শাখা ও বিভাগের রেকর্ড।' },
+        all: { label: 'সব', description: 'ওয়ার্কস্পেসের সব রেকর্ড।' },
+    },
+    // What a plan can cap.
+    limits: {
+        'core.members': {
+            label: 'সদস্য',
+            description: 'ওয়ার্কস্পেসের সদস্যরা, এবং যে আমন্ত্রণগুলো এখনো গ্রহণ করা যায়।',
         },
     },
     events: {
@@ -72,17 +118,79 @@ const catalogue: MessageSchema['catalogue'] = {
         'role.updated': 'একটি ভূমিকা আপডেট করেছেন',
         'role.deleted': 'একটি ভূমিকা মুছে ফেলেছেন',
         'role.permissions_changed': 'একটি ভূমিকার অনুমতি পরিবর্তন করেছেন',
+        'branch.created': 'একটি শাখা যোগ করেছেন',
+        'branch.updated': 'একটি শাখা আপডেট করেছেন',
+        'branch.deleted': 'একটি শাখা মুছে ফেলেছেন',
+        'department.created': 'একটি বিভাগ যোগ করেছেন',
+        'department.updated': 'একটি বিভাগ আপডেট করেছেন',
+        'department.deleted': 'একটি বিভাগ মুছে ফেলেছেন',
+        'contact.created': 'একটি কন্টাক্ট যোগ করেছেন',
+        'contact.updated': 'একটি কন্টাক্ট আপডেট করেছেন',
+        'contact.deleted': 'একটি কন্টাক্ট মুছে ফেলেছেন',
+        'company.created': 'একটি প্রতিষ্ঠান যোগ করেছেন',
+        'company.updated': 'একটি প্রতিষ্ঠান আপডেট করেছেন',
+        'company.deleted': 'একটি প্রতিষ্ঠান মুছে ফেলেছেন',
+        'workspace.registered': 'ওয়ার্কস্পেসের জন্য সাইন আপ করেছেন',
+        'workspace.created': 'সাপোর্ট টিম ওয়ার্কস্পেসটি তৈরি করেছে',
+        'workspace.approved': 'ওয়ার্কস্পেস অনুমোদন করা হয়েছে',
+        'workspace.suspended': 'ওয়ার্কস্পেস স্থগিত করা হয়েছে',
+        'workspace.reactivated': 'ওয়ার্কস্পেস আবার সক্রিয় করা হয়েছে',
+        'workspace.onboarded': 'ওয়ার্কস্পেসের সেটআপ শেষ করেছেন',
+        'workspace.settings_updated': 'ওয়ার্কস্পেস সেটিংস পরিবর্তন করেছেন',
+        'workspace.logo_updated': 'ওয়ার্কস্পেসের লোগো পরিবর্তন করেছেন',
+        'workspace.logo_removed': 'ওয়ার্কস্পেসের লোগো সরিয়ে দিয়েছেন',
+        'billing.subscription_started': 'একটি প্ল্যান শুরু করেছেন',
+        'billing.plan_changed': 'প্ল্যান পরিবর্তন করেছেন',
+        'billing.plan_change_scheduled': 'প্ল্যান পরিবর্তনের সময় ঠিক করেছেন',
+        'billing.plan_granted': 'সাপোর্ট টিম প্ল্যান ঠিক করে দিয়েছে',
+        'billing.trial_extended': 'ট্রায়ালের মেয়াদ বাড়ানো হয়েছে',
+        'billing.subscription_activated': 'প্ল্যান সক্রিয় করা হয়েছে',
+        'billing.subscription_past_due': 'পেমেন্টের সময় পেরিয়ে গেছে',
+        'billing.subscription_expired': 'সাবস্ক্রিপশনের মেয়াদ শেষ হয়েছে',
+        'billing.subscription_canceled': 'সাবস্ক্রিপশন বাতিল করেছেন',
+        'billing.subscription_resumed': 'সাবস্ক্রিপশন আবার চালু করেছেন',
+        'billing.subscription_ended': 'সাবস্ক্রিপশন শেষ হয়েছে',
+        'billing.invoice_issued': 'ইনভয়েস তৈরি করা হয়েছে',
+        'billing.invoice_paid': 'ইনভয়েস পরিশোধ করা হয়েছে',
+        'billing.invoice_voided': 'ইনভয়েস প্রত্যাহার করা হয়েছে',
+        'billing.invoice_withdrawn': 'সাপোর্ট টিম ইনভয়েস প্রত্যাহার করেছে',
+        'billing.payment_started': 'পেমেন্ট শুরু করেছেন',
+        'billing.payment_received': 'পেমেন্ট পাওয়া গেছে',
+        'billing.payment_recorded': 'সাপোর্ট টিম পেমেন্ট রেকর্ড করেছে',
+        'billing.payment_failed': 'পেমেন্ট ব্যর্থ হয়েছে',
+        'billing.payment_unapplied': 'বন্ধ হয়ে যাওয়া ইনভয়েসের জন্য পেমেন্ট পাওয়া গেছে',
+        'support.session_started': 'সাপোর্ট টিম এই ওয়ার্কস্পেসে প্রবেশ করেছে',
+        'support.session_ended': 'সাপোর্ট টিম এই ওয়ার্কস্পেস থেকে বেরিয়ে গেছে',
+        'plan.created': 'একটি প্ল্যান তৈরি করেছেন',
+        'plan.updated': 'একটি প্ল্যান আপডেট করেছেন',
+        'plan.deleted': 'একটি প্ল্যান মুছে ফেলেছেন',
         'platform.auth.login': 'অ্যাডমিন প্যানেলে সাইন ইন করেছেন',
         'platform.auth.logout': 'অ্যাডমিন প্যানেল থেকে সাইন আউট করেছেন',
         'platform.auth.login_failed': 'অ্যাডমিন প্যানেলে সাইন ইনের ব্যর্থ চেষ্টা',
         'platform.auth.two_factor_enabled': 'দুই-ধাপ যাচাইকরণ সেট আপ করেছেন',
         'platform.admin.created': 'একটি অ্যাডমিন অ্যাকাউন্ট তৈরি করেছেন',
+        'platform.workspace.registered': 'একটি ওয়ার্কস্পেস সাইন আপ করেছে',
+        'platform.workspace.created': 'একটি ওয়ার্কস্পেস তৈরি করেছেন',
+        'platform.workspace.approved': 'একটি ওয়ার্কস্পেস অনুমোদন করেছেন',
+        'platform.workspace.suspended': 'একটি ওয়ার্কস্পেস স্থগিত করেছেন',
+        'platform.workspace.reactivated': 'একটি ওয়ার্কস্পেস আবার সক্রিয় করেছেন',
+        'platform.impersonation.started': 'মালিক হিসেবে একটি ওয়ার্কস্পেসে প্রবেশ করেছেন',
+        'platform.impersonation.ended': 'একটি ওয়ার্কস্পেস থেকে বেরিয়ে গেছেন',
+        'platform.settings.updated': 'প্ল্যাটফর্ম সেটিংস পরিবর্তন করেছেন',
     },
     eventFamilies: {
         auth: 'সাইন ইন ও নিরাপত্তা',
         member: 'সদস্য',
         tenant_membership: 'সদস্যপদ',
         role: 'ভূমিকা',
+        branch: 'শাখা',
+        department: 'বিভাগ',
+        contact: 'কন্টাক্ট',
+        company: 'প্রতিষ্ঠান',
+        workspace: 'ওয়ার্কস্পেস',
+        billing: 'বিলিং',
+        support: 'সাপোর্ট অ্যাক্সেস',
+        plan: 'প্ল্যান',
         platform: 'প্ল্যাটফর্ম',
     },
 };

@@ -151,6 +151,9 @@ describe('the application\'s own registry', function () {
             ->and(array_keys($registry->permissions()))->toEqualCanonicalizing([
                 'core.members.view', 'core.members.invite', 'core.members.manage',
                 'core.roles.view', 'core.roles.manage', 'core.audit.view', 'core.settings.manage',
+                'core.organization.view', 'core.organization.manage',
+                'core.contacts.view', 'core.contacts.manage', 'core.contacts.delete',
+                'core.billing.view', 'core.billing.manage',
             ])
             ->and($registry->missingDependencies())->toBe([]);
     });

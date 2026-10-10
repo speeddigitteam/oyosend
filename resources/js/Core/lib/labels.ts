@@ -4,6 +4,8 @@ type Catalogue = {
     modules: Record<string, string>;
     permissionGroups: Record<string, string>;
     permissions: Record<string, { label: string; description: string }>;
+    scopes: Record<string, { label: string; description: string }>;
+    limits: Record<string, { label: string; description: string }>;
     events: Record<string, string>;
     eventFamilies: Record<string, string>;
 };
@@ -31,6 +33,24 @@ export function permissionDescription(name: string): string {
 
 export function permissionGroupLabel(group: string): string {
     return lookup((catalogue) => catalogue.permissionGroups[group]) ?? group;
+}
+
+/** How far a grant reaches: `own`, `department`, `branch` or `all`. */
+export function scopeLabel(scope: string): string {
+    return lookup((catalogue) => catalogue.scopes[scope]?.label) ?? scope;
+}
+
+export function scopeDescription(scope: string): string {
+    return lookup((catalogue) => catalogue.scopes[scope]?.description) ?? '';
+}
+
+/** Something a plan can cap, by its key: `core.members`. */
+export function limitLabel(key: string): string {
+    return lookup((catalogue) => catalogue.limits[key]?.label) ?? key;
+}
+
+export function limitDescription(key: string): string {
+    return lookup((catalogue) => catalogue.limits[key]?.description) ?? '';
 }
 
 export function moduleLabel(key: string, fallback?: string): string {

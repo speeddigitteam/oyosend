@@ -1,9 +1,10 @@
 /**
  * Labels for things the server names by key: permissions (registered by
- * modules), permission groups, modules and audit events.
+ * modules), permission groups, modules, plan limits, permission scopes and
+ * audit events.
  *
  * A module adds its own entries here when it is built. Keys contain dots, so
- * look them up with `permissionLabel()` / `eventLabel()` from
+ * look them up with `permissionLabel()` / `eventLabel()` / `limitLabel()` from
  * `@/Core/lib/labels`, not with `t()` directly.
  */
 export default {
@@ -13,8 +14,11 @@ export default {
     permissionGroups: {
         members: 'Members',
         roles: 'Roles',
+        organization: 'Branches & departments',
+        contacts: 'Contacts & companies',
         audit: 'Audit log',
         settings: 'Workspace settings',
+        billing: 'Billing',
     },
     permissions: {
         'core.members.view': {
@@ -27,7 +31,7 @@ export default {
         },
         'core.members.manage': {
             label: 'Manage members',
-            description: 'Change roles, suspend and remove people.',
+            description: 'Change roles, branch and department; suspend and remove people.',
         },
         'core.roles.view': {
             label: 'View roles',
@@ -37,13 +41,55 @@ export default {
             label: 'Manage roles',
             description: 'Create roles and change their permissions.',
         },
+        'core.organization.view': {
+            label: 'View branches and departments',
+            description: 'See the branches and departments of the company.',
+        },
+        'core.organization.manage': {
+            label: 'Manage branches and departments',
+            description: 'Add, change and delete branches and departments.',
+        },
+        'core.contacts.view': {
+            label: 'View contacts',
+            description: 'See contacts and companies.',
+        },
+        'core.contacts.manage': {
+            label: 'Add and edit contacts',
+            description: 'Add contacts and companies and change their details.',
+        },
+        'core.contacts.delete': {
+            label: 'Delete contacts',
+            description: 'Delete contacts and companies.',
+        },
         'core.audit.view': {
             label: 'View audit log',
             description: 'See who did what, and when.',
         },
         'core.settings.manage': {
             label: 'Manage workspace settings',
-            description: 'Change the workspace profile, language, timezone and currency.',
+            description: 'Change the company profile, logo, language, timezone and currency.',
+        },
+        'core.billing.view': {
+            label: 'View billing',
+            description: 'See the plan, usage and invoices of the workspace.',
+        },
+        'core.billing.manage': {
+            label: 'Manage billing',
+            description: 'Change or cancel the plan and pay invoices.',
+        },
+    },
+    // How far a grant reaches, for permissions that can be narrowed.
+    scopes: {
+        own: { label: 'Own', description: 'Only records the person owns.' },
+        department: { label: 'Department', description: 'Their own records and those of their department.' },
+        branch: { label: 'Branch', description: 'Their own records and those of their branch and department.' },
+        all: { label: 'All', description: 'Every record in the workspace.' },
+    },
+    // What a plan can cap.
+    limits: {
+        'core.members': {
+            label: 'Members',
+            description: 'People in the workspace, including invitations that can still be accepted.',
         },
     },
     events: {
@@ -66,17 +112,79 @@ export default {
         'role.updated': 'Updated a role',
         'role.deleted': 'Deleted a role',
         'role.permissions_changed': 'Changed a role’s permissions',
+        'branch.created': 'Added a branch',
+        'branch.updated': 'Updated a branch',
+        'branch.deleted': 'Deleted a branch',
+        'department.created': 'Added a department',
+        'department.updated': 'Updated a department',
+        'department.deleted': 'Deleted a department',
+        'contact.created': 'Added a contact',
+        'contact.updated': 'Updated a contact',
+        'contact.deleted': 'Deleted a contact',
+        'company.created': 'Added a company',
+        'company.updated': 'Updated a company',
+        'company.deleted': 'Deleted a company',
+        'workspace.registered': 'Signed up for the workspace',
+        'workspace.created': 'Workspace created by support',
+        'workspace.approved': 'Workspace approved',
+        'workspace.suspended': 'Workspace suspended',
+        'workspace.reactivated': 'Workspace reactivated',
+        'workspace.onboarded': 'Finished setting up the workspace',
+        'workspace.settings_updated': 'Changed the workspace settings',
+        'workspace.logo_updated': 'Changed the workspace logo',
+        'workspace.logo_removed': 'Removed the workspace logo',
+        'billing.subscription_started': 'Started a plan',
+        'billing.plan_changed': 'Changed the plan',
+        'billing.plan_change_scheduled': 'Scheduled a change of plan',
+        'billing.plan_granted': 'Plan set by support',
+        'billing.trial_extended': 'Trial extended',
+        'billing.subscription_activated': 'Plan activated',
+        'billing.subscription_past_due': 'Payment became overdue',
+        'billing.subscription_expired': 'Subscription expired',
+        'billing.subscription_canceled': 'Canceled the subscription',
+        'billing.subscription_resumed': 'Resumed the subscription',
+        'billing.subscription_ended': 'Subscription ended',
+        'billing.invoice_issued': 'Invoice issued',
+        'billing.invoice_paid': 'Invoice paid',
+        'billing.invoice_voided': 'Invoice withdrawn',
+        'billing.invoice_withdrawn': 'Invoice withdrawn by support',
+        'billing.payment_started': 'Started a payment',
+        'billing.payment_received': 'Payment received',
+        'billing.payment_recorded': 'Payment recorded by support',
+        'billing.payment_failed': 'Payment failed',
+        'billing.payment_unapplied': 'Payment received for a closed invoice',
+        'support.session_started': 'Support opened this workspace',
+        'support.session_ended': 'Support left this workspace',
+        'plan.created': 'Created a plan',
+        'plan.updated': 'Updated a plan',
+        'plan.deleted': 'Deleted a plan',
         'platform.auth.login': 'Signed in to the admin panel',
         'platform.auth.logout': 'Signed out of the admin panel',
         'platform.auth.login_failed': 'Failed admin sign-in attempt',
         'platform.auth.two_factor_enabled': 'Enrolled in two-step verification',
         'platform.admin.created': 'Created an administrator account',
+        'platform.workspace.registered': 'A workspace signed up',
+        'platform.workspace.created': 'Created a workspace',
+        'platform.workspace.approved': 'Approved a workspace',
+        'platform.workspace.suspended': 'Suspended a workspace',
+        'platform.workspace.reactivated': 'Reactivated a workspace',
+        'platform.impersonation.started': 'Opened a workspace as its owner',
+        'platform.impersonation.ended': 'Left a workspace',
+        'platform.settings.updated': 'Changed the platform settings',
     },
     eventFamilies: {
         auth: 'Sign-in & security',
         member: 'Members',
         tenant_membership: 'Memberships',
         role: 'Roles',
+        branch: 'Branches',
+        department: 'Departments',
+        contact: 'Contacts',
+        company: 'Companies',
+        workspace: 'Workspace',
+        billing: 'Billing',
+        support: 'Support access',
+        plan: 'Plans',
         platform: 'Platform',
     },
 };

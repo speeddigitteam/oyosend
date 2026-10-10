@@ -15,9 +15,16 @@ use Inertia\Testing\AssertableInertia;
 
 const CORE_PERMISSIONS = [
     'core.audit.view',
+    'core.billing.manage',
+    'core.billing.view',
+    'core.contacts.delete',
+    'core.contacts.manage',
+    'core.contacts.view',
     'core.members.invite',
     'core.members.manage',
     'core.members.view',
+    'core.organization.manage',
+    'core.organization.view',
     'core.roles.manage',
     'core.roles.view',
     'core.settings.manage',
@@ -108,9 +115,12 @@ it('tells the interface which permissions the person holds', function (string $r
         });
 })->with([
     'owner' => [Role::OWNER, CORE_PERMISSIONS],
-    'admin' => [Role::ADMIN, CORE_PERMISSIONS],
-    'manager' => [Role::MANAGER, ['core.members.invite', 'core.members.view', 'core.roles.view']],
-    'employee' => [Role::EMPLOYEE, ['core.members.view']],
+    // Everything but billing, which stays with the owner.
+    'admin' => [Role::ADMIN, array_values(array_diff(CORE_PERMISSIONS, ['core.billing.manage', 'core.billing.view']))],
+    'manager' => [Role::MANAGER, [
+        'core.contacts.manage', 'core.contacts.view', 'core.members.invite', 'core.members.view', 'core.organization.view', 'core.roles.view',
+    ]],
+    'employee' => [Role::EMPLOYEE, ['core.contacts.manage', 'core.contacts.view', 'core.members.view', 'core.organization.view']],
 ]);
 
 describe('the owner', function () {

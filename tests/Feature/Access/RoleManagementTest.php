@@ -28,14 +28,14 @@ describe('listing and forms', function () {
             ->get('http://acme.localhost/team/roles')
             ->assertOk()
             ->assertInertia(function (AssertableInertia $page): void {
-                $page->component('Core/Pages/Team/Roles/Index')->where('totalPermissions', 7);
+                $page->component('Core/Pages/Team/Roles/Index')->where('totalPermissions', 14);
 
                 $roles = collect($page->toArray()['props']['roles'])->keyBy('name');
 
                 expect($roles->keys()->sort()->values()->all())->toBe(['Admin', 'Auditors', 'Employee', 'Manager', 'Owner'])
                     ->and($roles['Owner'])->toMatchArray(['isSystem' => true, 'isOwner' => true, 'members' => 1, 'permissions' => 0])
-                    ->and($roles['Admin'])->toMatchArray(['isSystem' => true, 'isOwner' => false, 'members' => 1, 'permissions' => 7])
-                    ->and($roles['Employee'])->toMatchArray(['members' => 0, 'permissions' => 1])
+                    ->and($roles['Admin'])->toMatchArray(['isSystem' => true, 'isOwner' => false, 'members' => 1, 'permissions' => 12])
+                    ->and($roles['Employee'])->toMatchArray(['members' => 0, 'permissions' => 4])
                     ->and($roles['Auditors'])->toMatchArray(['isSystem' => false, 'members' => 0, 'permissions' => 2]);
             });
     });
@@ -65,7 +65,7 @@ describe('listing and forms', function () {
 
                 $permissions = collect($catalogue[0]['groups'])->flatMap(fn (array $group): array => $group['permissions'])->keyBy('name');
 
-                expect($permissions)->toHaveCount(7)
+                expect($permissions)->toHaveCount(14)
                     ->and($permissions['core.roles.manage'])->toMatchArray(['grantable' => true, 'sensitive' => true])
                     ->and($permissions['core.roles.view'])->toMatchArray(['grantable' => true, 'sensitive' => false])
                     ->and($permissions['core.audit.view'])->toMatchArray(['grantable' => false, 'sensitive' => true])
@@ -190,19 +190,22 @@ describe('you can only hand out what you hold', function () {
     it('refuses to remove a permission the editor does not hold', function () {
         $employee = $this->roleOf($this->acme, Role::EMPLOYEE);
 
-        // Stripping `core.members.view` from Employee: the editor does not hold it.
+        $granted = ['core.contacts.manage', 'core.contacts.view', 'core.members.view', 'core.organization.view'];
+
+        // Stripping what Employee holds: the editor holds none of it.
         $this->put("http://acme.localhost/team/roles/{$employee->id}", ['name' => 'Employee', 'permissions' => []])
             ->assertSessionHasErrors('permissions');
 
-        expect(($this->granted)($employee))->toBe(['core.members.view']);
+        expect(($this->granted)($employee))->toBe($granted);
 
-        // Leaving it in place while adding one of their own is fine.
+        // Leaving it all in place - scopes included - while adding one of their own is fine.
         $this->put("http://acme.localhost/team/roles/{$employee->id}", [
             'name' => 'Employee',
-            'permissions' => ['core.members.view', 'core.roles.view'],
+            'permissions' => [...$granted, 'core.roles.view'],
+            'scopes' => ['core.contacts.manage' => 'own'],
         ])->assertSessionHasNoErrors();
 
-        expect(($this->granted)($employee))->toBe(['core.members.view', 'core.roles.view']);
+        expect(($this->granted)($employee))->toBe([...$granted, 'core.roles.view']);
     });
 
     it('applies to the owner too, who simply holds everything', function () {

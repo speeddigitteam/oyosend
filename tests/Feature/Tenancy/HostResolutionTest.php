@@ -98,8 +98,11 @@ it('does not expose workspace routes on the admin or central host', function (st
 })->with([
     ['GET', '/team/members'],
     ['GET', '/team/roles'],
-    ['GET', '/audit-log'],
+    ['GET', '/contacts'],
+    ['GET', '/organization'],
+    ['GET', '/billing'],
     ['GET', '/settings/profile'],
+    ['GET', '/settings/workspace'],
     ['GET', '/forgot-password'],
     ['GET', '/auth/handoff'],
     ['POST', '/team/invitations'],

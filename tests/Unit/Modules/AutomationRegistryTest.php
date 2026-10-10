@@ -6,6 +6,8 @@ use App\Core\Automation\AutomationRegistry;
 use App\Core\Automation\Contracts\ActionDefinition;
 use App\Core\Automation\Contracts\TriggerDefinition;
 use App\Core\Automation\Triggers\MemberJoinedTrigger;
+use App\Core\Contacts\Automation\CompanyCreatedTrigger;
+use App\Core\Contacts\Automation\ContactCreatedTrigger;
 use App\Core\Events\DomainEvent;
 use App\Core\Identity\Events\MemberJoined;
 use Tests\Support\Fixtures\Crm\LeadCreatedTrigger;
@@ -205,7 +207,11 @@ describe('the application\'s own registry', function () {
     it('has the core trigger registered from the core manifest', function () {
         $registry = app(AutomationRegistry::class);
 
-        expect($registry->triggers())->toBe(['core.member.joined' => MemberJoinedTrigger::class])
+        expect($registry->triggers())->toBe([
+            'core.member.joined' => MemberJoinedTrigger::class,
+            'core.contact.created' => ContactCreatedTrigger::class,
+            'core.company.created' => CompanyCreatedTrigger::class,
+        ])
             ->and($registry->actions())->toBe([])
             ->and(app(AutomationRegistry::class))->toBe($registry);
     });

@@ -8,7 +8,7 @@ use App\Core\Access\Models\Role;
 use App\Core\Access\RoleManager;
 use App\Core\Automation\AutomationRegistry;
 use App\Core\Entitlements\Contracts\EntitlementChecker;
-use App\Core\Entitlements\CoreModulesEntitlementChecker;
+use App\Core\Entitlements\PlanEntitlementChecker;
 use App\Core\Identity\Models\User;
 use App\Core\Modules\ModuleRegistry;
 use App\Core\Tenancy\Enums\TenantStatus;
@@ -61,7 +61,7 @@ it('registers the module, its permissions and its trigger', function () {
 
 describe('a workspace that is not entitled', function () {
     it('denies the module\'s permissions to everyone, the owner included', function () {
-        expect(app(EntitlementChecker::class))->toBeInstanceOf(CoreModulesEntitlementChecker::class)
+        expect(app(EntitlementChecker::class))->toBeInstanceOf(PlanEntitlementChecker::class)
             ->and(app(EntitlementChecker::class)->allows($this->acme, 'crm'))->toBeFalse()
             ->and(app(EntitlementChecker::class)->entitledModules($this->acme))->toBe(['core']);
 
@@ -72,7 +72,7 @@ describe('a workspace that is not entitled', function () {
 
         $held = $this->inTenant($this->acme, fn (): array => array_keys(app(AccessChecker::class)->effectivePermissions($this->owner)));
 
-        expect($held)->toHaveCount(7)->each->toStartWith('core.');
+        expect($held)->toHaveCount(14)->each->toStartWith('core.');
     });
 
     it('denies a permission even when a role has been granted it', function () {
@@ -110,7 +110,7 @@ describe('a workspace that is not entitled', function () {
 
     it('does not let a role be given the module\'s permissions', function () {
         $this->inTenant($this->acme, function (): void {
-            expect(app(RoleManager::class)->assignablePermissionNames())->toHaveCount(7)->each->toStartWith('core.');
+            expect(app(RoleManager::class)->assignablePermissionNames())->toHaveCount(14)->each->toStartWith('core.');
 
             expect(fn () => app(RoleManager::class)->create($this->owner, 'Sales', null, ['crm.leads.view']))
                 ->toThrow(ValidationException::class, 'not available to this workspace');

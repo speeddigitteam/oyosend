@@ -19,6 +19,11 @@
  *   time zone টাইম জোন · setup (noun) সেটআপ · set up (verb) সেট আপ করুন
  *   authenticator app অথেনটিকেটর অ্যাপ · recovery code রিকভারি কোড
  *   setup key (the two-step secret) সেটআপ কী · lock, locked লক করা · ID আইডি
+ *   plan প্ল্যান · subscription সাবস্ক্রিপশন · invoice ইনভয়েস · payment পেমেন্ট
+ *   billing বিলিং · trial ট্রায়াল · upgrade আপগ্রেড · gateway গেটওয়ে · credit ক্রেডিট
+ *   contact (a person in the directory) কন্টাক্ট · logo লোগো · sign up সাইন আপ
+ *   support (the platform's operators) সাপোর্ট টিম · support session সাপোর্ট সেশন
+ *   bank transfer ব্যাংক ট্রান্সফার · mobile banking মোবাইল ব্যাংকিং · cheque চেক
  *
  * Translated:
  *   member সদস্য · membership সদস্যপদ · role ভূমিকা · permission অনুমতি
@@ -44,6 +49,15 @@
  *   person ব্যক্তি · people (counted) {count} জন · user ব্যবহারকারী · company প্রতিষ্ঠান
  *   valid / invalid সঠিক / সঠিক নয় · sensitive সংবেদনশীল · preview নমুনা
  *   previous পূর্ববর্তী · next পরবর্তী · optional ঐচ্ছিক · never কখনো নয়
+ *   branch শাখা · department বিভাগ · company / organisation (a business) প্রতিষ্ঠান
+ *   owner of a record দায়িত্বে (যাঁর দায়িত্বে) · scope (of a permission) পরিসর
+ *   pay পরিশোধ করুন · paid পরিশোধিত · unpaid অপরিশোধিত · overdue বকেয়া · amount পরিমাণ
+ *   due date পরিশোধের শেষ তারিখ · renewal নবায়ন · monthly মাসিক · yearly বার্ষিক
+ *   free বিনামূল্যে · unlimited সীমাহীন · limit সীমা · usage ব্যবহার · price মূল্য
+ *   approve অনুমোদন করুন · suspend স্থগিত করুন · reactivate আবার সক্রিয় করুন
+ *   reason কারণ · note নোট · phone ফোন · website ওয়েবসাইট · country দেশ · city শহর
+ *   withdraw (an invoice) প্রত্যাহার করুন · record (a payment) রেকর্ড করুন
+ *   grace period অতিরিক্ত সময় · confirm (an email address) নিশ্চিত করুন
  *
  * STYLE
  *   - Formal "আপনি"; buttons and instructions in the "করুন / -উন" imperative.
@@ -65,6 +79,16 @@
  *   - `@` and `|` are vue-i18n syntax and must not appear in a message.
  */
 import type { MessageSchema } from '@/Core/i18n';
+import billing from './billing';
+import contacts from './contacts';
+import organization from './organization';
+import platformAudit from './platformAudit';
+import platformBilling from './platformBilling';
+import platformPlans from './platformPlans';
+import platformSettings from './platformSettings';
+import platformWorkspaces from './platformWorkspaces';
+import register from './register';
+import workspace from './workspace';
 import audit from './audit';
 import auth from './auth';
 import catalogue from './catalogue';
@@ -91,6 +115,16 @@ const bn: MessageSchema = {
     central,
     catalogue,
     errors,
+    organization,
+    contacts,
+    workspace,
+    billing,
+    register,
+    platformWorkspaces,
+    platformPlans,
+    platformBilling,
+    platformAudit,
+    platformSettings,
 };
 
 export default bn;

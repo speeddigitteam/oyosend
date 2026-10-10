@@ -11,6 +11,13 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Inertia\Testing\AssertableInertia;
 
+/**
+ * What the Employee role holds. Nobody can manage a member who holds a
+ * permission they lack, so a custom role that is meant to manage employees
+ * has to carry these as well.
+ */
+const EMPLOYEE_PERMISSIONS = ['core.organization.view', 'core.contacts.view', 'core.contacts.manage'];
+
 beforeEach(function () {
     $this->acme = $this->createTenant('acme');
     $this->globex = $this->createTenant('globex');
@@ -175,7 +182,7 @@ describe('changing a role', function () {
 
     it('does not let someone hand out a role above their own', function () {
         // May manage members, but holds nothing an Admin role needs beyond that.
-        $lead = $this->addMember($this->acme, $this->createRole($this->acme, 'Team Leads', ['core.members.view', 'core.members.manage']));
+        $lead = $this->addMember($this->acme, $this->createRole($this->acme, 'Team Leads', ['core.members.view', 'core.members.manage', ...EMPLOYEE_PERMISSIONS]));
 
         $this->actingAsMember($this->acme, $lead)
             ->patch("http://acme.localhost/team/members/{$this->membership->id}", ['role_id' => $this->roleOf($this->acme, Role::ADMIN)->id])
@@ -360,7 +367,7 @@ describe('protected memberships', function () {
 describe('members who hold more than the person managing them', function () {
     beforeEach(function () {
         // May manage members, but holds far less than an Admin does.
-        $this->lead = $this->addMember($this->acme, $this->createRole($this->acme, 'Team Leads', ['core.members.view', 'core.members.manage']));
+        $this->lead = $this->addMember($this->acme, $this->createRole($this->acme, 'Team Leads', ['core.members.view', 'core.members.manage', ...EMPLOYEE_PERMISSIONS]));
         $this->adminMembership = $this->membershipOf($this->acme, $this->admin);
     });
 
