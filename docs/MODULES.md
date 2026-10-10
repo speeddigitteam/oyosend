@@ -1,8 +1,8 @@
 # Modules
 
-How to add a first-party module. The contract is in `app/Core/Modules`; the only module that exists is `core`
-(`app/Core/CoreServiceProvider.php`), which is the reference implementation. `app/Modules/` does not exist yet.
-A complete non-core module, used only by the test suite, is in `tests/Support/Fixtures/Crm`.
+How to add a first-party module. The contract is in `app/Core/Modules`; the production build currently registers
+only `core` (`app/Core/CoreServiceProvider.php`). `app/Modules/` starts with the first business app. A complete
+non-core App Store module, used only by the test suite, is in `tests/Support/Fixtures/Crm`.
 
 ## 1. What a module is
 
@@ -12,13 +12,11 @@ A complete non-core module, used only by the test suite, is in `tests/Support/Fi
 - Registration makes the code available to the platform. Access per tenant is decided by
   `App\Core\Entitlements\Contracts\EntitlementChecker`, on the server, every time.
 
-> **How a tenant gets a module today.** The bound checker, `PlanEntitlementChecker`, entitles `core: true`
-> modules for every accessible workspace, and an optional module when the workspace's **plan** lists its key
-> (`plans.modules`, edited in the Super Admin panel) and the subscription is in good standing. A non-core module
-> that no plan includes is unreachable for every tenant: its routes return 404, its navigation and widgets are
-> hidden, its permissions are ineffective and cannot be put on a role. That is deliberate (denied rather than
-> accidentally free). Installing and licensing single apps arrives with the App Store (Phase 3). In tests, use
-> `registerModule()` and `entitle()` (`tests/Support/InteractsWithModules.php`), or a plan with `modules`.
+> **How a tenant gets a module.** `PlanEntitlementChecker` entitles every accessible workspace to `core: true`
+> modules. It adds optional modules from a healthy plan and effective, active App Store licences, then recursively
+> removes modules whose dependencies are missing. A non-entitled app returns 404, contributes no navigation or
+> widgets, and its permissions are ineffective. In tests, use the real App Store manager after catalogue sync,
+> a plan with `modules`, or `registerModule()` + `entitle()` when the test is about a gate rather than commerce.
 
 ## 2. Folder layout (spec 3.1)
 
@@ -41,8 +39,8 @@ tests/Feature/<Module>/
 | Field | Type | Rules |
 |---|---|---|
 | `key` | string | `^[a-z][a-z0-9_]*$`. Stable. Prefix of every permission, route name and automation key. Must be unique |
-| `name` | string | Human name (role editor today, App Store later) |
-| `version` | string | Semantic version |
+| `name` | string | Human name shown in the role editor and App Store |
+| `version` | string | Semantic version; bump it when a versioned catalogue/contract field changes |
 | `core` | bool, default `false` | `true` = part of every tenant, no entitlement. Optional apps leave it `false` |
 | `dependencies` | list of module keys | Every key must be registered or the application fails to boot |
 | `permissions` | list of `PermissionDefinition` | Each name must start with `{key}.` (checked in the constructor); duplicates across modules throw |
@@ -52,9 +50,44 @@ tests/Feature/<Module>/
 | `actions` | list of class-strings implementing `ActionDefinition` | Automation actions |
 | `morphMap` | `alias => class` | Morph aliases for the module's models |
 | `limits` | list of `LimitDefinition` | What a plan can cap for the module (section 5c) |
+| `description`, `category`, `icon` | catalogue metadata | Description and `AppCategory` are required for optional apps; default icon is `package` |
+| `featured`, `popular` | bool | Catalogue badges controlled by the compiled manifest |
+| `features`, `screenshots` | list of strings | Short feature labels and public local asset paths |
+| `offers` | list of `AppOffer` | At least one for an optional app; offer keys are unique |
+| `compatibility`, `releaseNotes` | string / nullable string | Stored in the immutable app-version snapshot |
+| `routes` | list of route names | Inventory only; each starts with `{key}.`. Routes are still loaded in `bootModule()` |
+| `scheduledJobs` | list of `ScheduledJobDefinition` | Dispatched only for entitled tenants by `apps:run-scheduled` |
+| `settings` | list of `AppSettingDefinition` | Typed, validated, encrypted per-workspace installation settings |
+| `lifecycle` | `ModuleLifecycle` class or null | Transactional install, activate, deactivate, uninstall and upgrade hooks |
 
-Not in the manifest yet, although spec section 15 lists them: routes (loaded in `bootModule()` instead),
-scheduled jobs, and the install/activate lifecycle hooks. They arrive with the App Store (Phase 3).
+### App Store metadata and offers
+
+An optional module must be deployable code before it can be an app. Register the provider, deploy its migrations,
+then run `permissions:sync` and `apps:sync --prune`. The sync stores immutable versioned offers, compatibility,
+features, screenshots, dependencies, permissions, routes, schedules, settings and release notes, and refuses a
+different hash under the same version. App-level display metadata may be updated by sync. Database-only apps are
+not shown.
+
+`new AppOffer(key, name, type, currency: null, amount: null, trialDays: 0, public: true)` uses
+`AppBillingType::{Free, Monthly, Yearly, OneTime, UsageBased, Enterprise}`. Money is integer minor units.
+Self-serve paid offers need a positive amount and three-letter currency. Usage-based and enterprise offers are
+catalogue-only until an operator-led billing flow exists.
+
+`new AppSettingDefinition(key, label, type, required, description, default, options, min, max, maxLength)` supports
+text, integer, boolean, select and secret types. Keys are unique in the manifest. Select values/labels are
+compiled; integer bounds and text length become server validation. A secret cannot have a compiled default.
+Installation values are stored as one encrypted array; never read secrets from the presented App Store props.
+
+### Lifecycle
+
+Implement `App\Core\AppStore\Contracts\ModuleLifecycle` only when the module needs hooks; otherwise the store uses
+`NullModuleLifecycle`. Hooks run in the App Store transaction, so keep them local, deterministic and idempotent.
+Do not call an external service that cannot roll back. Uninstall hooks may disable module-owned state but must
+never delete business records. The platform retains the installation, commercial and entitlement history.
+
+The hooks are `installing`, `installed`, `activating`, `activated`, `deactivating`, `deactivated`, `uninstalling`,
+`uninstalled` and `upgraded`. A user-triggered update to the current compiled catalogue version invokes the
+upgrade hook; automatic upgrade orchestration is not built.
 
 ### Permissions
 
@@ -134,6 +167,18 @@ Route::middleware(['auth:web', 'auth.session', 'member'])->group(function () {
   fills it from the active tenant.
 - Bind tenant-scoped models only. Never bind `User`: use `TenantMembership` (`{membership}`).
 - Every state-changing route names its permission with `can:`.
+
+### Scheduled jobs
+
+Declare `new ScheduledJobDefinition('{module}.{job}', Job::class, ScheduledJobFrequency::Hourly)` in
+`scheduledJobs`. Supported frequencies are every minute, hourly and daily, evaluated in the tenant's timezone.
+`apps:run-scheduled` runs every minute, enters active tenant contexts and dispatches only when that tenant is
+entitled. The encrypted tenant-bound wrapper re-checks the compiled definition and entitlement at worker time.
+A central-cache slot key prevents duplicate dispatch in the same minute/hour/day.
+
+The job class must implement both `ShouldQueue` and `RequiresTenantContext` and have no required constructor
+arguments. Do not create a parallel cron entry that skips entitlement. See `docs/APP_STORE.md` and
+`docs/DEPLOYMENT.md`.
 
 ## 5. Models and migrations
 
@@ -245,7 +290,8 @@ A minimal `notes` module (illustrative; not in the repository). It matches the r
 // app/Modules/Notes/NotesServiceProvider.php
 namespace App\Modules\Notes;
 
-use App\Core\Modules\{ModuleManifest, ModuleServiceProvider, NavigationItem, PermissionDefinition, WidgetDefinition};
+use App\Core\AppStore\Enums\{AppBillingType, AppCategory};
+use App\Core\Modules\{AppOffer, ModuleManifest, ModuleServiceProvider, NavigationItem, PermissionDefinition, WidgetDefinition};
 
 final class NotesServiceProvider extends ModuleServiceProvider
 {
@@ -256,6 +302,10 @@ final class NotesServiceProvider extends ModuleServiceProvider
             name: 'Notes',
             version: '1.0.0',
             dependencies: ['core'],
+            description: 'Shared notes linked to customers and work.',
+            category: AppCategory::Productivity,
+            features: ['Private workspace notes', 'Customer links'],
+            offers: [new AppOffer('free', 'Free', AppBillingType::Free)],
             permissions: [
                 new PermissionDefinition('notes.notes.view', 'notes', scopable: true),
                 new PermissionDefinition('notes.notes.manage', 'notes', scopable: true),
@@ -292,18 +342,20 @@ Override `register()` only to add container bindings, and call `parent::register
 
 ## 8. Checklist
 
-1. Provider, manifest, entry in `config/modules.php`.
+1. Provider, complete manifest (catalogue metadata, offers and dependencies), entry in `config/modules.php`.
 2. Migrations with `tenant_id` and tenant-first unique indexes; models with `BelongsToTenant` + `HasUlids`.
    Customers are `contact_id` / `company_id`, never a table of the module's own (section 5b). Records with a
    scopable permission use `HasRecordOwner` and `RecordAccess` (section 5a).
 3. Morph aliases for audited or polymorphic models.
 4. Routes through `loadTenantRoutes()`, with `auth:web`, `auth.session`, `member` and a `can:` on each.
-5. `php artisan permissions:sync` (also on every deploy).
+5. `php artisan permissions:sync`, then `php artisan apps:sync --prune` (also on every deploy).
 6. Pages under `resources/js/Modules/<Module>/Pages`, rendered as `Inertia::render('Modules/<Module>/Pages/…')`;
    labels in the i18n catalogue; icon and widget component registered.
-7. Domain events for what other modules or workflows may react to; triggers and actions declared; limits
-   declared for anything a plan should be able to cap (section 5c).
-8. Tests: a cross-tenant test for every new model and every new route (`docs/TESTING.md`), plus the
-   not-entitled case (404). `tests/Feature/Modules/EntitlementTest.php` and the `Crm` fixture show the pattern;
-   every page a test asserts with `assertInertia()->component()` must exist as a Vue file.
-9. `composer check`, `npm run typecheck`, `npm run test`.
+7. Domain events for what other modules or workflows may react to; triggers/actions, scheduled jobs and limits
+   declared from the first release. Scheduled work goes through the entitlement-gated runner.
+8. Lifecycle hooks only when needed; dependency/dependent handling; uninstall retains business data. Typed app
+   settings reject undeclared keys and never expose secret values.
+9. Tests: a cross-tenant test for every new model and every new route (`docs/TESTING.md`), plus catalogue sync,
+   not-entitled 404, dependencies, lifecycle rollback, free/paid licensing and retained-data reinstall. The `Crm`
+   fixture and `tests/Feature/AppStore` show the patterns.
+10. `composer check`, `npm run typecheck`, `npm run test`, `npm run build`, and the relevant Playwright flow.

@@ -5,8 +5,8 @@ Multi-tenant business SaaS, modular monolith. Spec: `MASTER_PROMPT.md` (sections
 `docs/MODULES.md`, `docs/DATABASE.md`, `docs/TESTING.md`, `resources/js/README.md`; `docs/BILLING.md` before
 touching billing. The code is the source of truth; if a doc and the code disagree, fix the doc and say so.
 
-State: Phases 1 (foundation) and 2 (core SaaS and billing) are built. One phase per session; stop at the end of
-the phase and report.
+State: Phases 1–3 are complete and verified; Phase 4 CRM is next. There is
+no production optional app until Phase 4. One phase per session; stop at the end of the phase and report.
 
 ## Stack
 
@@ -42,7 +42,7 @@ Billing model (ADR 0006): invoice-driven; nothing is charged automatically. Sign
 ## Folder structure
 
 ```
-app/Core/{Tenancy,Identity,Access,Organization,Contacts,Settings,Registration,Billing,Modules,Entitlements,
+app/Core/{Tenancy,Identity,Access,Organization,Contacts,Settings,Registration,Billing,AppStore,Modules,Entitlements,
           Automation,Events,Audit,Dashboard,Http,Support}
 app/Core/CoreServiceProvider.php     the `core` module: manifest, bindings, Gate::before, gateways
 app/Platform/                        Super Admin panel (the only code that reads across tenants)
@@ -71,8 +71,10 @@ stateless payment callbacks on the workspace host (group `tenant.callback`).
 | `composer check` | lint + analyse + test |
 | `npm run typecheck` · `npm run test` · `npm run build` | vue-tsc · Vitest · Vite build |
 | `php artisan permissions:sync [--prune]` | sync the permission catalogue; after adding permissions and on every deploy |
+| `php artisan apps:sync [--prune]` | sync compiled optional manifests into immutable catalogue versions; every deploy |
 | `php artisan platform:create-admin {email}` | create a Super Admin panel account; interactive, asks for the password |
-| `php artisan billing:run [--tenant=slug]` | what time does to subscriptions; scheduled hourly, safe to run twice |
+| `php artisan billing:run [--tenant=slug]` | advances base and app subscriptions; scheduled hourly, safe to run twice |
+| `php artisan apps:run-scheduled` | dispatch due optional-module jobs only for entitled tenants |
 
 A task is done only when `composer check`, `npm run typecheck` and `npm run test` pass. CI
 (`.github/workflows/ci.yml`) runs the same checks but has never run on GitHub yet. On Windows Git Bash start
@@ -109,8 +111,10 @@ Vitest from `D:/…`, not `/d/…`. The suite runs `migrate:fresh`: never run it
   they lack (`MemberManager`). Keep both rules in anything that changes roles or members.
 
 **Billing** (`docs/BILLING.md`)
-- Subscriptions change only through `SubscriptionManager` and `BillingCycle`. A paid plan starts only in
+- Base subscriptions change only through `SubscriptionManager` and `BillingCycle`. A paid plan starts only in
   `SubscriptionManager::settle()`, from an invoice that became paid.
+- App installs/licences/subscription items change only through `AppStoreManager` / `AppBillingCycle`. App billing
+  is separate from the base plan; a paid app activates only through verified `InvoiceSettlement`.
 - A payment counts only after `PaymentProcessor::confirm()` got the gateway's own answer, or an operator recorded
   it. Never settle on a redirect, a notification payload or anything the browser sent.
 - A module that can be capped declares a `LimitDefinition`, asks `UsageLimits::ensure()` before using more and
@@ -129,6 +133,9 @@ Vitest from `D:/…`, not `/d/…`. The suite runs `migrate:fresh`: never run it
 - Contacts and companies are written through `ContactDirectory`. Modules reference them by id and talk to each
   other through events and documented contracts, never another module's models.
 - New module: follow `docs/MODULES.md` and register its triggers/actions (and limits) from day one.
+- Optional apps are compiled first-party modules. Bump the version when versioned catalogue/contract fields
+  change; uninstall disables access but retains licences/data for safe reinstall; schedules run through the
+  worker-time entitlement-gated runner.
 
 **Frontend** (details: `resources/js/README.md`)
 - Pages in `resources/js/{Core,Platform,Modules/<M>}/Pages`, rendered by path; type every prop.
@@ -164,7 +171,8 @@ Vitest from `D:/…`, not `/d/…`. The suite runs `migrate:fresh`: never run it
 - Never use `DB::table()` on a tenant-owned table without a `tenant_id` filter.
 - Never add a unique index on a tenant-owned table that does not lead with `tenant_id`.
 - Never store money as float or decimal, and never send a float to a gateway.
-- Never mark an invoice paid, or switch a paid plan on, anywhere but `SubscriptionManager::settle()`.
+- Never mark an invoice paid or fulfil it outside verified `InvoiceSettlement` (which routes to the two managers).
+- Never activate a paid app except through verified `InvoiceSettlement`; never upload/install/execute tenant code.
 - Never give the payment callback routes a session, cookies or the `web` group, and never trust their payload.
 - Never store gateway credentials in the database, show them, log them or put them in an exception message.
 - Never call `Storage::disk()` with a hand-built tenant path, and never put tenant data in `cache.central` or

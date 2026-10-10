@@ -1,6 +1,6 @@
 # Automation
 
-State: end of Phase 1. **There is no engine**: no workflows, no builder, no executions, no tables. What exists are
+State: after Phase 3. **There is no engine**: no workflows, no builder, no executions, no tables. What exists are
 the contracts and the registry, so that every module built from now on registers its triggers and actions from
 its first day (spec section 27, note under the phase list). The engine is Phase 10.
 
@@ -43,12 +43,13 @@ with `{module}.`, and a duplicate key (`tests/Unit/Modules/AutomationRegistryTes
 
 Triggers are driven by domain events. Conventions (`DomainEvent`): past tense, `{module}.{entity}.{verb}`;
 dispatched only after the surrounding transaction commits; payload of ids and scalars, never models. Existing
-events: `core.member.invited`, `core.member.joined`, `core.member.removed`. Nothing subscribes to them yet.
+events include member/contact/company, billing and App Store lifecycle families. Nothing subscribes to them yet.
 
 ### Not wired yet
 
-- Nothing checks `module()` against entitlements or `requiredPermission()` against the user, because nothing
-  builds or runs workflows.
+- Nothing executes definitions yet. The Phase 10 builder and runner must filter/check `module()` through
+  `EntitlementChecker` and `requiredPermission()` through `AccessChecker` at selection **and** execution time.
+  Deactivation, uninstall or expiry must stop future executions; stored workflow JSON is not an entitlement.
 - `label()` keys have no entries in the client i18n catalogue.
 
 ## Planned (Phase 10)

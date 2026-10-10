@@ -1,7 +1,7 @@
 # Architecture
 
-State: end of Phase 2 (Core SaaS & Billing). This page describes what is in the code. Anything not built
-is listed in [section 12](#12-not-built-yet). Decisions and their reasons are in `docs/adr/`.
+State: Phase 3 (App Store) is implemented and verified. This page describes what is
+in the code. Anything not built is listed in [section 12](#12-not-built-yet). Decisions are in `docs/adr/`.
 
 ## 1. Shape
 
@@ -94,6 +94,7 @@ app/
     Settings/       workspace profile and logo, first-run setup, PlatformSettings (operator settings)
     Registration/   sign-up on the central site: WorkspaceRegistration, StartRegistration, CompleteRegistration
     Billing/        plans, subscriptions, invoices, payments, gateways, limits, metering, billing:run
+    AppStore/       compiled catalogue sync, immutable versions, installations, licences, app billing/lifecycle
     Modules/        ModuleManifest, ModuleRegistry, ModuleServiceProvider, navigation, widget and limit definitions
     Entitlements/   EntitlementChecker contract + PlanEntitlementChecker
     Automation/     trigger/action contracts, AutomationRegistry, the one core trigger
@@ -133,8 +134,9 @@ when nothing else is.
   and the only place that reads across tenants on purpose.
 - Boot fails with a `RuntimeException` if a manifest names a dependency that is not registered.
 
-The manifest carries: `key`, `name`, `version`, `core`, `dependencies`, `permissions`, `navigation`, `widgets`,
-`triggers`, `actions`, `morphMap`, `limits`. Field-by-field rules and a worked example are in `docs/MODULES.md`.
+The manifest also owns App Store metadata and offers, route/scheduled-job inventories and lifecycle hooks. A
+compiled optional manifest is mirrored to immutable catalogue versions by `apps:sync`; it is never remote code.
+Field-by-field rules and a worked example are in `docs/MODULES.md`.
 
 ## 6. Shared services
 
@@ -148,7 +150,7 @@ The manifest carries: `key`, `name`, `version`, `core`, `dependencies`, `permiss
 | Rate limiter | `Core\Tenancy\Support\TenantAwareRateLimiter` | singleton; answers for `Illuminate\Cache\RateLimiter` | Per-tenant counts; named limiters survive a tenant switch |
 | Provisioning | `Core\Tenancy\TenantProvisioner` | per call | Create a tenant with domain, system roles and owner |
 | Module registry | `Core\Modules\ModuleRegistry` | singleton | Manifests and the permission index |
-| Entitlements | `Core\Entitlements\Contracts\EntitlementChecker` | bound to `PlanEntitlementChecker` (scoped) | "May this tenant use this module?" Answered from the workspace's plan |
+| Entitlements | `Core\Entitlements\Contracts\EntitlementChecker` | bound to `PlanEntitlementChecker` (scoped) | Core + healthy plan modules + effective installed App Store licences, with dependency pruning |
 | Authorization | `Core\Access\AccessChecker` | scoped | `allows()`, `scopeFor()`, `effectivePermissions()`, `membership()` |
 | Role changes | `Core\Access\RoleManager` | per call | Create / update / delete roles, `canAssign()`, `flush()` |
 | Audit trail | `Core\Audit\AuditLogger`, `Audit\Concerns\Auditable` | scoped / trait | `record()` for business events; the trait for attribute changes |
@@ -164,6 +166,9 @@ The manifest carries: `key`, `name`, `version`, `core`, `dependencies`, `permiss
 | Operator settings | `Core\Settings\PlatformSettings` | scoped | Registration mode, grace days, invoice lead days, offline payment instructions |
 | Subscriptions | `Core\Billing\SubscriptionManager` | per call | Every change to a workspace's subscription; `settle()` is the only place a paid plan starts |
 | Billing cycle | `Core\Billing\BillingCycle` | per call | What time does to a subscription; run by `billing:run` |
+| App catalogue | `Core\AppStore\AppCatalogSynchronizer` | per call | Mirror compiled optional manifests into immutable catalogue versions (`apps:sync`) |
+| App lifecycle | `Core\AppStore\AppStoreManager` | per call | Install, licence, activate/deactivate/uninstall, settle paid app invoices |
+| App billing cycle | `Core\AppStore\AppBillingCycle` | per call | Recurring app invoice, grace, cancellation and expiry; also run by `billing:run` |
 | Payments | `Core\Billing\PaymentProcessor`, `Gateways\GatewayRegistry` (singleton) | per call | Start, confirm and record payments |
 | Current subscription | `Core\Billing\CurrentSubscription` | scoped | The active workspace's subscription, read once per request |
 | Limits, metering | `Core\Billing\UsageLimits`, `UsageMeter` | per call | A plan's caps and idempotent usage records |
@@ -201,9 +206,9 @@ How each model is classified:
 | Traits | Meaning | Models |
 |---|---|---|
 | `BelongsToTenant` | Tenant-owned: read scope, write guards, tenant connection | `Invitation`, `Contact`, `Company` |
-| `BelongsToTenant` + `UsesCentralConnection` | Tenant-scoped rows that always stay in the central database | `TenantMembership`, `Branch`, `Department`, `Subscription`, `Invoice`, `Payment`, `UsageRecord` |
+| `BelongsToTenant` + `UsesCentralConnection` | Tenant-scoped rows that always stay in the central database | `TenantMembership`, `Branch`, `Department`, `Subscription`, `Invoice`, `Payment`, `UsageRecord`, `AppInstallation`, `AppEntitlement`, `SubscriptionItem` |
 | `ScopedToTenant` | Read scope only; `tenant_id` may be null (platform events) | `AuditLog` |
-| `UsesCentralConnection` | Platform data, no tenant scope | `User`, `PlatformUser`, `Permission`, `Plan`, `WorkspaceRegistration`, `Impersonation` |
+| `UsesCentralConnection` | Platform data, no tenant scope | `User`, `PlatformUser`, `Permission`, `Plan`, `CatalogApp`, `AppVersion`, `WorkspaceRegistration`, `Impersonation` |
 | none, scoped by hand | See ADR 0002 | `Role` |
 | package models | Central | `Tenant`, `Domain` |
 
@@ -219,7 +224,7 @@ route `can:crm.leads.edit`  /  $user->can()  /  Gate::allows()
              └─ AccessChecker::allows()
                   1. a tenant is active
                   2. the permission is registered by a module
-                  3. EntitlementChecker::allows(tenant, module)      ← from the workspace's plan
+                  3. EntitlementChecker::allows(tenant, module)      ← plan or effective App Store licence
                   4. the user has an active membership in this tenant
                   5. membership.is_owner (scope "all"), or PermissionResolver::grantsFor(user)
                      contains it - with the scope it was granted for
@@ -237,7 +242,8 @@ route `can:crm.leads.edit`  /  $user->can()  /  Gate::allows()
   `allows()` / `authorize()` apply it to models using `HasRecordOwner` (today `Contact` and `Company`). The
   controller calls it; the route only names the permission (ADR 0007).
 - **Entitlement and paywall are different questions.** `PlanEntitlementChecker` decides which modules a workspace
-  has. The `subscribed` middleware decides whether a workspace whose subscription ended may be worked in at all.
+  has from core, its healthy plan and installed licences. The `subscribed` middleware decides whether a workspace
+  whose base subscription ended may be worked in at all. App commercial items do not replace the base plan.
 
 ## 9. Events
 
@@ -247,7 +253,8 @@ route `can:crm.leads.edit`  /  $user->can()  /  Gate::allows()
   one) and implements `ShouldDispatchAfterCommit`.
 - Existing events: `core.member.invited`, `core.member.joined`, `core.member.removed`
   (`app/Core/Identity/Events`); `core.contact.created|updated|deleted`, `core.company.created|updated|deleted`
-  (`app/Core/Contacts/Events`); `core.subscription.updated`, `core.invoice.paid` (`app/Core/Billing/Events`).
+  (`app/Core/Contacts/Events`); `core.subscription.updated`, `core.invoice.paid` (`app/Core/Billing/Events`);
+  `core.app.installed|activated|deactivated|uninstalled` (`app/Core/AppStore/Events`).
   Nothing listens to them yet. Three are exposed to the automation catalogue as triggers: `core.member.joined`,
   `core.contact.created`, `core.company.created`.
 
@@ -268,8 +275,10 @@ route `can:crm.leads.edit`  /  $user->can()  /  Gate::allows()
   `WorkspaceReadyMail` on `notifications` (encrypted payloads: they carry or create a one-time token);
   `InvoiceIssuedMail` and `PaymentReceivedMail` on `billing`. The password-reset link is not queued: it is sent
   after the response with `defer()`, inside the workspace's context.
-- Scheduled (`routes/console.php`): `billing:run` hourly, which handles every workspace inside its own tenant
-  context, and `model:prune` daily for sign-ups that were never confirmed.
+- Scheduled (`routes/console.php`): `billing:run` hourly, which handles base and app subscriptions inside each
+  tenant context; `apps:run-scheduled` every minute, which dispatches only compiled jobs of entitled apps through
+  a worker-time compiled-definition and entitlement check; and
+  `model:prune` daily for sign-ups that were never confirmed.
 
 ## 11. Dedicated tenant databases (summary)
 
@@ -283,11 +292,11 @@ strategy, and the gaps that must be closed before the first move, are in `docs/D
 | Area | Phase | Today |
 |---|---|---|
 | Email verification for an existing account, changing an email address | — | A new account is verified by its sign-up or invitation link; there is no way to change an address |
-| Coupons, refunds, tax, usage-based charges, app subscriptions | 3+ | See `docs/BILLING.md` section 7 |
+| Coupons, refunds, tax, usage-based charge calculation | later | See `docs/BILLING.md` section 7 |
 | A verified payment gateway | when credentials exist | SSLCommerz is implemented but has not been run against the sandbox |
 | API tokens (Sanctum) | when first needed | Not installed; there are no API routes |
 | Integration centre (OAuth connections, webhooks) | not assigned in spec 27 | — |
-| App Store | 3 | Manifest and entitlement contracts; a plan can include optional modules, but none exists |
+| First optional production app | 4 | App Store is built; production catalogue stays honestly empty until CRM is compiled |
 | Notification centre, realtime (Reverb) | 8 | Not installed; `BROADCAST_CONNECTION=log` |
 | Automation engine | 10 | Contracts and registry only |
 | File manager | — | `TenantStorage` primitive; the workspace logo is the only stored file |

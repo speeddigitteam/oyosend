@@ -5,9 +5,10 @@ Rules for working in this repository are in `CLAUDE.md`; the product specificati
 
 ## Status
 
-**Phases 1 (Architecture & Foundation) and 2 (Core SaaS & Billing) are complete as of 2026-10-10.**
-Phase 3 has not been started. The application has a production-shaped foundation and core workspace/billing
-surface, but it does not have an App Store or any optional business application yet.
+**Phases 1 (Architecture & Foundation), 2 (Core SaaS & Billing) and 3 (App Store) are complete and
+verified as of 2026-10-10. Phase 4 CRM is next and has not been started.**
+There is deliberately no production optional business application yet; Phase 4 CRM will be the first compiled
+catalogue entry. Phase 3 behaviour is exercised with a test-only CRM module.
 
 ## What exists
 
@@ -41,7 +42,24 @@ surface, but it does not have an App Store or any optional business application 
 | Frontend | Registration/onboarding, organisation, contacts, workspace settings, billing, and complete platform management pages in both languages |
 | Browser coverage | Playwright flows for workspace sign-in/authorization/language, registration, contacts/isolation, billing, platform 2FA and support access |
 
-## Verification on 2026-10-10
+### Phase 3 — App Store
+
+| Area | What exists |
+|---|---|
+| Catalogue | Optional manifest metadata, 16 categories and six offer types; `apps:sync [--prune]`; immutable version snapshots protected by a manifest hash; only published and compiled modules are exposed |
+| Workspace UI | Search/filter catalogue, app details and My Apps; bilingual empty state remains honest while no production app is compiled |
+| Installation and licences | Tenant-scoped installation, entitlement and commercial-item records; free install; activate/deactivate/uninstall/reinstall/update; typed encrypted app settings; retained data/history and lifecycle events/audit |
+| Paid apps | Trial, monthly/yearly/one-time checkout, separate app invoices/items, activation only after verified settlement, renewals, grace, expiry, cancel/resume |
+| Dependencies | Dependencies required on install/activate and recursively in entitlement resolution; active dependents block deactivate/uninstall |
+| Gating | One entitlement answer for routes/APIs, permissions, role assignment, navigation, widgets and compiled scheduled jobs; scheduled work re-checks at worker time, and automation execution must re-check it when Phase 10 is built |
+| Safety | First-party compiled modules only; no tenant uploads, runtime Composer install, eval or remote plugin execution |
+| Operations | `apps:sync --prune` in deploys; `apps:run-scheduled` every minute; `billing:run` advances both base and app subscriptions |
+
+## Verification
+
+The table below is the final Phase 3 whole-repository run. Phase 4 was not started.
+
+### Phase 3 final — 2026-10-10
 
 Run natively on Laragon (Windows 10): PHP 8.4.13, MySQL 8.0.30, Redis 5.0.14 and Node 24.19.
 
@@ -49,12 +67,13 @@ Run natively on Laragon (Windows 10): PHP 8.4.13, MySQL 8.0.30, Redis 5.0.14 and
 |---|---|---|
 | Code style | `vendor/bin/pint --test` | passed |
 | Static analysis | `vendor/bin/phpstan analyse --no-progress` (level 6) | no errors |
-| Backend tests | `php artisan test --compact` | 2,086 passed, 16,522 assertions |
+| Backend tests | `php artisan test --compact` | 2,117 passed, 16,924 assertions |
 | Type check | `npm run typecheck` | no errors |
-| Frontend tests | `npm run test -- --reporter=dot` | 12 files, 242 tests passed |
-| Production build | `npm run build` | built, 3,254 modules transformed |
-| End-to-end tests | `npm run test:e2e` | 18 passed in Chrome |
+| Frontend tests | `npm run test -- --reporter=dot` | 13 files, 255 tests passed |
+| Production build | `npm run build` | built, 3,273 modules transformed |
+| End-to-end tests | `npm run test:e2e` | 19 passed in Chrome, including the App Store catalogue/My Apps flow |
 | Fresh database and seed | Playwright global setup against `oyosend_e2e_testing` | `migrate:fresh --seed` succeeded before the browser run |
+| App operations | App Store feature tests | `apps:sync --prune`, scheduled dispatch and worker-time entitlement re-check passed against `oyosend_testing` |
 
 Vitest needed permission to spawn its bundled esbuild worker in this managed Windows environment. The elevated
 rerun passed; the first `spawn EPERM` was an environment startup error, not a failing test.
@@ -90,6 +109,20 @@ Longer reasoning is in ADRs 0006–0008 and the domain documents.
 
 Phase 1 decisions remain in ADRs 0001–0005 and `CLAUDE.md`.
 
+## Phase 3 decisions
+
+Longer reasoning is in ADR 0009 and `docs/APP_STORE.md`.
+
+| Decision | Why |
+|---|---|
+| Apps are first-party modules compiled into the deployment | A catalogue entry can never introduce tenant-supplied or remote executable code |
+| Manifests are synced to immutable version snapshots | Store pages are queryable while released offer/contract fields cannot silently change under one version |
+| Installation, entitlement and subscription item are separate | Operational state, access truth and commercial renewal have different lifecycles |
+| Base-plan inclusion and separately acquired licences share `EntitlementChecker` | Every route, permission and exposure point receives the same deny-by-default answer |
+| App billing reuses verified invoice settlement but has its own items/periods | Paid app activation is not weaker than base billing and does not alter the plan subscription |
+| Dependencies are enforced both on lifecycle writes and entitlement reads | A stale/manual database grant cannot expose a child whose required app is unavailable |
+| Uninstall retains module business data | Reinstall is reversible and commercial state changes never become destructive data deletion |
+
 ## Known issues and debt
 
 Security and correctness:
@@ -109,8 +142,8 @@ Billing and product:
 - SSLCommerz has not been exercised against its sandbox.
 - A verified payment for an invoice voided in the meantime is retained and flagged as unapplied; refunds and
   credits are not built.
-- There is no App Store, per-app installation/licensing, optional business module, coupon, tax engine or
-  automatic payment method.
+- There is no production optional business module, coupon, refund/credit-note flow, tax engine, usage-based app
+  charge calculator or automatic payment method. The App Store catalogue therefore remains empty until Phase 4.
 - Changing an account email, platform password recovery and login-session management are not built.
 - The dedicated-database seam (`tenants.db_connection`) is reserved but not operational; the migration plan and
   gaps are documented in `docs/DATABASE.md`.
@@ -119,13 +152,14 @@ Frontend and operations:
 
 - Wide data tables scroll horizontally on small screens rather than becoming record cards.
 - Laravel Sail, Horizon, CI, S3, real mail and production deployment have not received an end-to-end run.
-- The local demo database may contain manual-review data. Do not clean it with a destructive command unless the
-  target is confirmed as a disposable `*_testing` database.
+- During the 2026-10-10 Phase 3 verification, `migrate:fresh --env=testing` was accidentally run without an
+  `.env.testing` file and rebuilt the local development `oyosend` database. Its schema is present, but any prior
+  local data requires recovery from a backup or MySQL binary log. Pest and Playwright subsequently ran only
+  against the isolated `oyosend_testing` and `oyosend_e2e_testing` databases. Never run a destructive command
+  unless the resolved database name is visibly a disposable `*_testing` database.
 
 ## Deferred, by phase
 
-- **Phase 3:** App Store, install/activate/deactivate/uninstall lifecycle, dependency validation, per-app
-  entitlements and paid app checkout; complete the remaining manifest fields.
 - **Phase 4–7:** CRM, Projects, customer invoicing, then HRM/Payroll.
 - **Phase 8:** notification centre and communication providers. **Phase 9:** marketing apps.
 - **Phase 10:** the automation engine; only its definition registry exists today.
@@ -146,19 +180,11 @@ Frontend and operations:
 8. Final name and brand mark approval.
 9. Production support-access policy and whether tenants must explicitly approve a session.
 
-## Recommended Phase 3 scope, in order
+## Phase 3 completion
 
-1. Finalise the first-party app manifest and lifecycle contracts: catalogue metadata, routes, scheduled jobs,
-   install/activate/deactivate/uninstall/upgrade hooks, dependency rules and data-retention guarantees.
-2. Add the central app catalogue, categories, installations, entitlements and app subscription items. Keep
-   tenant business data in place when an app is deactivated or uninstalled.
-3. Build the workspace App Store catalogue, app details and My Apps pages; add the operator catalogue controls.
-4. Implement free install and lifecycle operations with dependency/dependent validation and complete audit logs.
-5. Reuse the Phase 2 invoice/payment path for paid apps. Grant entitlement only after server-side payment
-   verification, and handle renewal, expiry and cancellation without weakening plan entitlements.
-6. Extend backend, Vitest and Playwright coverage for isolation, dependency failures, verified paid activation,
-   navigation/permission gating, reinstall and retained data.
-7. Update the deployment and operations docs, run every quality gate, and stop for review before Phase 4.
+All Phase 3 implementation, documentation and quality gates are complete. `apps:sync --prune`,
+`apps:run-scheduled`, the worker-time entitlement check and the fresh migration/seed path are covered by the
+green test runs above. Stop for review; do not begin Phase 4 CRM in this session.
 
 ## Session log
 
@@ -169,3 +195,8 @@ Frontend and operations:
   onboarding, workspace settings, plans/subscriptions/invoices/payments, entitlements and usage, platform
   management, audited support access, complete bilingual UI and Playwright coverage. Final verification: Pint,
   Larastan, 2,086 Pest tests, vue-tsc, 242 Vitest tests, production build and 18 Chrome E2E tests all passed.
+- **2026-10-10** — Phase 3 completed: first-party catalogue/version sync, bilingual workspace App Store, free
+  and verified paid licensing, independent app renewals, encrypted typed settings, lifecycle/dependency/data-
+  retention and reinstall rules, and dispatch-time plus worker-time entitlement-gated scheduled jobs. Final
+  verification: Pint, Larastan, 2,117 Pest tests, vue-tsc, 255 Vitest tests, production build and 19 Chrome E2E
+  tests all passed. Phase 4 was not started.

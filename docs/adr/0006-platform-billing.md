@@ -27,7 +27,7 @@ place, `SubscriptionManager::settle()`, and only by an invoice that became paid.
 | Money | Integer minor units in `amount` / `*_amount` columns next to a `currency` code. `Money` converts to a decimal string for a gateway and to text for mail; nothing else on the server needs either |
 | What people ask for | `SubscriptionManager` (start, change plan, cancel, resume, settle; grant and extend trial for operators) |
 | What time does | `BillingCycle`, run for every tenant by `billing:run` (hourly, idempotent): next invoice `invoice_lead_days` before a trial or period ends → past due at the boundary → expired after `grace_days` |
-| Invoices | A document: lines and amounts are fixed when it is issued; paid in full by one payment, or voided and replaced. At most one open invoice per workspace |
+| Invoices | A document: lines and amounts are fixed when it is issued; paid in full by one payment, or voided and replaced. At most one open base-plan invoice per workspace; Phase 3 gives each separately billed app item its own open-invoice slot |
 | Proration | Moving to a more expensive plan inside a paid period issues an invoice for the new price minus the unused value of the old period (by the second, rounded down); the new period starts when it is paid. That invoice is valid for 3 days, because its credit is worked out for the day it was issued. Moving to a cheaper plan waits for the paid period to end. No refunds are computed |
 | Price changes | A subscription renews at the price it was taken at. Changing a plan's price affects new subscribers and plan changes only |
 | No trial | A paid plan taken without a trial is invoiced at once and gets the grace period to pay |

@@ -1,8 +1,7 @@
 # Security
 
-State: end of Phase 2. Each mechanism is listed with the file that enforces it. Layers that have nothing to
-protect yet are marked **not applicable yet** rather than described as done. Section 8 lists what is still
-open.
+State: Phase 3 is implemented and verified. Each mechanism is listed with the file
+that enforces it. Layers with nothing to protect yet are marked **not applicable yet**. Section 8 lists open work.
 
 Principles the code follows: the tenant comes from the hostname only; tenant, membership, entitlement and
 permissions are always read from the database, never from the request; missing tenant context is an exception,
@@ -17,6 +16,7 @@ not an empty result; what the browser receives (`permissions`, `navigation`) is 
 | Route model binding | Enforced | The tenant context is set before `SubstituteBindings` (middleware priority), so bound models resolve through the scope and another tenant's id is a 404. `Role` overrides `resolveRouteBinding()`. The `{tenant}` parameter is removed. `User` is never bound | `bootstrap/app.php`, `Http/Middleware/InitializeTenancy.php`, `routes/tenant.php` |
 | API endpoints | **Not applicable yet** | No API routes; Sanctum is not installed | — |
 | Background jobs | Enforced | Payloads carry `tenant_id`; the context is restored before the job. A class implementing `RequiresTenantContext` is failed before `handle()` if the tenant is missing or does not match. A job without a tenant runs in the central context, where any tenant-owned query throws | package `QueueTenancyBootstrapper`, `Core/Tenancy/Jobs/EnforceTenantContextOnJobs.php` |
+| App scheduled jobs | Enforced | `apps:run-scheduled` checks before dispatch; its encrypted tenant-bound wrapper checks the compiled definition and entitlement again at worker time. Jobs also require tenant context | `Core/AppStore/Console/RunModuleSchedulesCommand.php`, `Core/AppStore/Jobs/RunScheduledAppJob.php` |
 | Cache | Enforced | For the life of the context the key prefix of **every** configured store gets `tenant_{id}_` appended (a store's own prefix is kept in front); all stores and their `Cache::memo()` wrappers are dropped and rebuilt. A store that ignores prefixes (`array`) is rebuilt empty. The rate limiter is handed the new store, so counts are per tenant and limiters named with `RateLimiter::for()` survive the switch. `cache.central` is never prefixed | `Bootstrappers/CachePrefixBootstrapper.php`, `Support/TenantAwareRateLimiter.php` |
 | File storage | Enforced | Every path is forced under `tenants/{tenant_id}/` on a private disk; `..` and NUL are rejected; access is by short-lived signed URL; no tenant → throws. The workspace logo is the one stored file: png / jpg / webp up to 1 MB, 2000 px a side, SVG refused | `Core/Tenancy/Storage/TenantStorage.php`, `Core/Settings/WorkspaceLogo.php` |
 | Records inside a tenant | Enforced | A scopable permission reaches a person's own, their department's, their branch's or all records. The controller narrows lists and single records through `RecordAccess`; a record outside the scope is a 404 | `Core/Access/RecordAccess.php`, `Concerns/HasRecordOwner.php`, ADR 0007 |
@@ -25,10 +25,10 @@ not an empty result; what the browser receives (`permissions`, `navigation`) is 
 | WebSocket channels | **Not applicable yet** | Reverb is not installed; `BROADCAST_CONNECTION=log`; there is no `routes/channels.php` | — |
 | Notifications | Partly | Workspace mail is queued with `RequiresTenantContext` and built inside the tenant context (invitation, invoice, receipt, workspace ready); password-reset links are generated with the active tenant's host. The sign-up confirmation is platform mail: no tenant exists yet. No notification centre | `Core/Identity/Mail`, `Core/Billing/Mail`, `Platform/Mail`, `Core/Registration/Mail` |
 | Automation executions | **Not applicable yet** | Contracts only; nothing executes | `Core/Automation` |
-| Unique constraints | Enforced | Tenant-first on every tenant-owned table (memberships, roles, branches, departments, usage records), validation scoped the same way. Deliberate exceptions, listed in `docs/DATABASE.md`: `users.email`, token hashes, and the platform-wide billing identifiers (invoice number, payment references) | `database/migrations`, `docs/DATABASE.md` |
+| Unique constraints | Enforced | Tenant-first on tenant-owned identities/names, with validation scoped the same way. Deliberate global exceptions are listed in `docs/DATABASE.md`: identity email, token hashes, app licence id and platform-wide billing identifiers | `database/migrations`, `docs/DATABASE.md` |
 
 Deliberate cross-tenant reads, all of them: `User::memberships()` (a person's own workspaces),
-`Tenant::memberships()` and `Tenant::subscription()` (keyed by the tenant they are asked for),
+`Tenant::memberships()`, `Tenant::subscription()` and `Tenant::subscriptionItems()` (keyed by the tenant asked for),
 `TenantMembership::forTenant()` in the workspace handoff, and `withoutTenancy()` / `forTenant()` in `app/Platform`
 (dashboard, workspace page, invoices, audit log, the owner lookups of `TenantManager` and `ImpersonationManager`).
 `billing:run` does not read across tenants: it enters each workspace's context in turn.
@@ -141,6 +141,8 @@ for as typed (member search, audit search, the Super Admin tenant list).
   `RecordAccess` in the controller. Only someone who manages every record can hand one to another member.
 - A workspace whose subscription has ended is locked down to billing by the `subscribed` middleware; a workspace
   that is not entitled to a module gets a 404 from `entitled:{module}`. Both read the database, never the request.
+- Optional-module entitlement is an active installation plus an effective server-side licence, or inclusion in a
+  healthy plan. Dependency pruning prevents a forged/stale child licence from bypassing its required app.
 - `MemberManager`: the owner cannot be changed; nobody can change, suspend, place or remove themselves (the owner
   alone may set their own branch and department); and nobody can
   act on a member who holds a permission they lack (`canManage()` / `guardMutable()`), so `core.members.manage`
@@ -166,8 +168,26 @@ for as typed (member search, audit search, the Super Admin tenant list).
   database, shown on a page, put in an exception message or written to `payments.details`.
 - Offline payments are recorded by an operator with `platform.billing.manage`, under their name, in the
   workspace's own audit trail.
+- App purchase and renewal invoices use this same path. `InvoiceSettlement` creates/extends an app entitlement
+  only after verified success; an open invoice leaves the installation `pending_payment` and grants no access.
 
-## 5b. Browser security headers
+## 5b. App code and lifecycle
+
+- The catalogue contains first-party modules already compiled and registered in this deployment. A tenant cannot
+  upload packages, PHP, scripts, expressions or manifests, and no runtime Composer/install/eval path exists.
+- `apps:sync` records metadata only. The catalogue controller also requires the module in `ModuleRegistry`, so a
+  database row cannot make absent code executable. Changing released versioned fields needs a version bump.
+- Free/paid install, activation, deactivation, cancellation, expiry and uninstall go through `AppStoreManager`
+  under tenant scope; multi-write lifecycles use transactions. Paid purchase/cancel/resume and uninstalling a
+  live commercial commitment also require `core.billing.manage`. Hooks cannot take a tenant id from request input.
+- Dependencies are checked on activation and during entitlement resolution; entitled dependents block removal.
+- Uninstall disables executable access but retains a valid licence and never deletes module business tables or
+  rows. This supports safe reinstall and prevents a lifecycle hook from becoming a disguised destructive data
+  operation.
+- Per-workspace app settings accept only compiled typed definitions and are stored as one encrypted array. Secret
+  values are never returned to Inertia or audit properties; a blank secret update preserves the stored value.
+
+## 5c. Browser security headers
 
 `App\Core\Http\Middleware\SecurityHeaders`, appended to the `web` group:
 
@@ -213,8 +233,8 @@ are ignored.
 
 - `.env` is git-ignored; `.env.example` holds no secrets. No credentials are hardcoded. Demo accounts exist only
   through `DemoSeeder`, which refuses to run outside `local`.
-- `APP_KEY` encrypts 2FA secrets, recovery codes and the queued mail that carries a token (invitation, sign-up
-  confirmation, workspace ready). Rotate it with
+- `APP_KEY` encrypts 2FA secrets, recovery codes, App Store installation settings and queued mail that carries a
+  token (invitation, sign-up confirmation, workspace ready). Rotate it with
   `APP_PREVIOUS_KEYS`, never by replacing it.
 - Tokens are never stored in the clear: invitations, sign-ups, support sessions and handoffs keep a SHA-256;
   password resets use the broker. A sign-up's password is hashed the moment the form is submitted.
@@ -227,7 +247,7 @@ are ignored.
 
 ## 8. Known limitations
 
-Open at the end of Phase 2. Decide and fix, or accept and record.
+Open after Phase 3 implementation. Decide and fix, or accept and record.
 
 | # | Limitation | Where |
 |---|---|---|

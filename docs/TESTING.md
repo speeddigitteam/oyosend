@@ -1,7 +1,7 @@
 # Testing
 
-Backend tests are Pest on a real MySQL database. Frontend tests are Vitest. Playwright end-to-end tests start in
-Phase 2 (spec section 0) and are not installed.
+Backend tests are Pest on a real MySQL database. Frontend tests are Vitest. Playwright covers critical browser
+flows against a separate disposable database. Phase 3's whole-repository quality run is green.
 
 ## 1. Commands
 
@@ -15,6 +15,8 @@ Phase 2 (spec section 0) and are not installed.
 | `composer check` | lint, analyse, test, in that order |
 | `npm run typecheck` | `vue-tsc --noEmit` (strict; covers `resources/js` and `tests/js`) |
 | `npm run test` / `npm run test:watch` | Vitest |
+| `npm run build` | Production Vite bundle |
+| `npm run test:e2e` | Playwright Chrome flows against `oyosend_e2e_testing` |
 
 A change is done when `composer check`, `npm run typecheck` and `npm run test` all pass.
 
@@ -41,6 +43,10 @@ end in `_testing`). A variable set in the shell wins over `phpunit.xml`.
   ends in `_testing` (or `_testing_test_N`, the names `artisan test --parallel` uses). A cached config or a
   stray shell variable therefore cannot point `migrate:fresh` at a real database. If you hit the guard, run
   `php artisan config:clear`.
+- Do not use `php artisan migrate:fresh --env=testing` as a substitute for the test runner. When no
+  `.env.testing` file exists Laravel falls back to `.env`, and that standalone migration does not pass through
+  the `Tests\TestCase` database-name guard. Use `php artisan test`, or set and visibly confirm an explicit
+  `DB_DATABASE=*_testing` value first.
 
 Other settings from `phpunit.xml`:
 
@@ -87,6 +93,7 @@ tests/
 | `Feature/Access` | `RoleAccess`, `RoleManagement`, `PermissionCache`, `PermissionSynchronizer` | What each system role may reach; role editing rules; grant caching and invalidation; `permissions:sync` |
 | `Feature/Members`, `Feature/Invitations` | `MemberManagement`; `InviteMember`, `AcceptInvitation` | Member changes and the hierarchy rule; inviting, mail language, acceptance by new and existing accounts |
 | `Feature/Modules` | `Entitlement`, `NavigationAndDashboard`, `DomainEvent` | A non-core module behind entitlement (routes, permissions, sidebar, widgets); domain event conventions |
+| `Feature/AppStore` | `AppCatalog`, `AppLifecycle`, `AppBilling`, `AppStorePages`, `ScheduledJobs` | Manifest/version sync, store pages, free install, lifecycle retention, tenant-isolated licences, paid verification, renewal/grace/expiry and scheduled-job gating |
 | `Feature/Audit` | `AuditTrail` | What is recorded, redaction, immutability, the audit page and its filters |
 | `Feature/Platform` | `PlatformAuth`, `PlatformPages`, `CreatePlatformAdminCommand` | Super Admin sign-in and mandatory 2FA; dashboard and tenant list; `platform:create-admin` |
 | `Feature/Central` | `CentralSite`, `ErrorPages` | Landing page and workspace finder; error pages per area |
@@ -127,7 +134,7 @@ Available on `$this` in every Pest test.
 | Signature | Does |
 |---|---|
 | `registerModule(string $provider): ModuleManifest` | Registers a module provider for this test as if it were in `config/modules.php`: manifest, routes, and its permissions synced |
-| `entitle(Tenant $tenant, string ...$modules): void` | Entitles a tenant to optional modules. Swaps the bound `EntitlementChecker` for `Fixtures\GrantsModules` (the product's rules plus explicit grants). The other way to entitle one is the real one: a plan with `modules` and a subscription |
+| `entitle(Tenant $tenant, string ...$modules): void` | Adds explicit grants through `Fixtures\GrantsModules`, on top of product rules. Use it for gate tests; commerce tests use `AppStoreManager`, and plan-inclusion tests use a subscribed plan with `modules` |
 
 **`AssertsTenantIsolation`**
 
@@ -171,7 +178,7 @@ through the cycle: move the clock (`$this->travel(8)->days()`, `$this->travelTo(
 
 | Fixture | Use |
 |---|---|
-| `Crm\CrmServiceProvider` | A stand-in optional app (`crm`, non-core): permissions `crm.leads.view` / `.edit`, routes `crm/leads` and `crm/ping`, a sidebar entry, a widget, a trigger. Register it with `registerModule()` |
+| `Crm\CrmServiceProvider` | A compiled-only stand-in app (`crm`): complete catalogue/offers, permissions, routes, sidebar, widget, trigger and lifecycle recorder. Register it, then run `AppCatalogSynchronizer::sync()` for App Store tests |
 | `GrantsModules` | The entitlement checker `entitle()` installs: the product's rules plus explicit grants, so a test about what an entitlement does needs no plan |
 | `TestGateway` | A `PaymentGateway` whose answers the test controls; see `useTestGateway()` |
 | `RecordsTenantJob`, `TenantBoundJob` | Queued jobs that record the tenant they ran in; the second implements `RequiresTenantContext` |
@@ -207,8 +214,14 @@ it('does not serve a note to another workspace', function () {
   The owner holds everything, so the owner proves nothing about permissions.
 - Slugs must be valid, unreserved labels. `test`, `demo`, `dev`, `app`, `api` and the others in
   `platform.reserved_subdomains` are rejected by `TenantProvisioner`.
-- A non-core module is denied unless the workspace's plan includes it. In its tests call `registerModule()` and
-  `entitle()`, and also test the not-entitled case (404). `Feature/Modules/EntitlementTest.php` shows the pattern.
+- A non-core module is denied unless a healthy plan includes it or an effective App Store licence exists. For a
+  gate-only test use `registerModule()` + `entitle()`; for store behaviour register, sync the catalogue, and use
+  `AppStoreManager`. Always test another tenant, the not-entitled 404, and dependency removal.
+- Paid app tests first assert that an open invoice leaves no entitlement, then settle through `PaymentProcessor`
+  (test gateway or audited offline payment) and assert activation. Never call `AppStoreManager::settle()` as a
+  shortcut in an integration test intended to prove payment verification.
+- Uninstall/expiry tests assert that installation, subscription and business rows remain while effective access
+  disappears. Manifest tests sync twice and reject changed versioned fields without a version bump.
 - Dispatch inside `inTenant()` with a block closure: `function (): void { SomeJob::dispatch(); }`. An arrow
   function returns the `PendingDispatch`, which only reaches the queue when it is destroyed, after the tenant
   context has ended.

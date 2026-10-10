@@ -1,7 +1,8 @@
 # Billing
 
-State: end of Phase 2. This page is about **platform billing**: what Oyosend charges its tenants. The reasoning
-is in ADR 0006; this page is how it works and where the code is.
+State: Phase 3 is implemented and verified. This page is about **platform billing**:
+the base plan and separately licensed App Store apps that Oyosend charges to tenants. The reasoning is in ADRs
+0006 and 0009; this page is how it works and where the code is.
 
 Two different things carry this name in the spec. Keep them apart:
 
@@ -14,11 +15,11 @@ Two different things carry this name in the spec. Keep them apart:
 
 ## 1. The model in one paragraph
 
-A workspace has at most one **subscription** to a **plan**. The platform never charges anyone: it issues an
-**invoice**, and the workspace pays it through a **gateway** or an operator records the money. A paid plan is
-switched on only by an invoice that became paid. Time is applied by `billing:run` every hour: it issues the next
-invoice a week ahead, marks a subscription past due when the moment passes unpaid, and expires it when the grace
-period ends. An expired or canceled subscription locks the workspace down to billing; its data is kept.
+A workspace has at most one **subscription** to a base **plan**, plus zero or more App Store
+`subscription_items`. The two commercial lifecycles are independent but use the same invoices, payment
+verification and hourly `billing:run`. The platform never charges automatically: it issues an invoice, and the
+workspace pays through a gateway or an operator records the money. A paid plan or app starts only after that
+invoice is verified as paid. Late recurring items enter grace and then expire; data is kept.
 
 ## 2. Where things are
 
@@ -28,10 +29,13 @@ period ends. An expired or canceled subscription locks the workspace down to bil
 | Subscription | `Core\Billing\Models\Subscription` | One per tenant. `status`, `interval`, `amount` (the price it was taken at), trial / period / grace dates, `cancel_at_period_end`, `pending_plan_id` |
 | Everything a person asks for | `Core\Billing\SubscriptionManager` | `start`, `changePlan`, `cancel`, `resume`, `settle`; `grant` and `extendTrial` for operators |
 | Everything time does | `Core\Billing\BillingCycle` | Run per tenant by `php artisan billing:run [--tenant=slug]`, scheduled hourly in `routes/console.php`. Safe to run twice |
+| App purchases/lifecycle | `Core\AppStore\AppStoreManager` | Free install, paid checkout, verified fulfilment, activation, cancellation, expiry and uninstall |
+| App billing cycle | `Core\AppStore\AppBillingCycle` | App trials, renewal invoices, grace, cancellation and expiry; run by the same `billing:run` command |
 | Invoices | `Core\Billing\InvoiceIssuer`, `Models\Invoice` | Number `INV-{year}-{6 digits}` from one platform-wide counter (`platform_sequences`). `lines` and `billed_to` are snapshots |
-| Payments | `Core\Billing\PaymentProcessor`, `Models\Payment` | `begin` (online), `confirm` (asks the gateway), `recordOffline` (operator) |
+| Settlement routing | `Core\Billing\InvoiceSettlement` | Sends base-plan invoices to `SubscriptionManager`, app purchase/renewal invoices to `AppStoreManager` |
+| Payments | `Core\Billing\PaymentProcessor`, `Models\Payment` | `begin` (online), `confirm` (asks the gateway), `recordOffline` (operator); only verified success reaches settlement |
 | Gateways | `Core\Billing\Contracts\PaymentGateway`, `Gateways\GatewayRegistry` | Registered in `CoreServiceProvider`. `SslCommerzGateway` is the only one |
-| Entitlements | `Core\Entitlements\PlanEntitlementChecker` | Bound to `EntitlementChecker` |
+| Entitlements | `Core\Entitlements\PlanEntitlementChecker` | Merges plan-included modules with effective App Store licences and validates dependencies |
 | Paywall | `Core\Billing\Http\Middleware\EnsureWorkspaceIsSubscribed` (`subscribed`) | On every workspace route that is part of working in the workspace |
 | Limits | `Core\Billing\UsageLimits`, `Core\Modules\LimitDefinition` | Declared in module manifests |
 | Metering | `Core\Billing\UsageMeter`, `Models\UsageRecord` | Idempotent per `(tenant, idempotency_key)` |
@@ -112,10 +116,20 @@ Adding a gateway: implement `PaymentGateway`, register it in `CoreServiceProvide
 credentials in `config/platform.php` (`gateways`) from the environment. `verify()` must get its answer from the
 provider's own API, never from the payload it is handed.
 
-## 6. Entitlements and limits
+## 6. App subscriptions, entitlements and limits
 
-- A plan's `modules` lists the optional module keys it includes. With no optional module in the build yet
-  (Phase 3 onwards), every plan's list is empty and the plan editor says so.
+- A plan's `modules` lists optional modules included in the base price. The App Store can also create an
+  independent entitlement backed by a free licence, trial, one-time purchase or recurring `subscription_item`.
+- The production build currently has no optional business module, so its catalogue and plan-module choices are
+  empty until Phase 4. The App Store flow is tested with the compiled-only `Crm` fixture.
+- App offer types are `free`, `monthly`, `yearly`, `one_time`, `usage_based` and `enterprise`. The latter two are
+  visible catalogue offers but not self-serve. Amounts are integer minor units; app items copy the offer amount,
+  currency and quantity so later manifest price changes do not rewrite an agreement already taken.
+- A no-trial paid purchase creates an `app_purchase` invoice while its installation remains `pending_payment`.
+  Verified settlement activates it and creates the entitlement. Monthly/yearly items renew with `app_renewal`
+  invoices, use the same lead/grace settings as the plan, and deactivate on expiry without deleting app data.
+- App cancellation means `cancel_at_period_end`; it can be resumed before the boundary. A one-time licence does
+  not renew. Uninstall revokes access and ends renewal, but preserves installation, invoice and business history.
 - A module declares what can be capped in its manifest (`limits: [new LimitDefinition(key, kind, count)]`). A
   **gauge** is counted from what exists (`core.members`: memberships plus invitations that can still be accepted).
   A **metered** limit is counted from `UsageMeter` records since the start of the billing period (or of the
@@ -130,9 +144,9 @@ Enforced today: the seat limit when inviting a member. Nothing records metered u
 ## 7. Not built
 
 Coupons and discounts; refund records and credit notes; tax; charging for usage or extra seats on an invoice;
-app subscriptions independent of the plan (`subscription_items`, Phase 3); a revenue dashboard beyond the totals
-on the panel's invoice list; mail for past due and expiry (the invoice and the receipt are the only billing
-mail); PDF invoices (the invoice page prints); automatic charging of a stored payment method.
+calculation for usage-based app offers; a revenue dashboard beyond the totals on the panel's invoice list; mail
+for past due and expiry (the invoice and the receipt are the only billing mail); PDF invoices (the invoice page
+prints); automatic charging of a stored payment method.
 
 Rules that hold for anything added later:
 

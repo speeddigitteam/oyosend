@@ -4,7 +4,7 @@ A multi-tenant business SaaS platform: one workspace per company on its own subd
 CRM, invoicing, marketing, support, automation) added through a built-in App Store. The full product
 specification is [`MASTER_PROMPT.md`](MASTER_PROMPT.md).
 
-**Current state: Phase 2 (Core SaaS & Billing) is complete.** What exists:
+**Current state: Phases 1–3 are complete and verified; Phase 4 CRM is next.** What exists:
 
 - **Foundation (Phase 1):** subdomain tenancy with fail-closed isolation, sign-in with two-factor authentication,
   memberships and invitations, tenant-scoped roles and permissions, an audit trail, the module / entitlement /
@@ -14,10 +14,14 @@ specification is [`MASTER_PROMPT.md`](MASTER_PROMPT.md).
   branches and departments; permissions that reach a person's own, their department's, their branch's or all
   records; shared contacts and companies; plans, subscriptions with trials, invoices and payments; plan limits and
   a metering service; Super Admin management of workspaces, plans and invoices, with audited support access.
+- **App Store (Phase 3):** compiled first-party app catalogue with immutable manifest versions; catalogue,
+  details and My Apps pages; free install and paid invoice checkout; tenant-scoped installations, licences and
+  separately billed subscription items; dependency/lifecycle handling and entitlement-gated execution.
 
-No business app (CRM, HRM, projects, …) and no App Store exists yet. One payment gateway (SSLCommerz) is
-implemented but has not been run against the provider's sandbox; until credentials are set, invoices are paid
-by recording an offline payment in the Super Admin panel. See [`docs/BILLING.md`](docs/BILLING.md).
+No production business app (CRM, HRM, projects, …) is compiled yet, so the catalogue is honestly empty until
+Phase 4; the complete store flow uses a test-only CRM fixture. One payment gateway (SSLCommerz) is implemented
+but has not been run against the provider's sandbox; until credentials are set, invoices are paid by recording
+an offline payment in the Super Admin panel. See [`docs/BILLING.md`](docs/BILLING.md).
 
 ## Stack
 
@@ -57,6 +61,7 @@ Create two databases, `oyosend` and `oyosend_testing`, then:
 ```bash
 php artisan key:generate
 php artisan migrate --seed
+php artisan apps:sync
 npm install
 composer dev
 ```
@@ -89,6 +94,7 @@ cp .env.example .env
 ./vendor/bin/sail up -d
 ./vendor/bin/sail artisan key:generate
 ./vendor/bin/sail artisan migrate --seed
+./vendor/bin/sail artisan apps:sync
 ./vendor/bin/sail npm install
 ./vendor/bin/sail npm run dev
 ```
@@ -140,8 +146,10 @@ are then created in the panel; workspaces can also sign up on the central site.
 | `npm run test` | Vitest. On Windows Git Bash, start it from `D:/…`, not `/d/…` (see `docs/TESTING.md`) |
 | `npm run test:e2e` | Playwright critical flows in Chrome against the isolated `oyosend_e2e_testing` database |
 | `php artisan permissions:sync [--prune]` | Write the permissions declared by modules to the database. Run after adding a permission and on every deploy |
+| `php artisan apps:sync [--prune]` | Mirror compiled optional manifests into the App Store; `--prune` unpublishes modules removed from the build |
 | `php artisan platform:create-admin {email} [--name=] [--role=]` | Create a Super Admin panel account (`super_admin` or `support_admin`). Interactive; the password is asked for |
-| `php artisan billing:run [--tenant=slug]` | Issue due invoices; apply overdue, expiry and cancellation. Scheduled hourly; safe to run by hand |
+| `php artisan billing:run [--tenant=slug]` | Advance base and app billing: invoices, overdue, expiry and cancellation. Scheduled hourly; safe to run by hand |
+| `php artisan apps:run-scheduled` | Dispatch due manifest jobs for entitled tenants; scheduled every minute |
 
 Never run `migrate:fresh` or any destructive database command against anything but the disposable test database.
 
@@ -161,5 +169,6 @@ CI is `.github/workflows/ci.yml` (Pint, Larastan, Pest, vue-tsc, Vitest, build).
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Environment, DNS/TLS, Nginx, workers, deploy steps |
 | [`resources/js/README.md`](resources/js/README.md) | Frontend guide and the design language |
 | [`docs/BILLING.md`](docs/BILLING.md) | Plans, subscriptions, invoices, payments, gateways, limits |
-| `docs/APP_STORE.md`, `AUTOMATION.md`, `INTEGRATIONS.md` | What exists today for each, and what is planned |
-| [`docs/adr/`](docs/adr) | Decisions: tenancy, RBAC, identity and sessions, local environment, design system, platform billing, permission scopes, sign-up and support access |
+| [`docs/APP_STORE.md`](docs/APP_STORE.md) | Catalogue sync, licences, lifecycle, separate app billing and entitlement gates |
+| `docs/AUTOMATION.md`, `docs/INTEGRATIONS.md` | What exists today for each, and what is planned |
+| [`docs/adr/`](docs/adr) | Decisions: tenancy, RBAC, identity/sessions, local environment, design system, billing, scopes, sign-up/support access and the first-party App Store |

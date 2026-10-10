@@ -1,8 +1,8 @@
 # Database
 
-State: end of Phase 2. Sections 1–3 describe the schema that exists (`database/migrations/`). Section 4 is an
-outline of tables later phases will add. Section 5 is the dedicated-database strategy the spec asks for (3.4);
-**only its routing seam exists today.**
+State: Phase 3 schema is migrated and verified. Sections 1–3b describe the
+schema in `database/migrations/`. Section 4 outlines later tables. Section 5 is the dedicated-database strategy
+the spec asks for (3.4); **only its routing seam exists today.**
 
 One MySQL 8 database, `utf8mb4` / `utf8mb4_unicode_ci`, strict mode. The application clock is UTC
 (`config/app.php`); a tenant's timezone is applied when values are displayed.
@@ -19,16 +19,18 @@ One MySQL 8 database, `utf8mb4` / `utf8mb4_unicode_ci`, strict mode. The applica
 | Enums | Short `VARCHAR` cast to a PHP enum (`status`, `role`, `scope`). No MySQL `ENUM` |
 | Polymorphic columns | Store the morph alias (`user`, `role`), never a class name. `Relation::requireMorphMap()` is on; aliases come from module manifests |
 | Soft deletes | Only where a record must be recoverable. Today: `tenants`, `contacts`, `companies` |
-| Secrets | Encrypted casts (`two_factor_secret`, `two_factor_recovery_codes`) or a one-way hash (`invitations.token_hash`, `workspace_registrations.token_hash` and `.password`, `impersonations.token_hash`). Never plain |
+| Secrets | Encrypted casts (`two_factor_secret`, recovery codes, `app_installations.settings`) or a one-way hash (`invitations.token_hash`, registration token/password, `impersonations.token_hash`). Never plain |
 | Migrations | Reversible (`down()` on every one). `DB::prohibitDestructiveCommands()` is on in production |
 | Raw queries | `DB::table()` bypasses both the tenant scope and the connection resolver. It must filter by `tenant_id` itself and is acceptable only for central tables |
 | Search filters | User text goes into `LIKE` only through `App\Core\Support\Like` (`contains()`, `escape()`), so `%` and `_` are matched as typed |
 
 Intentional exceptions to "unique indexes lead with `tenant_id`": `users.email` (a user is a platform-wide
 identity, ADR 0003); `invitations.token_hash` (the SHA-256 of a 64-character random token);
-`subscriptions.tenant_id` itself (one subscription per tenant); and three platform-wide identifiers on billing
-tables - `invoices.number`, `payments.reference` and `payments(gateway, gateway_reference)` - which must be
-unique across tenants because a gateway and an accountant see them without a tenant.
+`subscriptions.tenant_id` itself (one base subscription per tenant); `app_entitlements.license_id` (a globally
+safe licence identifier); and three platform-wide identifiers on billing tables — `invoices.number`,
+`payments.reference` and `payments(gateway, gateway_reference)` — which must be unique across tenants because a
+gateway and an accountant see them without a tenant. Catalogue constraints (`apps.module_key`,
+`app_versions(app_id, version)`) have no tenant because the compiled catalogue is platform-wide.
 
 "One live contact per email address" is not a unique index either: deleted contacts are kept, so validation
 enforces it among the rows that are not deleted.
@@ -49,7 +51,9 @@ enforces it among the rows that are not deleted.
 | `contacts`, `companies` | Tenant-owned | `Contact`, `Company` | `BelongsToTenant` (follow the tenant connection); record scopes through `HasRecordOwner` |
 | `branches`, `departments` | Tenant-scoped rows, pinned to the central connection | `Branch`, `Department` | `BelongsToTenant` + `UsesCentralConnection`: memberships reference them and authorization reads them on every request |
 | `plans` | Central catalogue | `Plan` | Same for every tenant; managed in the panel |
+| `apps`, `app_versions` | Central catalogue | `CatalogApp`, `AppVersion` | Synced from compiled manifests by `apps:sync`; a row alone cannot load code |
 | `subscriptions`, `invoices`, `payments`, `usage_records` | Central, keyed by `tenant_id` | `Subscription`, `Invoice`, `Payment`, `UsageRecord` | `BelongsToTenant` + `UsesCentralConnection`: a workspace sees only its own; the panel crosses tenants explicitly |
+| `app_installations`, `app_entitlements`, `subscription_items` | Central, keyed by `tenant_id` | `AppInstallation`, `AppEntitlement`, `SubscriptionItem` | `BelongsToTenant` + `UsesCentralConnection`; separately licensed app state and history |
 | `platform_sequences`, `platform_settings` | Central | — / `PlatformSettings` | Not tenant data |
 | `workspace_registrations` | Central | `WorkspaceRegistration` | A sign-up before any tenant exists |
 | `impersonations` | Central, keyed by `tenant_id` | `Impersonation` | Platform's record of support sessions; read by the panel and by the redeeming workspace |
@@ -284,7 +288,7 @@ Several rows may have no `code`: MySQL does not compare NULLs in a unique index.
 | `tenant_id` | ULID, FK (cascade) | |
 | `subscription_id` | ULID null, FK → `subscriptions` (null on delete) | |
 | `number` | varchar(30), **unique** | `INV-2026-000042`, one counter for the platform |
-| `kind` | varchar(20) | `InvoiceKind`: `subscription`, `renewal`, `change` |
+| `kind` | varchar(20) | `InvoiceKind`: base `subscription`, `renewal`, `change`; app `app_purchase`, `app_renewal` |
 | `status` | varchar(20) | `InvoiceStatus`: `open`, `paid`, `void` |
 | `plan_id`, `interval`, `period_start`, `period_end` | ULID null FK → `plans` (null on delete), varchar(10) null, ts, ts | What paying it buys |
 | `currency`, `subtotal_amount`, `credit_amount`, `total_amount` | char(3), unsigned bigint ×3 | `total = subtotal − credit` |
@@ -340,6 +344,68 @@ Pruned daily: unconfirmed rows a day after they expire, completed rows after a m
 |---|---|---|
 | `platform_settings` | `key` varchar(100) PK, `value` json, timestamps | Only settings that differ from `config/platform.php` are stored |
 | `impersonations` | `id` ULID, `platform_user_id` FK → `platform_users` (cascade), `tenant_id` FK (cascade), `user_id` FK → `users` (cascade), `reason` varchar(500), `token_hash` char(64) null **unique**, `token_expires_at` ts, `started_at` ts, `expires_at` timestamp, `ended_at` ts, `ip_address`, timestamps | Indexes `(tenant_id, created_at)`, `(platform_user_id, created_at)` |
+## 3b. Phase 3 App Store tables
+
+Migration `2026_10_10_000060_create_app_store_tables.php`.
+
+### apps, app_versions
+
+| Table | Columns | Keys and indexes |
+|---|---|---|
+| `apps` | `id` ULID, `module_key` varchar(60), name, description, category, icon, `is_featured`, `is_popular`, `is_published`, `current_version_id` null FK, timestamps | `UNIQUE(module_key)`; indexes for published/category/name and featured catalogue views |
+| `app_versions` | `id` ULID, `app_id` FK, version, compatibility, JSON `features`, `screenshots`, `offers`, `dependencies`, `permissions`, `routes`, `scheduled_jobs`, `settings`, release notes, SHA-256 `manifest_hash`, `published_at`, timestamps | `UNIQUE(app_id, version)` |
+
+The two-way current-version relationship is created after both tables exist. `apps:sync` is the only catalogue
+writer: it copies registered optional manifests, refuses a changed hash for an existing version, advances
+`current_version_id`, and can unpublish missing modules with `--prune`. Old versions are retained.
+
+### app_installations
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | ULID, PK | |
+| `tenant_id`, `app_id` | ULID FKs | Tenant cascades; catalogue app restricts deletion; `UNIQUE(tenant_id, app_id)` |
+| `app_version_id` | ULID null FK | Version last installed/activated; null on version deletion |
+| `status` | varchar(24) | `pending_payment`, `active`, `inactive`, `uninstalled` |
+| `deactivation_reason` | varchar(24) null | `manual` or `licence_expired`; prevents a renewal from overriding a deliberate manual deactivation |
+| `settings` | LONGTEXT null | Whole typed settings array encrypted by the model's `encrypted:array` cast; no plaintext secret column |
+| `installed_at`, `activated_at`, `deactivated_at`, `uninstalled_at` | ts | State history timestamps; the row is reused on reinstall |
+
+Index `(tenant_id, status)`. Uninstall updates this row; it never deletes the module's business data.
+
+### subscription_items
+
+| Column | Type | Notes |
+|---|---|---|
+| `id`, `tenant_id`, `app_id`, `installation_id` | ULID/FKs | Central app commercial item scoped to one workspace and installation |
+| `offer_key`, `billing_type`, `status` | varchar | Type: free/monthly/yearly/one-time/usage-based/enterprise; states pending, trialing, active, past due, canceled, expired |
+| `currency`, `amount`, `quantity` | char(3) null, unsigned bigint, unsigned int | Offer snapshot; amount is per unit in minor units |
+| trial / current period / grace dates | ts | Same time model as base subscriptions, but independent |
+| `cancel_at_period_end`, `canceled_at`, `ended_at` | bool / ts | Renewal cancellation and final state |
+
+Indexes `(tenant_id, app_id, status)`, `(status, current_period_end)` and `(status, trial_ends_at)` feed tenant
+reads and `billing:run`.
+
+### app_entitlements
+
+| Column | Type | Notes |
+|---|---|---|
+| `id`, `tenant_id`, `app_id`, `installation_id` | ULID/FKs | Tenant-scoped licence for one installed app |
+| `subscription_item_id` | ULID null FK | Null for free/manual licence; null on item deletion so the historical grant remains |
+| `status`, `source` | varchar | Status active/expired/revoked; source free/purchase/trial/manual |
+| `license_id` | ULID, unique | Public-safe licence identifier, independent of the row id |
+| `valid_from`, `valid_until`, `revoked_at` | timestamps | Effective time window; null `valid_until` means no scheduled end |
+
+Indexes `(tenant_id, app_id, status)` and `(tenant_id, status, valid_until)`. An entitlement grants access only
+while it is effective **and** its installation is active; dependency validation can still remove it from the
+effective module set.
+
+### invoices (added columns)
+
+`app_id` and `subscription_item_id` are nullable FKs for `app_purchase` / `app_renewal` invoices. Base-plan
+invoices continue to use `subscription_id` and `plan_id`. Index `(tenant_id, app_id, status)` supports app invoice
+history. Invoice lines remain immutable snapshots.
+
 ## 4. Later tables (outline only)
 
 Names come from spec section 23. Nothing below is designed in detail or migrated. Spec 3.4 names plans, apps and
@@ -350,10 +416,7 @@ not name, to be confirmed when they are designed.
 |---|---|---|---|---|
 | Core SaaS | 8 | `notifications` | Tenant-owned | In-app, email, SMS, WhatsApp, realtime; read/unread; delivery tracking |
 | Core SaaS | not assigned | `files`, `integrations`, `api_credentials`, `webhooks` | Tenant-owned | Files polymorphic, private, tenant-prefixed; credentials encrypted; webhook idempotency by provider event id |
-| Billing | 3 | `subscription_items` | Central, keyed by `tenant_id` † | App subscriptions independent of the base plan, per-seat pricing |
 | Billing | not assigned | coupons, refunds | Central † | Spec section 16 lists them; nothing is designed |
-| App Store | 3 | `apps`, `app_versions` | Central catalogue | Apps are first-party modules; tenants cannot upload code |
-| App Store | 3 | `app_installations`, `app_entitlements` | Central, keyed by `tenant_id` † | Entitlement only after server-side payment verification; uninstall never deletes business data |
 | Automation | 10 | `workflows`, `workflow_versions` | Tenant-owned | Versioned JSON graphs; only published versions execute |
 | Automation | 10 | `workflow_executions`, `workflow_steps`, `workflow_logs` | Tenant-owned | Persisted step state, step-level logs, idempotency |
 

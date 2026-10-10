@@ -150,11 +150,14 @@ Scheduled in `routes/console.php`:
 
 | Command | When | Does |
 |---|---|---|
-| `billing:run` | hourly | Issues invoices that are due, marks subscriptions past due, expires and cancels them. **Billing does not move without the scheduler** |
+| `billing:run` | hourly | Advances base-plan and separately billed app subscriptions: invoices, past due, grace, expiry and cancellation. **Billing does not move without the scheduler** |
+| `apps:run-scheduled` | every minute | Enters each accessible workspace and dispatches due compiled module jobs only when entitled; the worker re-checks the compiled definition and entitlement before execution |
 | `model:prune` (sign-ups) | daily | Removes registrations whose confirmation link expired |
 
 `billing:run` is safe to run by hand and to run twice; `--tenant=acme` limits it to one workspace. Horizon's
-metrics graphs stay empty until `horizon:snapshot` is scheduled.
+metrics graphs stay empty until `horizon:snapshot` is scheduled. `apps:run-scheduled` also accepts `--tenant`;
+the scheduler uses `withoutOverlapping`, and a central-cache tenant/module/job/time-slot key makes repeated runs
+idempotent. Its every-minute/hourly/daily frequencies are evaluated in each tenant's timezone.
 
 ## 6. Deploy sequence
 
@@ -163,6 +166,7 @@ composer install --no-dev --optimize-autoloader
 npm ci && npm run build
 php artisan migrate --force
 php artisan permissions:sync          # every deploy; idempotent
+php artisan apps:sync --prune          # after providers and migrations are live; idempotent
 php artisan config:cache
 php artisan route:cache               # untested with this app, see section 9
 php artisan view:cache
@@ -172,6 +176,11 @@ php artisan horizon:terminate
 - `permissions:sync` writes the permissions declared by module manifests into `permissions`. Skipping it after a
   release that adds permissions makes role editing fail with "The permission catalogue is out of date".
   Use `--prune` only on purpose: it deletes undeclared permissions with all their grants in every tenant.
+- `apps:sync --prune` mirrors the optional manifests compiled into this release. It adds an immutable snapshot of
+  versioned catalogue/contract fields, refuses changed versioned fields under an existing version, and
+  unpublishes apps no longer in the build only when no live installation, active licence or live commercial item
+  remains.
+  Run it after migrations and permission sync. It never deletes installations, licences or tenant business data.
 - Migrations all live in `database/migrations` and run against the one central database. The package's
   `tenants:migrate` is not used. Destructive commands (`migrate:fresh`, `db:wipe`, …) are blocked in production.
 - `php artisan db:seed --force` in production only syncs permissions; demo data is local-only.

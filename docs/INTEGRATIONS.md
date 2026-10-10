@@ -1,6 +1,6 @@
 # Integrations
 
-State: end of Phase 2. **There is no integration centre**: no OAuth connections, no provider adapters for
+State: after Phase 3. **There is no integration centre**: no OAuth connections, no provider adapters for
 messaging, no outgoing webhooks, no API tokens, no tables for any of it. The one outside service the application
 can talk to is a payment gateway, and only once its credentials are configured.
 
@@ -38,6 +38,8 @@ integration status, rate-limit monitoring, health reporting, reconnection workfl
 Rules the spec fixes:
 
 - Every integration sits behind an interface and is replaceable.
+- A module-owned integration is connectable, dispatchable and callable only while the workspace is entitled to
+  that module. Every interactive route, queued delivery and incoming callback re-checks server-side entitlement.
 - Adapters handle expired credentials, API failures, network errors, revoked permissions and duplicate webhooks
   (idempotency by provider event id).
 - Incoming webhooks are signature-verified before anything else, then the tenant is resolved.
