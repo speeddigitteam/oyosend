@@ -5,23 +5,21 @@ declare(strict_types=1);
 namespace Tests\Support\Fixtures;
 
 use App\Core\Entitlements\Contracts\EntitlementChecker;
-use App\Core\Entitlements\CoreModulesEntitlementChecker;
+use App\Core\Entitlements\PlanEntitlementChecker;
 use App\Core\Modules\ModuleRegistry;
 use App\Core\Tenancy\Models\Tenant;
 
 /**
- * The Phase 1 entitlement rules plus explicit grants made by a test - a
- * stand-in for the real entitlement store (Phase 2).
+ * The product's entitlement rules plus explicit grants made by a test - for
+ * tests about what an entitlement does, which should not have to set up a
+ * plan and a subscription to get one.
  */
 final class GrantsModules implements EntitlementChecker
 {
     /** @var array<string, list<string>> tenant id => module keys */
     private array $grants = [];
 
-    public function __construct(
-        private readonly CoreModulesEntitlementChecker $core,
-        private readonly ModuleRegistry $modules,
-    ) {}
+    public function __construct(private readonly ModuleRegistry $modules) {}
 
     public function grant(Tenant $tenant, string ...$modules): void
     {
@@ -44,6 +42,10 @@ final class GrantsModules implements EntitlementChecker
             fn (string $module): bool => $this->modules->has($module),
         );
 
-        return array_values(array_unique([...$this->core->entitledModules($tenant), ...$granted]));
+        // Asked for on every call: this fixture outlives a simulated request,
+        // the product's checker (scoped, with a per-request memo) must not.
+        $fromPlan = app(PlanEntitlementChecker::class)->entitledModules($tenant);
+
+        return array_values(array_unique([...$fromPlan, ...$granted]));
     }
 }

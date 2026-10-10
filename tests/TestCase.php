@@ -12,6 +12,7 @@ use Illuminate\Support\Sleep;
 use Inertia\Inertia;
 use RuntimeException;
 use Tests\Support\AssertsTenantIsolation;
+use Tests\Support\InteractsWithBilling;
 use Tests\Support\InteractsWithModules;
 use Tests\Support\InteractsWithPlatform;
 use Tests\Support\InteractsWithTenants;
@@ -20,6 +21,7 @@ use Tests\Support\InteractsWithTwoFactor;
 abstract class TestCase extends BaseTestCase
 {
     use AssertsTenantIsolation;
+    use InteractsWithBilling;
     use InteractsWithModules;
     use InteractsWithPlatform;
     use InteractsWithTenants;

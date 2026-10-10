@@ -83,6 +83,33 @@ final class ModuleRegistry
     }
 
     /**
+     * Everything a plan can cap, across all modules.
+     *
+     * @return array<string, LimitDefinition> keyed by limit key
+     */
+    public function limits(): array
+    {
+        $index = [];
+
+        foreach ($this->modules as $manifest) {
+            foreach ($manifest->limits as $limit) {
+                if (isset($index[$limit->key])) {
+                    throw new InvalidArgumentException("Limit [{$limit->key}] is registered twice.");
+                }
+
+                $index[$limit->key] = $limit;
+            }
+        }
+
+        return $index;
+    }
+
+    public function findLimit(string $key): ?LimitDefinition
+    {
+        return $this->limits()[$key] ?? null;
+    }
+
+    /**
      * Modules whose dependencies are not registered - a build-time mistake.
      *
      * @return array<string, list<string>> module key => missing dependency keys

@@ -7,6 +7,7 @@ namespace App\Core\Identity\Actions;
 use App\Core\Access\Models\Role;
 use App\Core\Access\RoleManager;
 use App\Core\Audit\AuditLogger;
+use App\Core\Billing\UsageLimits;
 use App\Core\Identity\Events\MemberInvited;
 use App\Core\Identity\Mail\InvitationMail;
 use App\Core\Identity\Models\Invitation;
@@ -25,6 +26,7 @@ final class InviteMember
         private readonly RoleManager $roles,
         private readonly AuditLogger $audit,
         private readonly TenantContext $context,
+        private readonly UsageLimits $limits,
     ) {}
 
     /**
@@ -51,6 +53,12 @@ final class InviteMember
             throw ValidationException::withMessages([
                 'email' => __('This person is already a member of the workspace.'),
             ]);
+        }
+
+        // An invitation holds a seat. Inviting the same address again replaces
+        // the invitation that already holds one.
+        if (! Invitation::query()->pending()->where('email', $email)->exists()) {
+            $this->limits->ensure('core.members', 1, 'email');
         }
 
         // The token is shown to the invitee once, by email, and only its hash is kept.

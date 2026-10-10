@@ -28,6 +28,7 @@ final readonly class ModuleManifest
      * @param  list<class-string<TriggerDefinition>>  $triggers  Automation triggers.
      * @param  list<class-string<ActionDefinition>>  $actions  Automation actions.
      * @param  array<string, class-string>  $morphMap  Morph aliases for the module's models.
+     * @param  list<LimitDefinition>  $limits  What a plan can cap for this module.
      */
     public function __construct(
         public string $key,
@@ -41,6 +42,7 @@ final readonly class ModuleManifest
         public array $triggers = [],
         public array $actions = [],
         public array $morphMap = [],
+        public array $limits = [],
     ) {
         // `D`: without it `$` would also accept a key that ends in a line break.
         if (preg_match('/^[a-z][a-z0-9_]*$/D', $key) !== 1) {
@@ -52,6 +54,12 @@ final readonly class ModuleManifest
                 throw new InvalidArgumentException(
                     "Permission [{$permission->name}] must be prefixed with its module key [{$key}.].",
                 );
+            }
+        }
+
+        foreach ($limits as $limit) {
+            if ($limit->module() !== $key) {
+                throw new InvalidArgumentException("Limit [{$limit->key}] must be prefixed with its module key [{$key}.].");
             }
         }
     }
