@@ -38,6 +38,6 @@ export default {
     apps: {
         title: 'Apps',
         empty: 'No apps installed yet',
-        emptyBody: 'CRM, Projects, HRM, Invoicing and the other apps will be installable from the App Store once it opens.',
+        emptyBody: 'Add apps such as CRM and Projects from the App Store.',
     },
 };

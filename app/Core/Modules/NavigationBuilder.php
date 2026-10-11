@@ -41,7 +41,9 @@ final class NavigationBuilder
             }
 
             foreach ($manifest->navigation as $item) {
-                if ($item->permission !== null && ! $this->access->allows($user, $item->permission)) {
+                $permissions = array_values(array_filter([$item->permission, ...$item->anyPermissions]));
+
+                if ($permissions !== [] && ! collect($permissions)->contains(fn (string $permission): bool => $this->access->allows($user, $permission))) {
                     continue;
                 }
 
@@ -49,18 +51,28 @@ final class NavigationBuilder
                     continue;
                 }
 
-                $sections[$item->section][] = $item;
+                $sections[$item->section][$manifest->key][] = $item;
             }
         }
 
         $navigation = [];
 
-        foreach ($sections as $key => $items) {
-            if ($items === []) {
+        foreach ($sections as $key => $modules) {
+            if ($modules === []) {
                 continue;
             }
 
-            usort($items, static fn (NavigationItem $a, NavigationItem $b): int => $a->order <=> $b->order);
+            // A module's entries stay together, so two apps never interleave: modules follow the
+            // order of their first entry (ties keep registration order), entries their own order.
+            $modules = array_map(static function (array $items): array {
+                usort($items, static fn (NavigationItem $a, NavigationItem $b): int => $a->order <=> $b->order);
+
+                return $items;
+            }, $modules);
+
+            uasort($modules, static fn (array $a, array $b): int => $a[0]->order <=> $b[0]->order);
+
+            $items = array_merge(...array_values($modules));
 
             $navigation[] = [
                 'key' => $key,

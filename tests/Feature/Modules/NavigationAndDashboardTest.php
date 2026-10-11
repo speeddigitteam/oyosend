@@ -121,6 +121,41 @@ describe('the sidebar', function () {
         expect(array_column($sections[0]['items'], 'key'))->toBe(['profile', 'dashboard', 'contacts']);
     });
 
+    it('keeps each module\'s entries together instead of interleaving them by order', function () {
+        $registry = app(ModuleRegistry::class);
+
+        $registry->register(new ModuleManifest(
+            key: 'alpha',
+            name: 'Alpha',
+            version: '1.0.0',
+            core: true,
+            navigation: [
+                new NavigationItem('alphaLast', 'core.settings.security', 'shield', section: 'apps', order: 90),
+                new NavigationItem('alphaFirst', 'core.settings.profile', 'user', section: 'apps', order: 10),
+                new NavigationItem('alphaSettings', 'core.audit.index', 'settings', section: 'manage', order: 35),
+            ],
+        ));
+        $registry->register(new ModuleManifest(
+            key: 'beta',
+            name: 'Beta',
+            version: '1.0.0',
+            core: true,
+            navigation: [
+                // Numbers that fall between Alpha's: Beta still comes after all of Alpha.
+                new NavigationItem('betaSecond', 'core.organization.index', 'network', section: 'apps', order: 16),
+                new NavigationItem('betaFirst', 'core.members.index', 'users', section: 'apps', order: 15),
+            ],
+        ));
+        app(PlanEntitlementChecker::class)->forget();
+
+        $sections = collect($this->inTenant($this->acme, fn (): array => app(NavigationBuilder::class)->for($this->ownerOf($this->acme))))
+            ->mapWithKeys(fn (array $section): array => [$section['key'] => array_column($section['items'], 'key')]);
+
+        expect($sections['apps'])->toBe(['appStore', 'alphaFirst', 'alphaLast', 'betaFirst', 'betaSecond'])
+            // An app's own settings entry follows the core entries rather than splitting them.
+            ->and($sections['manage'])->toBe(['members', 'roles', 'organization', 'audit', 'workspaceSettings', 'billing', 'alphaSettings']);
+    });
+
     it('cannot be built without a tenant', function () {
         expect(fn () => app(NavigationBuilder::class)->for($this->ownerOf($this->acme)))
             ->toThrow(MissingTenantContextException::class);
