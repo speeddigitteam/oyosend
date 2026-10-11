@@ -1,8 +1,8 @@
 # Modules
 
 How to add a first-party module. The contract is in `app/Core/Modules`; the production build registers `core` and
-the optional `crm` business app. CRM is the reference production module under `app/Modules/CRM` and is documented
-in `docs/CRM.md`. A small non-core App Store fixture remains in `tests/Support/Fixtures/Crm` under the distinct
+the optional `crm` and `projects` business apps. They are documented in `docs/CRM.md` and `docs/PROJECTS.md`.
+A small non-core App Store fixture remains in `tests/Support/Fixtures/Crm` under the distinct
 module key `test_crm`.
 
 ## 1. What a module is
@@ -115,6 +115,8 @@ upgrade hook; automatic upgrade orchestration is not built.
 `new NavigationItem(key, route, icon, permission: null, section: 'workspace', order: 100, activePattern: null)`
 
 - `section` is `workspace`, `apps` or `manage` (`NavigationBuilder::SECTIONS`). Optional apps use `apps`.
+- Within a section a module's entries stay together: modules are ordered by their lowest `order` there, entries
+  by their own. `order` therefore only needs to be unique within the module, and two apps never interleave.
 - An item is sent to the browser only if the tenant is entitled to the module, the user holds `permission` (when
   set) and the named route exists. That is a convenience; the route enforces access again.
 - Label: `shell.nav.{key}` in `resources/js/Core/i18n/locales/*/shell.ts`. Icon: a name registered in

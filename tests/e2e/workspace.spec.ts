@@ -21,7 +21,7 @@ test.describe('signing in to a workspace', () => {
         noErrors();
     });
 
-    test('the App Store shows the production CRM catalogue and an honest My Apps list', async ({ page }) => {
+    test('the App Store shows the production app catalogue and an honest My Apps list', async ({ page }) => {
         const noErrors = watchForErrors(page);
 
         await signIn(page, 'acme', 'owner@acme.test');
@@ -29,6 +29,7 @@ test.describe('signing in to a workspace', () => {
 
         await expect(page.getByRole('heading', { name: 'App Store', level: 1 })).toBeVisible();
         await expect(page.getByText('CRM & Sales', { exact: true })).toBeVisible();
+        await expect(page.getByText('Project Management', { exact: true })).toBeVisible();
         await expect(page.getByText('No optional apps are compiled into this build yet')).toHaveCount(0);
         await page.getByRole('link', { name: 'My apps', exact: true }).click();
         await expect(page.getByRole('heading', { name: 'My apps', level: 1 })).toBeVisible();

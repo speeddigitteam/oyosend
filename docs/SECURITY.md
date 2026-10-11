@@ -1,6 +1,6 @@
 # Security
 
-State: Phases 1–4 are implemented. Each mechanism is listed with the file
+State: Phases 1–5 are implemented. Each mechanism is listed with the file
 that enforces it. Layers with nothing to protect yet are marked **not applicable yet**. Section 8 lists open work.
 
 Principles the code follows: the tenant comes from the hostname only; tenant, membership, entitlement and
@@ -205,7 +205,23 @@ for as typed (member search, audit search, the Super Admin tenant list).
 - CRM's mutating automation actions persist the output under a tenant/action/idempotency-key unique constraint in
   the same transaction as the mutation. Cross-process retries return that receipt instead of applying work twice.
 
-## 5d. Browser security headers
+## 5d. Project records, files and client grants
+
+- The `projects` route group requires tenant resolution, `entitled:projects`, authentication, active membership,
+  a healthy subscription and its route-specific permission. Project/task lists and bound records apply
+  `RecordAccess`; inaccessible and mismatched nested records answer 404.
+- Client/company selectors and every owner/member/assignee/watcher/approver id are revalidated as active records
+  in the current tenant. Team work points to `TenantMembership`, never a global `User`.
+- Task parent, milestone, sprint and dependency targets must belong to the same project. Dependency writes reject
+  self-links and cycles.
+- Attachment names, paths, types and sizes are server-controlled and bytes use `TenantStorage`. A download
+  inherits current parent access.
+- Client access is an explicit revocable row. Invite secrets are random and only their SHA-256 hashes are stored;
+  expiry, project/contact linkage, internal-comment visibility and financial visibility are checked server-side.
+- Project money, rates, durations, progress and allocations are bounded integers. Automation actions persist a
+  durable tenant/action/idempotency receipt atomically with their mutation.
+
+## 5e. Browser security headers
 
 `App\Core\Http\Middleware\SecurityHeaders`, appended to the `web` group:
 
@@ -265,7 +281,7 @@ are ignored.
 
 ## 8. Known limitations
 
-Open after Phase 4 implementation. Decide and fix, or accept and record.
+Open after Phase 5 implementation. Decide and fix, or accept and record.
 
 | # | Limitation | Where |
 |---|---|---|

@@ -59,6 +59,7 @@ const PUBLIC_WORKSPACE_ROUTES = [
     'auth.handoff',
     'auth.impersonate',
     'core.locale.update',
+    'projects.portal.show', 'projects.portal.comments.store',
 ];
 
 /**

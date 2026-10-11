@@ -55,6 +55,28 @@ const DECLARED_BY_CRM = [
     'crm.targets.view',
 ];
 
+const DECLARED_BY_PROJECTS = [
+    'projects.approvals.decide',
+    'projects.approvals.request',
+    'projects.approvals.view',
+    'projects.expenses.approve',
+    'projects.expenses.manage',
+    'projects.expenses.view',
+    'projects.projects.edit',
+    'projects.projects.manage_financials',
+    'projects.projects.manage_members',
+    'projects.projects.view',
+    'projects.reports.view',
+    'projects.settings.manage',
+    'projects.tasks.assign',
+    'projects.tasks.comment',
+    'projects.tasks.edit',
+    'projects.tasks.view',
+    'projects.time.approve',
+    'projects.time.log',
+    'projects.time.view',
+];
+
 beforeEach(function () {
     $this->synchronizer = app(PermissionSynchronizer::class);
     $this->names = fn (): array => Permission::query()->orderBy('name')->pluck('name')->all();
@@ -67,12 +89,13 @@ it('creates the permissions the registered modules declare', function () {
 
     sort($result['created']);
 
-    expect($result['created'])->toBe([...DECLARED_BY_CORE, ...DECLARED_BY_CRM])
+    expect($result['created'])->toBe([...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_PROJECTS])
         ->and($result['stale'])->toBe([])
         ->and($result['pruned'])->toBe([])
-        ->and(($this->names)())->toBe([...DECLARED_BY_CORE, ...DECLARED_BY_CRM])
-        ->and(Permission::query()->where('guard_name', 'web')->where('module', 'core')->count())->toBe(16)
-        ->and(Permission::query()->where('guard_name', 'web')->where('module', 'crm')->count())->toBe(24);
+        ->and(($this->names)())->toBe([...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_PROJECTS])
+        ->and(Permission::query()->where('guard_name', 'web')->where('module', 'core')->count())->toBe(count(DECLARED_BY_CORE))
+        ->and(Permission::query()->where('guard_name', 'web')->where('module', 'crm')->count())->toBe(count(DECLARED_BY_CRM))
+        ->and(Permission::query()->where('guard_name', 'web')->where('module', 'projects')->count())->toBe(count(DECLARED_BY_PROJECTS));
 });
 
 it('is idempotent', function () {
@@ -96,8 +119,9 @@ it('picks up the permissions of a module added later', function () {
 
     expect($result['created'])->toBe(['test_crm.leads.edit', 'test_crm.leads.view'])
         ->and(Permission::query()->where('module', 'test_crm')->count())->toBe(2)
-        ->and(Permission::query()->where('module', 'crm')->count())->toBe(24)
-        ->and(Permission::query()->where('module', 'core')->count())->toBe(16);
+        ->and(Permission::query()->where('module', 'crm')->count())->toBe(count(DECLARED_BY_CRM))
+        ->and(Permission::query()->where('module', 'core')->count())->toBe(count(DECLARED_BY_CORE))
+        ->and(Permission::query()->where('module', 'projects')->count())->toBe(count(DECLARED_BY_PROJECTS));
 });
 
 it('corrects the module a permission is filed under', function () {
@@ -143,7 +167,7 @@ describe('permissions no module declares any more', function () {
             ->and(Permission::query()->whereKey($this->legacy->id)->exists())->toBeFalse()
             ->and(DB::table('role_has_permissions')->where('permission_id', $this->legacy->id)->count())->toBe(0)
             // Everything still declared survives, grants included.
-            ->and(($this->names)())->toBe([...DECLARED_BY_CORE, ...DECLARED_BY_CRM])
+            ->and(($this->names)())->toBe([...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_PROJECTS])
             ->and(app(RoleManager::class)->grantedNames($this->roleOf($this->acme, Role::MANAGER)))
             ->toBe(['core.apps.view', 'core.contacts.manage', 'core.contacts.view', 'core.members.invite', 'core.members.view', 'core.organization.view', 'core.roles.view']);
     });
@@ -160,12 +184,14 @@ describe('permissions no module declares any more', function () {
 
 describe('php artisan permissions:sync', function () {
     it('reports what it added', function () {
+        $declared = [...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_PROJECTS];
+
         $this->artisan('permissions:sync')
-            ->expectsOutputToContain('40 permission(s) added.')
+            ->expectsOutputToContain(count($declared).' permission(s) added.')
             ->expectsOutputToContain('core.members.view')
             ->assertSuccessful();
 
-        expect(($this->names)())->toBe([...DECLARED_BY_CORE, ...DECLARED_BY_CRM]);
+        expect(($this->names)())->toBe($declared);
 
         $this->artisan('permissions:sync')->expectsOutputToContain('0 permission(s) added.')->assertSuccessful();
     });
@@ -186,6 +212,6 @@ describe('php artisan permissions:sync', function () {
             ->doesntExpectOutputToContain('Re-run with --prune')
             ->assertSuccessful();
 
-        expect(($this->names)())->toBe([...DECLARED_BY_CORE, ...DECLARED_BY_CRM]);
+        expect(($this->names)())->toBe([...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_PROJECTS]);
     });
 });

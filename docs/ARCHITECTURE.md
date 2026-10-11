@@ -1,6 +1,6 @@
 # Architecture
 
-State: Phases 1–4, including the App Store and CRM, are implemented. This page describes what is
+State: Phases 1–5, including the App Store, CRM and Projects, are implemented. This page describes what is
 in the code. Anything not built is listed in [section 12](#12-not-built-yet). Decisions are in `docs/adr/`.
 
 ## 1. Shape
@@ -19,11 +19,11 @@ in the code. Anything not built is listed in [section 12](#12-not-built-yet). De
 | Route file | `routes/central.php` | `routes/tenant.php` (core), `routes/tenant-callbacks.php` (stateless gateway callbacks) and each module's own file | `routes/platform.php` |
 | Registered in | `bootstrap/app.php` (`then:`) | `ModuleServiceProvider::loadTenantRoutes()` | `bootstrap/app.php` (`then:`) |
 | Middleware groups | `web`, `central` | `web`, `tenant` (+ `entitled:{module}` for non-core modules) | `web`, `platform` |
-| Route name prefix | `central.` | none; routes name themselves (`core.*`, `auth.*`, later `{module}.*`) | `platform.` |
+| Route name prefix | `central.` | none; routes name themselves (`core.*`, `auth.*`, `{module}.*`) | `platform.` |
 | Guard → provider | none (no sign-in; sign-up only) | `web` → `users` | `platform` → `platform_users` |
 | Tenant context | none (ended if one leaked) | resolved from the subdomain | none; default guard switched to `platform` |
 | Inertia middleware | `HandleCentralInertia` | `HandleTenantInertia` | `HandlePlatformInertia` |
-| Pages (under `resources/js`) | `Core/Pages/Central/*` | `Core/Pages/*`, later `Modules/<M>/Pages/*` | `Platform/Pages/*` |
+| Pages (under `resources/js`) | `Core/Pages/Central/*` | `Core/Pages/*`, `Modules/<M>/Pages/*` | `Platform/Pages/*` |
 
 Host rules live in `app/Core/Tenancy/Support/TenantHost.php`:
 
@@ -49,7 +49,7 @@ context is settled before auth and before route-model binding. `tests/Feature/Te
 asserts it with `Router::gatherRouteMiddleware()` for every workspace route, the admin panel (Horizon included)
 and the central site.
 
-**Workspace, signed-in route** (`['web', 'tenant']` + `['auth:web', 'auth.session', 'member']` + `subscribed` + `can:`):
+**Workspace, signed-in route** (`['web', 'tenant']` + `['auth:web', 'auth.session', 'member']` + `subscribed` + optional `can:`):
 
 | # | Middleware | What it does |
 |---|---|---|
@@ -69,6 +69,8 @@ and the central site.
 | 12 | `can:{permission}` | `Gate::before` → `AccessChecker` |
 
 Guest workspace routes (`guest:web`) run 1, 2, 4, 6–9 and then the guest check.
+Projects' two public portal routes omit the auth/member middleware and instead authorize the current invitation
+capability in the controller; they still run the tenant, entitlement, binding, paywall and throttle layers.
 
 **Super Admin:** `web` → `InitializePlatformContext` (ends any tenant context, `Auth::shouldUse('platform')`) →
 `auth:platform` → `SubstituteBindings` → `SetLocale` → `HandlePlatformInertia` → `platform.2fa`
@@ -125,6 +127,11 @@ else is. CRM references the shared core contacts/companies for customer content,
 exact commercial arithmetic and durable automation action receipts, and publishes `crm.quote.accepted` as the
 Phase 6 invoicing boundary; see `docs/CRM.md`.
 
+`app/Modules/Projects` is the second production optional business module. It reuses core customer and membership
+identity, applies the same tenant/record-scope boundary to projects and tasks, and owns planning, collaboration,
+time, resource, budget, approval, reporting and client-access records. Its CRM, Invoicing, HRM and notification
+connections remain event/contract hand-offs rather than model imports; see `docs/PROJECTS.md`.
+
 ## 5. Module boundaries and the module contract
 
 - A module is one service provider extending `App\Core\Modules\ModuleServiceProvider`, listed in
@@ -132,6 +139,8 @@ Phase 6 invoicing boundary; see `docs/CRM.md`.
 - The foundation is itself a module: key `core`, `core: true`, declared in `App\Core\CoreServiceProvider`.
 - CRM is key `crm`, depends on `core`, and is available only through a healthy plan or effective App Store
   licence. It is the production reference for scoped optional-module records and retained data on uninstall.
+- Projects is key `projects`, depends on `core`, uses the same entitlement and retention rules, and is independent
+  of CRM so either optional app can be installed alone.
 - Being registered makes a module's code available. Whether a tenant may use it is a separate, server-side
   entitlement check (`EntitlementChecker`).
 - A module owns its routes, controllers, models, migrations, policies, events, jobs and tests. Modules talk to
@@ -258,11 +267,18 @@ route `can:crm.leads.edit`  /  $user->can()  /  Gate::allows()
 - `Core\Events\TenantDomainEvent` is the base class. It captures the active tenant at construction (throws without
   one) and implements `ShouldDispatchAfterCommit`.
 - Existing events: `core.member.invited`, `core.member.joined`, `core.member.removed`
-  (`app/Core/Identity/Events`); `core.contact.created|updated|deleted`, `core.company.created|updated|deleted`
+  (`app/Core/Identity/Events`); `core.contact.created|updated|deleted|merged`, `core.company.created|updated|deleted`
   (`app/Core/Contacts/Events`); `core.subscription.updated`, `core.invoice.paid` (`app/Core/Billing/Events`);
-  `core.app.installed|activated|deactivated|uninstalled` (`app/Core/AppStore/Events`).
-  Nothing listens to them yet. Three are exposed to the automation catalogue as triggers: `core.member.joined`,
-  `core.contact.created`, `core.company.created`.
+  `core.app.installed|activated|deactivated|upgraded|uninstalled` (`app/Core/AppStore/Events`).
+- CRM events: `crm.lead.created`, `crm.lead.qualified`, `crm.deal.created`, `crm.deal.stage_changed`, `crm.deal.won`,
+  `crm.activity.created`, `crm.activity.completed`, `crm.quote.accepted` (`app/Modules/CRM/Events`).
+- Projects events: `projects.project.created`, `projects.task.created`, `projects.task.completed`,
+  `projects.task.reminder_due`, `projects.milestone.completed`, `projects.time_entry.approved`
+  (`app/Modules/Projects/Events`).
+- The automation catalogue exposes three core triggers (`core.member.joined`, `core.contact.created`,
+  `core.company.created`), four CRM triggers (`crm.lead.created`, `crm.lead.qualified`, `crm.deal.won`,
+  `crm.activity.completed`) and four Projects triggers (`projects.project.created`, `projects.task.created`,
+  `projects.task.completed`, `projects.milestone.completed`).
 
 ## 10. Queues
 
@@ -277,10 +293,12 @@ route `can:crm.leads.edit`  /  $user->can()  /  Gate::allows()
 - Tenant context: `QueueTenancyBootstrapper` adds `tenant_id` to every payload dispatched inside a tenant and
   restores the context before the job runs. A job, mailable, notification or listener that implements
   `RequiresTenantContext` is failed by `EnforceTenantContextOnJobs` before `handle()` if that context is missing.
-- Queued work today, all mail: `InvitationMail`, `ConfirmRegistrationMail` (platform mail, no tenant) and
+- Queued mail today: `InvitationMail`, `ConfirmRegistrationMail` (platform mail, no tenant) and
   `WorkspaceReadyMail` on `notifications` (encrypted payloads: they carry or create a one-time token);
   `InvoiceIssuedMail` and `PaymentReceivedMail` on `billing`. The password-reset link is not queued: it is sent
   after the response with `defer()`, inside the workspace's context.
+- Queued module maintenance today: the entitlement-gated app scheduler dispatches Projects'
+  `MaintainProjectTasks` every minute on `automation`; it creates due task recurrences and emits reminder events.
 - Scheduled (`routes/console.php`): `billing:run` hourly, which handles base and app subscriptions inside each
   tenant context; `apps:run-scheduled` every minute, which dispatches only compiled jobs of entitled apps through
   a worker-time compiled-definition and entitlement check; and
@@ -302,10 +320,10 @@ strategy, and the gaps that must be closed before the first move, are in `docs/D
 | A verified payment gateway | when credentials exist | SSLCommerz is implemented but has not been run against the sandbox |
 | API tokens (Sanctum) | when first needed | Not installed; there are no API routes |
 | Integration centre (OAuth connections, webhooks) | not assigned in spec 27 | — |
-| Further optional production apps | 5+ | CRM is compiled; Projects, Invoicing, HRM and later apps remain phased work |
+| Further optional production apps | 6+ | CRM and Projects are compiled; Invoicing, HRM and later apps remain phased work |
 | Notification centre, realtime (Reverb) | 8 | Not installed; `BROADCAST_CONNECTION=log` |
 | Automation engine | 10 | Contracts and registry only |
-| General file manager | — | `TenantStorage` backs workspace logos and CRM private attachments; no general browser exists |
+| General file manager | — | `TenantStorage` backs workspace logos and CRM/Projects private attachments; no general browser exists |
 | Global data search | — | Scout installed (`database` driver), no searchable model; Ctrl/Cmd+K is navigation only. Contacts are searched with `LIKE` on their own page |
 | Custom domains | future | `tenant_domains.type` exists, no routing |
 | Support access as a member other than the owner | — | Always the owner |

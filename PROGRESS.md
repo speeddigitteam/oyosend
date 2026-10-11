@@ -5,9 +5,9 @@ Rules for working in this repository are in `CLAUDE.md`; the product specificati
 
 ## Status
 
-**Phases 1 (Architecture & Foundation), 2 (Core SaaS & Billing), 3 (App Store) and 4 (CRM) are complete as of
-2026-10-10. Phase 5 Projects is next and has not been started.**
-CRM is the first compiled production business application and catalogue entry. App Store tests retain a separate
+**Phases 1 (Architecture & Foundation), 2 (Core SaaS & Billing), 3 (App Store), 4 (CRM) and 5 (Projects) are
+complete as of 2026-10-10. Phase 6 Invoicing is next and has not been started.**
+CRM and Projects are compiled production business applications and catalogue entries. App Store tests retain a separate
 `test_crm` fixture so production CRM and generic multi-app behaviour can be exercised independently.
 
 ## What exists
@@ -69,11 +69,71 @@ CRM is the first compiled production business application and catalogue entry. A
 | Access and UI | 24 declared permissions, record scopes, entitlement-gated routes/navigation/widgets/definitions, and complete English/Bengali Inertia surfaces |
 | Automation catalogue | Four triggers (lead created/qualified, deal won, activity completed) and three actions (assign lead, move stage, create follow-up) registered for the future Phase 10 engine; mutating actions persist tenant/action/key receipts so retries return the original output without repeating work |
 
+### Phase 5 — Project Management
+
+| Area | What exists |
+|---|---|
+| Project setup | Categories, reusable task templates, scoped projects, owners and internal membership; shared core contacts/companies are client identity and `TenantMembership` is team identity |
+| Work planning | Tasks/subtasks, ordered checklists, assignment, watchers, priorities, milestones, sprints, reminders, recurrence and cycle-safe project-local dependencies |
+| Views and UI | List, Kanban, calendar and custom Gantt projections over one task model; responsive bilingual project, time, expense, approval, reporting, dashboard and settings surfaces |
+| Collaboration | Comments, explicit mentions, private attachments, activity history and revocable hashed-token client access with client-visible work boundaries |
+| Time and resources | Integer-minute timers/timesheets, submitted/approved workflow, workload and allocation summaries using workspace memberships |
+| Budget and delivery | Integer minor-unit budgets, rates and expenses; project profitability facts, approval workflows and portfolio/project reporting |
+| Boundaries | CRM project creation, future Invoicing revenue, HRM timesheets and Phase 8 notifications use domain events/documented contracts; Projects imports no optional-module model and retains data on uninstall |
+| Access and automation | 19 declared permissions, project/task record scopes, entitlement-gated routes/navigation/widget/scheduled maintenance, four triggers and three durable receipt-backed actions |
+
 ## Verification
 
-The Phase 3 whole-repository result remains below as historical evidence. Phase 4 implementation and its focused
-backend, frontend, scope, merge and arithmetic checks are complete. The closing Phase 4 whole-repository run is
-recorded here only after every gate has returned, so its exact totals are not guessed.
+Earlier whole-repository results remain below as historical evidence. Each phase's final totals are recorded only
+after every gate has returned, so they are not guessed.
+
+### Review pass — 2026-10-11 (after Phase 5 hardening)
+
+Same working tree as Phase 5 plus the sidebar and dashboard-copy fixes in the session log.
+
+| Check | Result |
+|---|---|
+| `vendor/bin/pint --test` · `vendor/bin/phpstan analyse` | passed · no errors |
+| `php artisan test --compact` | 2,212 passed, 21,210 assertions in 728.61s |
+| `npm run typecheck` · `npm run test` · `npm run build` | no errors · 16 files, 311 tests passed · built |
+
+The full run immediately before this one reported 43 failures, among them `ProjectsClientPortalTest` answering
+429 on its first portal comment and `ProjectsApprovalTest` refusing a `projects.approvals.decide` grant as not
+available to the workspace. The identical tree then passed in full, and the cause was not found. Shortly before,
+another process had been migrating `oyosend_testing` at the same time as the dev database, so a concurrent run
+on the shared test database is the likeliest explanation. Re-run the suite if those failures come back.
+
+### Phase 5 final — 2026-10-11
+
+Run natively on Laragon/Windows. The final backend rerun used the disposable `oyosend_codex_testing` database to
+remain isolated from another local test runner; browser tests use `oyosend_e2e_testing`.
+
+| Check | Command | Result |
+|---|---|---|
+| Code style | `vendor/bin/pint --test` | passed |
+| Static analysis | `vendor/bin/phpstan analyse --memory-limit=1G --no-progress` (level 6) | no errors |
+| Backend tests | `php artisan test --compact` | 2,212 passed, 21,210 assertions in 585.19s |
+| Type check | `npm run typecheck` | no errors |
+| Frontend tests | `npm run test -- --run` | 16 files, 311 tests passed |
+| Production build | `npm run build` | built, 3,392 modules transformed |
+| End-to-end tests | `npm run test:e2e` | 21 passed in Chrome in 6.3m; the focused Projects owner-create smoke was re-run after hardening and passed in 3.1m |
+| Fresh database and seed | Playwright global setup against `oyosend_e2e_testing` | `migrate:fresh --seed` succeeded before the browser run; compiled apps were synchronized into the catalogue |
+| Projects isolation | Full backend suite, including the representative Projects route matrix | project/task/planning/collaboration/finance/approval cross-tenant and mismatched bindings returned 404 without mutation |
+
+The final review also tightened record-scoped financial visibility, rate mutation, client delegation, tenant-local
+dates, exact large-money transport, lifecycle/approval locking and active-project limit serialization. Vitest and
+Playwright required permission to spawn their worker/browser processes in the managed Windows environment; both
+elevated runs passed.
+
+The final workflow-closure and hardening passes exposed project team maintenance, task comments and mentions,
+watcher controls, multi-assignee allocation and clearing, checklist/dependency creation, private project/task
+attachments, approval requests, project lifecycle controls, and milestone/sprint transitions in the production UI.
+They also tightened recurrence scheduling, transactional lifecycle edits, approval eligibility and finance summary
+accuracy. A final adversarial pass added requester cancellation and stranded-approval recovery, member-option privacy,
+terminal-project creation guards, bounded report/time/expense pagination, tenant-local report windows, chunk-bounded
+exact-money aggregation, report/list indexes and client-portal token redaction regressions. The focused Projects
+regression suite passed 48 tests with 1,272 assertions, the complete frontend suite passed all 311 tests, and the
+expanded Projects create/detail browser smoke passed after clearing every task assignee and starting the project.
 
 ### Phase 4 final — 2026-10-10
 
@@ -174,6 +234,21 @@ Longer reasoning is in ADR 0010 and `docs/CRM.md`.
 | Tenant-local inputs and reports are normalized around UTC persistence | Scheduling and date-bound reports remain correct for each workspace without mixing server timezone assumptions |
 | CRM data survives deactivation or uninstall | Entitlement changes remove access, not business history; reinstall remains reversible like every App Store lifecycle |
 
+## Phase 5 decisions
+
+Longer reasoning is in ADR 0011 and `docs/PROJECTS.md`.
+
+| Decision | Why |
+|---|---|
+| Core contacts/companies and tenant memberships remain canonical | A client or teammate keeps one identity across core and optional modules; Projects never creates a shadow customer, employee or global-user binding |
+| Project and task access composes entitlement, permission and record scope | Installing the module never weakens tenant isolation or own/department/branch/all authorization |
+| All task views project one task model and dependencies are project-local acyclic edges | List, board, calendar and Gantt cannot drift into separate sources of truth; invalid graphs are rejected at write time |
+| Money is integer minor units, time is integer minutes and datetimes persist as UTC | Budget, cost, workload and schedules stay deterministic across locales/timezones without floating point |
+| Client collaboration is an explicit revocable hashed-token grant | A contact can collaborate on published work without becoming a workspace user or seeing internal/financial data by default |
+| Optional-module integrations cross events/contracts only | CRM, Invoicing, HRM and notifications can evolve or be absent without coupling Projects to their tables/models |
+| Recurrence and automation mutations are idempotent | Scheduler and workflow retries cannot duplicate work or repeat assignments |
+| Project data survives deactivation or uninstall | Entitlement changes remove execution/access, not delivery history or commercial facts |
+
 ## Known issues and debt
 
 Security and correctness:
@@ -203,6 +278,13 @@ Billing and product:
 Frontend and operations:
 
 - Wide data tables scroll horizontally on small screens rather than becoming record cards.
+- App catalogue text (app name, description, features, offer labels, release notes) comes from the module
+  manifests in English only, so the Bengali App Store shows it untranslated. Needs a decision on where catalogue
+  translations live, because each published version is an immutable snapshot hashed from its manifest.
+- My Apps lists App Store installations only. A workspace whose plan includes CRM and Projects can use both, yet
+  My Apps says no apps are installed. Decide whether plan-included apps belong there.
+- The sidebar now holds 26 entries for an owner with CRM and Projects; it scrolls, but each further app adds
+  five to ten more. Collapsible per-app groups will be needed before Phase 6–7 add theirs.
 - Laravel Sail, Horizon, CI, S3, real mail and production deployment have not received an end-to-end run.
 - During the 2026-10-10 Phase 3 verification, `migrate:fresh --env=testing` was accidentally run without an
   `.env.testing` file and rebuilt the local development `oyosend` database. Its schema is present, but any prior
@@ -212,7 +294,7 @@ Frontend and operations:
 
 ## Deferred, by phase
 
-- **Phase 5–7:** Projects, customer invoicing, then HRM/Payroll.
+- **Phase 6–7:** Customer invoicing, then HRM/Payroll.
 - **Phase 8:** notification centre and communication providers. **Phase 9:** marketing apps.
 - **Phase 10:** the automation engine; only its definition registry exists today.
 - **Phase 11–12:** AI applications, Support and advanced reporting.
@@ -232,13 +314,14 @@ Frontend and operations:
 8. Final name and brand mark approval.
 9. Production support-access policy and whether tenants must explicitly approve a session.
 
-## Phase 4 completion
+## Phase 5 completion
 
-All Phase 4 CRM implementation and documentation are complete. CRM is the first production optional app, uses
-the shared customer directory (including customer content, timelines and contact/company segments), preserves
-exact commercial snapshots and canonical deal-based lifetime value, persists retry-safe automation receipts and
-publishes the Phase 6 quote-accepted handoff. The normal seeder also synchronizes compiled App Store catalogue
-reference data. Stop for review; do not begin Phase 5 Projects in this session.
+All Phase 5 Project Management implementation and documentation are complete. Projects reuses shared client and
+membership identity, provides scoped planning/collaboration/time/resource/budget/approval/reporting workflows,
+persists retry-safe automation receipts, and exposes honest event/contract boundaries for CRM, Invoicing, HRM and
+notifications without importing their models. The normal seeder includes Projects for Business/Enterprise and
+synchronizes both production apps into the catalogue. Stop for review; do not begin Phase 6 Invoicing in this
+session.
 
 ## Session log
 
@@ -257,4 +340,19 @@ reference data. Stop for review; do not begin Phase 5 Projects in this session.
 - **2026-10-10** — Phase 4 completed: shared-identity CRM, duplicate-contact detection and transactional merge,
   scoped leads/pipelines/deals/activities, customer content/timelines and contact/company segments, products and
   tiered prices, exact immutable quotes/proposals/orders/contracts, canonical deal LTV, bilingual UI, durable
-  automation action receipts and the itemized Phase 6 quote-accepted boundary. Phase 5 Projects was not started.
+  automation action receipts and the itemized Phase 6 quote-accepted boundary.
+- **2026-10-10** — Phase 5 completed: scoped projects/tasks with list, Kanban, calendar and Gantt views; templates,
+  dependencies, sprints, milestones, collaboration and client grants; exact budgets/expenses, timesheets,
+  workload, approvals and reports; bilingual UI, scheduled recurrence/reminders and durable automation actions.
+  Phase 6 Invoicing was not started.
+- **2026-10-11** — Phase 5 workflow hardening completed: project-team editing, task collaboration, multi-assignee
+  allocation/clearing, attachments, approval requests, and valid project/milestone/sprint lifecycle transitions are
+  reachable in the bilingual production UI. Focused Projects backend, full frontend, build and expanded browser
+  verification passed. Phase 6 Invoicing remains intentionally unstarted.
+- **2026-10-11** — Review of the running app with CRM and Projects (no new phase). Fixed: the sidebar interleaved
+  the two apps' entries because `NavigationBuilder` sorted a whole section by `order`; each module's entries now
+  stay together (test added, `docs/MODULES.md` updated). The dashboard's no-apps text no longer says the App Store
+  is not open yet or names apps that do not exist. Recorded the English-only catalogue text, the My Apps gap and
+  the sidebar length under known issues. The local dev database also had the CRM/Projects migrations pending and
+  lacked three App Store columns added to an already-run migration; the migrations were applied and the empty
+  `app_versions`/`app_installations` tables aligned by hand.

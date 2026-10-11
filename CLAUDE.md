@@ -5,8 +5,8 @@ Multi-tenant business SaaS, modular monolith. Spec: `MASTER_PROMPT.md` (sections
 `docs/MODULES.md`, `docs/DATABASE.md`, `docs/TESTING.md`, `resources/js/README.md`; `docs/BILLING.md` before
 touching billing. The code is the source of truth; if a doc and the code disagree, fix the doc and say so.
 
-State: Phases 1–4 are complete; Phase 5 Projects is next and has not been started. CRM is the first production
-optional app. One phase per session; stop at the end of the phase and report.
+State: Phases 1–5 are complete; Phase 6 Invoicing is next and has not been started. CRM and Projects are production
+optional apps. One phase per session; stop at the end of the phase and report.
 
 ## Stack
 
@@ -46,7 +46,7 @@ app/Core/{Tenancy,Identity,Access,Organization,Contacts,Settings,Registration,Bi
           Automation,Events,Audit,Dashboard,Http,Support}
 app/Core/CoreServiceProvider.php     the `core` module: manifest, bindings, Gate::before, gateways
 app/Platform/                        Super Admin panel (the only code that reads across tenants)
-app/Modules/<Module>/                optional apps (`CRM` is the first production module)
+app/Modules/<Module>/                optional apps (`CRM` and `Projects` are production modules)
 routes/{central,tenant,tenant-callbacks,platform,console}.php     routes/web.php is NOT loaded
 config/{platform,tenancy,modules,permission,trustedproxy,horizon,ziggy}.php
 database/{migrations,factories,seeders}          lang/{en,bn}, lang/bn.json (server-side strings)
@@ -139,6 +139,12 @@ Vitest from `D:/…`, not `/d/…`. The suite runs `migrate:fresh`: never run it
 - CRM customer content and timelines attach to the shared contact/company identity, not a duplicate customer row.
   Its mutating automation actions persist tenant-scoped action receipts; a retry with the same action/key returns
   the stored output instead of repeating the mutation. Linked deals, not their quotes, own lifetime-value credit.
+- Projects reference shared contacts/companies and tenant memberships; never duplicate clients or bind team work
+  to a global `User`.
+- Projects stores money as integer minor units, time as integer minutes and datetimes in UTC; task dependencies
+  stay within one project and are cycle-checked.
+- Optional modules integrate only through events or documented contracts. Projects must not import CRM,
+  Invoicing or HRM models.
 
 **Frontend** (details: `resources/js/README.md`)
 - Pages in `resources/js/{Core,Platform,Modules/<M>}/Pages`, rendered by path; type every prop.

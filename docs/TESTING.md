@@ -1,7 +1,8 @@
 # Testing
 
 Backend tests are Pest on a real MySQL database. Frontend tests are Vitest. Playwright covers critical browser
-flows against a separate disposable database. Phase 4 CRM has feature, unit, frontend and browser coverage.
+flows against a separate disposable database. Phase 4 CRM has backend, frontend and browser workflow coverage;
+Phase 5 Projects has backend, frontend and browser workflow coverage.
 
 ## 1. Commands
 
@@ -94,6 +95,16 @@ and mismatched nested CRM resources. Frontend tests mount the bilingual CRM surf
 empty, list and action states. The CRM browser spec uses the Business demo plan, which
 includes the production `crm` module; the Free workspace remains a useful negative entitlement case.
 
+Phase 5 coverage lives in `tests/Feature/Projects`, the Projects unit contract tests,
+`tests/js/projects.test.ts`, and `tests/js/projects-hardening.test.ts`. Backend tests exercise tenant-scoped models,
+project/task lifecycle and dependency cycles, recurrence/reminder scheduling, exact budget/expense/time facts,
+approval eligibility and atomic decisions, client grants, contact merge, durable automation receipts, record-scope
+enforcement, nested-resource isolation, real Projects schedule compilation/dispatch, retained-data uninstall/reinstall,
+and the settings-template-to-project HTTP path. Frontend coverage mounts project forms,
+Kanban/calendar/Gantt/view-switching, finance and approval actions, widget and read-only portal states,
+including stale-form and timezone regressions. The browser suite exercises the production Projects create/detail
+and Kanban workflow on the Business demo plan in addition to checking its catalogue entry.
+
 | Suite | Files | Covers |
 |---|---|---|
 | `Feature/Tenancy` | `HostResolution`, `RoutePipeline`, `TenantContext`, `TenantScope`, `TenantProvisioner`, `CacheIsolation`, `QueueContext`, `TenantStorage` | Subdomain resolution and area separation; the effective middleware order of every route; context switching; the row scope and its write guards; provisioning; per-tenant cache and rate limits; tenant context in queued jobs; tenant file paths |
@@ -105,8 +116,8 @@ includes the production `crm` module; the Free workspace remains a useful negati
 | `Feature/Audit` | `AuditTrail` | What is recorded, redaction, immutability, the audit page and its filters |
 | `Feature/Platform` | `PlatformAuth`, `PlatformPages`, `CreatePlatformAdminCommand` | Super Admin sign-in and mandatory 2FA; dashboard and tenant list; `platform:create-admin` |
 | `Feature/Central` | `CentralSite`, `ErrorPages` | Landing page and workspace finder; error pages per area |
-| `Unit` | `Tenancy/TenantHost`, `Modules/ModuleRegistry`, `Modules/AutomationRegistry`, `Access/AccessScope` | Host parsing, registries, scope ordering |
-| `tests/js` | `components`, `composables`, `format`, `locales`, `contrast`, `audit` | Base components; toasts, theme, labels; number and money formatting; `en`/`bn` catalogue parity; WCAG AA contrast recomputed from `app.css`; audit entry rendering |
+| `Unit` | `Tenancy/TenantHost`, `Modules/ModuleRegistry`, `Modules/AutomationRegistry`, `Modules/ProjectsEventContract`, `Modules/ProjectsExactMoney`, `Access/AccessScope` | Host parsing, registries, scope ordering, Projects event/trigger contracts and exact-money arithmetic |
+| `tests/js` | `components`, `composables`, `format`, `locales`, `contrast`, `audit`, `projects`, `projects-hardening` | Base components; toasts, theme and labels; number/money formatting; `en`/`bn` parity; WCAG AA contrast; audit rendering; Projects pages and interaction hardening |
 
 `Feature/Tenancy/TenantScopeTest.php` is the model to copy for cross-tenant tests: it points
 `assertTenantIsolated()` at every tenant-owned model that exists (`Invitation`, `TenantMembership`, `AuditLog`).

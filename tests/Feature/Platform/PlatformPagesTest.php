@@ -41,7 +41,7 @@ describe('the dashboard', function () {
                 // 3 owners + 2 added people (one of them in two workspaces).
                 ->where('stats.users', 5)
                 ->where('stats.memberships', 6)
-                ->where('stats.modules', 2)
+                ->where('stats.modules', 3)
                 ->has('recentTenants', 3)
                 ->has('health', 4));
 
@@ -75,14 +75,17 @@ describe('the dashboard', function () {
     });
 
     it('reports the health of the services it depends on', function () {
+        $connection = (string) config('database.default');
+        $database = (string) config("database.connections.{$connection}.database");
+
         $this->actingAsPlatformUser($this->admin)
             ->get('http://admin.localhost/')
-            ->assertInertia(function (AssertableInertia $page): void {
+            ->assertInertia(function (AssertableInertia $page) use ($database): void {
                 $health = collect($page->toArray()['props']['health'])->keyBy('key');
 
                 expect($health->keys()->all())->toBe(['database', 'cache', 'queue', 'failed_jobs'])
                     ->and($health['database']['ok'])->toBeTrue()
-                    ->and($health['database']['detail'])->toContain('oyosend_testing')
+                    ->and($health['database']['detail'])->toContain($database)
                     ->and($health['cache']['ok'])->toBeTrue()
                     ->and($health['queue']['ok'])->toBeTrue()
                     ->and($health['queue']['count'])->toBe(0)

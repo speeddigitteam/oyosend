@@ -90,6 +90,12 @@ abstract class TestCase extends BaseTestCase
         // AccessChecker, PermissionResolver, AuditLogger, TenantContext, ...
         $this->app->forgetScopedInstances();
 
+        // Route objects cache resolved controllers. Flush them as well so a
+        // controller cannot retain scoped services from an earlier request.
+        foreach ($this->app['router']->getRoutes() as $route) {
+            $route->flushController();
+        }
+
         // Props shared by the previous request's area middleware.
         Inertia::flushShared();
         View::share('area', null);

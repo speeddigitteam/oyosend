@@ -8,6 +8,8 @@ export interface FormatContext {
 }
 
 export type DateStyle = 'date' | 'datetime' | 'time' | 'short';
+export type CanonicalIntegerString = `${bigint}`;
+export type MoneyMinorUnits = number | CanonicalIntegerString;
 
 /**
  * BCP 47 tag for Intl. The region is fixed to Bangladesh conventions
@@ -28,12 +30,38 @@ export function formatNumber(value: number, context: FormatContext, options: Int
  * Money is always stored and transported as an integer in minor units
  * (paisa, cents) with a currency code - never as a float.
  */
-export function formatMoney(minorUnits: number, context: FormatContext, currency?: string): string {
+export function formatMoney(minorUnits: MoneyMinorUnits, context: FormatContext, currency?: string): string {
     const code = currency ?? context.currency;
     const formatter = new Intl.NumberFormat(localeTag(context), { style: 'currency', currency: code });
     const digits = formatter.resolvedOptions().maximumFractionDigits ?? 2;
+    const canonical = typeof minorUnits === 'string';
 
-    return formatter.format(minorUnits / 10 ** digits);
+    if (canonical && !/^(?:0|[1-9]\d*|-[1-9]\d*)$/.test(minorUnits)) {
+        throw new RangeError('Money minor units must be a canonical decimal integer string.');
+    }
+
+    if (!canonical && !Number.isSafeInteger(minorUnits)) {
+        throw new RangeError('Money minor units supplied as a number must be a safe integer.');
+    }
+
+    const amount = BigInt(minorUnits);
+    const negative = amount < 0n;
+    const absolute = negative ? -amount : amount;
+    const divisor = 10n ** BigInt(digits);
+    const major = absolute / divisor;
+    const remainder = absolute % divisor;
+    // BigInt has no negative zero, but the currency formatter needs one to
+    // place the sign correctly for values such as -5 cents.
+    const signedMajor: bigint | number = negative ? (major === 0n ? -0 : -major) : major;
+    const fraction = digits === 0
+        ? ''
+        : new Intl.NumberFormat(localeTag(context), {
+              useGrouping: false,
+              minimumIntegerDigits: digits,
+              maximumFractionDigits: 0,
+          }).format(remainder);
+
+    return formatter.formatToParts(signedMajor).map((part) => part.type === 'fraction' ? fraction : part.value).join('');
 }
 
 const DATE_OPTIONS: Record<DateStyle, Intl.DateTimeFormatOptions> = {
@@ -48,13 +76,14 @@ export function formatDate(value: string | Date | null | undefined, context: For
         return '';
     }
 
-    const date = value instanceof Date ? value : new Date(value);
+    const isDateOnly = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+    const date = value instanceof Date ? value : new Date(isDateOnly ? `${value}T00:00:00Z` : value);
 
     if (Number.isNaN(date.getTime())) {
         return '';
     }
 
-    return new Intl.DateTimeFormat(localeTag(context), { ...DATE_OPTIONS[style], timeZone: context.timezone }).format(date);
+    return new Intl.DateTimeFormat(localeTag(context), { ...DATE_OPTIONS[style], timeZone: isDateOnly ? 'UTC' : context.timezone }).format(date);
 }
 
 const RELATIVE_STEPS: Array<[Intl.RelativeTimeFormatUnit, number]> = [

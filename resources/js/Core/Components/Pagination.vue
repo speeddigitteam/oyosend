@@ -16,6 +16,7 @@ const props = defineProps<{
         to?: number | null;
         total?: number;
     };
+    disabled?: boolean;
 }>();
 
 const { t } = useI18n();
@@ -48,7 +49,7 @@ function summary(): string {
         <p class="tabular text-[0.8125rem] text-ink-subtle">{{ summary() }}</p>
 
         <div class="flex items-center gap-2">
-            <Link v-if="meta.prev_page_url" :href="meta.prev_page_url" :class="linkClass" rel="prev">
+            <Link v-if="meta.prev_page_url && !disabled" :href="meta.prev_page_url" :class="linkClass" rel="prev">
                 <ChevronLeft class="size-4" aria-hidden="true" />
                 {{ t('common.table.previous') }}
             </Link>
@@ -57,7 +58,7 @@ function summary(): string {
                 {{ t('common.table.previous') }}
             </span>
 
-            <Link v-if="meta.next_page_url" :href="meta.next_page_url" :class="linkClass" rel="next">
+            <Link v-if="meta.next_page_url && !disabled" :href="meta.next_page_url" :class="linkClass" rel="next">
                 {{ t('common.table.next') }}
                 <ChevronRight class="size-4" aria-hidden="true" />
             </Link>

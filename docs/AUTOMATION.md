@@ -1,8 +1,8 @@
 # Automation
 
-State: after Phase 4. **There is no engine**: no workflows, builder, executions, workflow steps or logs. What
-exists are the contracts and registry, plus CRM's narrow action-receipt table for durable retry safety. Core and
-CRM register definitions now so the Phase 10 engine can consume stable module-owned contracts later (spec
+State: after Phase 5. **There is no engine**: no workflows, builder, executions, workflow steps or logs. What
+exists are the contracts and registry, plus module-owned action-receipt tables for durable retry safety. Core,
+CRM and Projects register definitions now so the Phase 10 engine can consume stable module-owned contracts later (spec
 section 27, note under the phase list).
 
 ## What exists today
@@ -17,10 +17,15 @@ section 27, note under the phase list).
 | CRM triggers | Lead created, lead qualified, deal won and activity completed under `app/Modules/CRM/Automation/Triggers` |
 | CRM actions | Assign a lead, move a deal stage and create a follow-up activity under `app/Modules/CRM/Automation/Actions` |
 | CRM action receipts | `crm_automation_action_receipts`, a tenant/action/idempotency-key unique result store used by mutating CRM actions |
-| Queue | `automation`, worked by Horizon's `background` supervisor; nothing dispatches to it |
+| Projects definitions | Project/task lifecycle triggers and project/task actions under `app/Modules/Projects/Automation` |
+| Projects action receipts | `project_automation_action_receipts`, the same durable tenant/action/idempotency-key boundary for project mutations |
+| Queue | `automation`, worked by Horizon's `background` supervisor; entitled Projects task maintenance dispatches here every minute |
 
-Definitions are metadata and callable contracts, not workflows. Registering the CRM actions does not schedule or
-execute them by itself; the Phase 10 engine remains responsible for workflow persistence, orchestration and runs.
+Definitions are metadata and callable contracts, not workflows. Registering CRM or Projects actions does not schedule or
+execute them by itself; the Phase 10 engine remains responsible for workflow persistence, orchestration and runs. The
+separate Projects maintenance job on the same queue creates due recurrences and emits reminder events; it does not execute
+automation definitions.
+
 Assign-lead and move-stage nevertheless enforce the action contract today: their mutation and receipt are one
 transaction, and a retry in another process returns the previously stored output.
 

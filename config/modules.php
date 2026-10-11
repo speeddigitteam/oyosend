@@ -2,6 +2,7 @@
 
 use App\Core\CoreServiceProvider;
 use App\Modules\CRM\CRMServiceProvider;
+use App\Modules\Projects\ProjectsServiceProvider;
 
 return [
 
@@ -22,6 +23,7 @@ return [
     'providers' => [
         CoreServiceProvider::class,
         CRMServiceProvider::class,
+        ProjectsServiceProvider::class,
     ],
 
 ];

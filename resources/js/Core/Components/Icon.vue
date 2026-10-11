@@ -2,6 +2,7 @@
 import {
     Blocks,
     BadgeDollarSign,
+    BadgeCheck,
     Building2,
     Circle,
     Contact,
@@ -9,7 +10,9 @@ import {
     CreditCard,
     LayoutDashboard,
     ChartNoAxesCombined,
+    Clock,
     Handshake,
+    FolderKanban,
     Layers,
     ListChecks,
     Network,
@@ -51,6 +54,9 @@ const REGISTRY: Record<string, Component> = {
     handshake: Handshake,
     'badge-dollar-sign': BadgeDollarSign,
     'chart-no-axes-combined': ChartNoAxesCombined,
+    clock: Clock,
+    'folder-kanban': FolderKanban,
+    'badge-check': BadgeCheck,
 };
 
 defineProps<{ name: string }>();

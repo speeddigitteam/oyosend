@@ -14,6 +14,7 @@ use App\Core\Modules\ModulesServiceProvider;
 use App\Core\Modules\PermissionDefinition;
 use App\Core\Tenancy\Models\Tenant;
 use App\Modules\CRM\CRMServiceProvider;
+use App\Modules\Projects\ProjectsServiceProvider;
 use App\Platform\Models\PlatformUser;
 use Illuminate\Database\Eloquent\Relations\Relation;
 
@@ -151,12 +152,15 @@ describe('the application\'s own registry', function () {
             fn (string $permission): bool => str_starts_with($permission, 'core.'),
         ));
 
-        expect(array_keys($registry->all()))->toBe(['core', 'crm'])
+        expect(array_keys($registry->all()))->toBe(['core', 'crm', 'projects'])
             ->and($core->core)->toBeTrue()
             ->and($core)->toBe(app()->getProvider(CoreServiceProvider::class)->manifest())
             ->and($registry->get('crm'))->toBe(app()->getProvider(CRMServiceProvider::class)->manifest())
             ->and($registry->get('crm')->permissions)->toHaveCount(24)
-            ->and(array_keys($registry->permissions()))->toHaveCount(40)
+            ->and($registry->get('projects'))->toBe(app()->getProvider(ProjectsServiceProvider::class)->manifest())
+            ->and($registry->get('projects')->permissions)->toHaveCount(19)
+            ->and($registry->get('projects')->routes)->toContain('projects.task-options.index')
+            ->and(array_keys($registry->permissions()))->toHaveCount(59)
             ->and($corePermissions)->toEqualCanonicalizing([
                 'core.members.view', 'core.members.invite', 'core.members.manage',
                 'core.roles.view', 'core.roles.manage', 'core.audit.view', 'core.settings.manage',

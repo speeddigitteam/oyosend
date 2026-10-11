@@ -17,6 +17,13 @@ use App\Modules\CRM\Automation\Triggers\ActivityCompletedTrigger;
 use App\Modules\CRM\Automation\Triggers\DealWonTrigger;
 use App\Modules\CRM\Automation\Triggers\LeadCreatedTrigger as CrmLeadCreatedTrigger;
 use App\Modules\CRM\Automation\Triggers\LeadQualifiedTrigger;
+use App\Modules\Projects\Automation\Actions\AssignTaskAction;
+use App\Modules\Projects\Automation\Actions\CreateProjectAction;
+use App\Modules\Projects\Automation\Actions\CreateTaskAction;
+use App\Modules\Projects\Automation\Triggers\MilestoneCompletedTrigger;
+use App\Modules\Projects\Automation\Triggers\ProjectCreatedTrigger;
+use App\Modules\Projects\Automation\Triggers\TaskCompletedTrigger;
+use App\Modules\Projects\Automation\Triggers\TaskCreatedTrigger;
 
 /*
  * Small definitions, declared inline: each one is wrong (or right) in exactly one way.
@@ -229,11 +236,18 @@ describe('the application\'s own registry', function () {
             'crm.lead.qualified' => LeadQualifiedTrigger::class,
             'crm.deal.won' => DealWonTrigger::class,
             'crm.activity.completed' => ActivityCompletedTrigger::class,
+            'projects.project.created' => ProjectCreatedTrigger::class,
+            'projects.task.created' => TaskCreatedTrigger::class,
+            'projects.task.completed' => TaskCompletedTrigger::class,
+            'projects.milestone.completed' => MilestoneCompletedTrigger::class,
         ])
             ->and($registry->actions())->toBe([
                 'crm.lead.assign' => CrmAssignLeadAction::class,
                 'crm.activity.create_follow_up' => CreateFollowUpAction::class,
                 'crm.deal.move_stage' => MoveDealStageAction::class,
+                'projects.project.create' => CreateProjectAction::class,
+                'projects.task.create' => CreateTaskAction::class,
+                'projects.task.assign' => AssignTaskAction::class,
             ])
             ->and(app(AutomationRegistry::class))->toBe($registry);
     });

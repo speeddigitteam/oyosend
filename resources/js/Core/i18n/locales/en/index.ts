@@ -2,6 +2,7 @@ import billing from './billing';
 import appStore from './appStore';
 import contacts from './contacts';
 import crm from './crm';
+import projects from './projects';
 import organization from './organization';
 import platformAudit from './platformAudit';
 import platformBilling from './platformBilling';
@@ -43,6 +44,7 @@ export default {
     organization,
     contacts,
     crm,
+    projects,
     workspace,
     billing,
     appStore,

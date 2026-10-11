@@ -4,7 +4,7 @@ A multi-tenant business SaaS platform: one workspace per company on its own subd
 CRM, invoicing, marketing, support, automation) added through a built-in App Store. The full product
 specification is [`MASTER_PROMPT.md`](MASTER_PROMPT.md).
 
-**Current state: Phases 1–4 are complete; Phase 5 Projects is next and has not been started.** What exists:
+**Current state: Phases 1–5 are complete; Phase 6 Invoicing is next and has not been started.** What exists:
 
 - **Foundation (Phase 1):** subdomain tenancy with fail-closed isolation, sign-in with two-factor authentication,
   memberships and invitations, tenant-scoped roles and permissions, an audit trail, the module / entitlement /
@@ -20,8 +20,11 @@ specification is [`MASTER_PROMPT.md`](MASTER_PROMPT.md).
 - **CRM & Sales (Phase 4):** shared-customer leads, pipelines, deals, activities, customer profiles and record
   content/timelines; contact/company saved segments; exact-money product, quote, order, contract and lifetime-value
   workflows; scoped permissions, retry-safe automation actions, bilingual UI and an invoicing hand-off event.
+- **Project Management (Phase 5):** templates, scoped projects and tasks; list, Kanban, calendar and Gantt
+  projections; milestones, sprints, dependencies, collaboration and client access; integer-money budgets and
+  expenses; timesheets, workload, approvals, reporting and retry-safe automation actions.
 
-CRM is the first compiled production business app. `migrate --seed` synchronizes its compiled catalogue entry
+CRM and Projects are the compiled production business apps. `migrate --seed` synchronizes their catalogue entries
 (as well as permissions), and deployments run `apps:sync --prune` explicitly. The store test
 suite retains a deliberately separate `test_crm` fixture. One payment gateway (SSLCommerz) is implemented
 but has not been run against the provider's sandbox; until credentials are set, invoices are paid by recording
@@ -174,5 +177,6 @@ CI is `.github/workflows/ci.yml` (Pint, Larastan, Pest, vue-tsc, Vitest, build).
 | [`resources/js/README.md`](resources/js/README.md) | Frontend guide and the design language |
 | [`docs/BILLING.md`](docs/BILLING.md) | Plans, subscriptions, invoices, payments, gateways, limits |
 | [`docs/APP_STORE.md`](docs/APP_STORE.md) | Catalogue sync, licences, lifecycle, separate app billing and entitlement gates |
+| [`docs/CRM.md`](docs/CRM.md) / [`docs/PROJECTS.md`](docs/PROJECTS.md) | Production business-module workflows and boundaries |
 | `docs/AUTOMATION.md`, `docs/INTEGRATIONS.md` | What exists today for each, and what is planned |
 | [`docs/adr/`](docs/adr) | Decisions: tenancy, RBAC, identity/sessions, local environment, design system, billing, scopes, sign-up/support access and the first-party App Store |

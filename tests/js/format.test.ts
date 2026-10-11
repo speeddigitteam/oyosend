@@ -45,13 +45,33 @@ describe('formatMoney', () => {
         expect(formatMoney(30, english)).toContain('0.30');
     });
 
+    it('keeps canonical integer strings exact beyond Number.MAX_SAFE_INTEGER', () => {
+        expect(formatMoney('900719925474099312345', english, 'USD')).toBe('$9,007,199,254,740,993,123.45');
+    });
+
+    it('preserves the locale sign and currency placement for exact negatives', () => {
+        expect(formatMoney('-900719925474099312345', english, 'USD')).toBe('-$9,007,199,254,740,993,123.45');
+        expect(formatMoney('-5', english, 'USD')).toBe('-$0.05');
+    });
+
     it('respects currencies without minor units', () => {
         expect(formatMoney(500, english, 'JPY')).toContain('500');
         expect(formatMoney(500, english, 'JPY')).not.toContain('5.00');
     });
 
+    it('uses each currency’s fraction digits for exact strings', () => {
+        expect(formatMoney('12345', english, 'BHD')).toBe('BHD\u00a012.345');
+        expect(formatMoney('12345', english, 'JPY')).toBe('¥12,345');
+    });
+
     it('formats in Bengali digits', () => {
         expect(formatMoney(125050, bengali)).toContain('১,২৫০.৫০');
+        expect(formatMoney('900719925474099312345', bengali)).toBe('৯০,০৭,১৯,৯২,৫৪,৭৪,০৯,৯৩,১২৩.৪৫৳');
+    });
+
+    it('rejects values that cannot satisfy the exact integer contract', () => {
+        expect(() => formatMoney('01' as `${bigint}`, english)).toThrow(RangeError);
+        expect(() => formatMoney(Number.MAX_SAFE_INTEGER + 1, english)).toThrow(RangeError);
     });
 });
 
@@ -61,6 +81,12 @@ describe('formatDate', () => {
     it('renders in the workspace timezone, not the browser one', () => {
         expect(formatDate(iso, english, 'date')).toContain('9');
         expect(formatDate(iso, { ...english, timezone: 'UTC' }, 'date')).toContain('8');
+    });
+
+    it('keeps date-only calendar values on the same day in negative UTC offsets', () => {
+        const formatted = formatDate('2026-10-10', { ...english, timezone: 'America/Los_Angeles' }, 'date');
+
+        expect(formatted).toContain('10');
     });
 
     it('renders Bengali digits and month names', () => {

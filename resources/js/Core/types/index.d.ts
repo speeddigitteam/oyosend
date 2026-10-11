@@ -136,6 +136,7 @@ declare module '@inertiajs/core' {
         flashDataType: {
             toast?: ToastPayload;
             recoveryCodes?: string[];
+            clientAccessInvitation?: { accessId: string; url: string };
         };
         errorValueType: string;
     }

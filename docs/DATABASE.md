@@ -1,7 +1,7 @@
 # Database
 
-State: Phase 4 CRM schema is implemented. Sections 1–3c describe the schema in `database/migrations/` and
-`app/Modules/CRM/Database/Migrations/`. Section 4 outlines later tables. Section 5 is the dedicated-database strategy
+State: Phase 5 Projects schema is implemented. Sections 1–3d describe the schema in `database/migrations/` and
+the CRM/Projects module migration directories. Section 4 outlines later tables. Section 5 is the dedicated-database strategy
 the spec asks for (3.4); **only its routing seam exists today.**
 
 One MySQL 8 database, `utf8mb4` / `utf8mb4_unicode_ci`, strict mode. The application clock is UTC
@@ -424,6 +424,24 @@ All tables use ULIDs and carry `tenant_id`; every tenant-owned unique/index begi
 are referenced, not copied. Removing a contact/company nulls the reference where the business record must remain.
 Money columns are unsigned integer minor units, quantities are `*_milli`, and rates are basis points or integer
 percentages. See `docs/CRM.md` for the workflows and status rules.
+
+## 3d. Phase 5 Project Management tables
+
+Module migrations live in `app/Modules/Projects/Database/Migrations` and are loaded by
+`ProjectsServiceProvider`.
+
+| Area | Tables | Important constraints |
+|---|---|---|
+| Setup and delivery | `project_categories`, `project_templates`, `projects`, `project_members` | Shared contact/company and membership FKs; owner/department/branch scope indexes; report range and stable name/id pagination indexes; integer budget and currency |
+| Planning | `project_tasks`, `project_task_assignees`, `project_task_watchers`, `project_task_dependencies`, `project_task_checklist_items`, `project_milestones`, `project_sprints` | Project-local hierarchy/dependencies; ordered status/date indexes; assignment and watcher uniqueness; recurrence/reminder keys |
+| Collaboration | `project_task_comments`, `project_comment_mentions`, `project_attachments`, `project_client_access` | Explicit internal comments, unique mentions, private polymorphic files and hashed revocable client tokens |
+| Time and money | `project_time_entries`, `project_expenses` | Integer minutes/rates/amounts, currency, worker/project/status/date aggregation indexes and stable date/created/id pagination indexes |
+| Governance | `project_approvals`, `project_activity_history` | Entity-targeted decisions and immutable ordered project/task history |
+| Automation safety | `project_automation_action_receipts` | `UNIQUE(tenant_id, action, idempotency_key)` prevents replayed mutations |
+
+Every table uses a ULID key and carries `tenant_id`; tenant-owned unique keys and indexes begin with it. Project
+client/team identity is referenced from core, not copied. Money uses unsigned integer minor units, durations use
+integer minutes and timestamps represent UTC. See `docs/PROJECTS.md` for access and integration boundaries.
 
 ## 4. Later tables (outline only)
 

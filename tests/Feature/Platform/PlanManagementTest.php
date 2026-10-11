@@ -116,15 +116,24 @@ describe('creating a plan', function () {
                 ->component('Platform/Pages/Plans/Edit')
                 ->where('plan', null)
                 // The core module belongs to every workspace: it is not a plan's to give.
-                ->where('modules', [['key' => 'crm', 'name' => 'CRM & Sales']])
-                ->where('limits', [['key' => 'core.members', 'kind' => 'gauge']])
+                ->where('modules', [
+                    ['key' => 'crm', 'name' => 'CRM & Sales'],
+                    ['key' => 'projects', 'name' => 'Project Management'],
+                ])
+                ->where('limits', [
+                    ['key' => 'core.members', 'kind' => 'gauge'],
+                    ['key' => 'projects.active_projects', 'kind' => 'gauge'],
+                ])
                 ->where('currencies', config('platform.currencies')));
     });
 
     it('offers the optional modules that are registered', function () {
         $this->actingAsPlatformUser($this->admin)
             ->get('http://admin.localhost/plans/create')
-            ->assertInertia(fn (AssertableInertia $page) => $page->where('modules', [['key' => 'crm', 'name' => 'CRM & Sales']]));
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('modules', [
+                ['key' => 'crm', 'name' => 'CRM & Sales'],
+                ['key' => 'projects', 'name' => 'Project Management'],
+            ]));
     });
 
     it('creates a plan and records it in the platform\'s trail', function () {
@@ -347,7 +356,10 @@ describe('editing a plan', function () {
                 ->where('plan.limits', ['core.members' => 5])
                 ->where('plan.modules', [])
                 ->where('plan.subscribers', 1)
-                ->where('limits', [['key' => 'core.members', 'kind' => 'gauge']])
+                ->where('limits', [
+                    ['key' => 'core.members', 'kind' => 'gauge'],
+                    ['key' => 'projects.active_projects', 'kind' => 'gauge'],
+                ])
                 ->has('currencies'));
     });
 

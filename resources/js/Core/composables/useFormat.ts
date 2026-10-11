@@ -7,6 +7,7 @@ import {
     formatRelative,
     type DateStyle,
     type FormatContext,
+    type MoneyMinorUnits,
 } from '@/Core/lib/format';
 
 /**
@@ -26,7 +27,7 @@ export function useFormat() {
 
     return {
         number: (value: number, options?: Intl.NumberFormatOptions) => formatNumber(value, context.value, options),
-        money: (minorUnits: number, currency?: string) => formatMoney(minorUnits, context.value, currency),
+        money: (minorUnits: MoneyMinorUnits, currency?: string) => formatMoney(minorUnits, context.value, currency),
         date: (value: string | Date | null | undefined, style: DateStyle = 'date') => formatDate(value, context.value, style),
         relative: (value: string | Date | null | undefined) => formatRelative(value, context.value),
     };

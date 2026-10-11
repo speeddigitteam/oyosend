@@ -1,6 +1,6 @@
 # Integrations
 
-State: after Phase 4. **There is no integration centre**: no OAuth connections, no provider adapters for
+State: after Phase 5. **There is no integration centre**: no OAuth connections, no provider adapters for
 messaging, no outgoing webhooks, no API tokens, no tables for any of it. The one outside service the application
 can talk to is a payment gateway, and only once its credentials are configured.
 
@@ -24,6 +24,8 @@ Patterns already in the code that integrations should reuse:
   `secret` at any depth.
 - `RequiresTenantContext` for queued work that must run for one tenant.
 - `app('cache.central')` for platform-level data that must not land in a tenant's cache namespace.
+- Module domain events and documented contracts for CRM-to-Projects creation and future Projects-to-Invoicing,
+  Projects-to-HRM and Projects-to-notification hand-offs; optional modules never import each other's models.
 
 ## Planned
 

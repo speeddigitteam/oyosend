@@ -1,0 +1,20 @@
+<script setup lang="ts">
+import { useForm } from '@inertiajs/vue3';
+import { Flag, Plus, Rocket } from 'lucide-vue-next';
+import { ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import Button from '@/Core/Components/Button.vue';
+import Input from '@/Core/Components/Input.vue';
+import Modal from '@/Core/Components/Modal.vue';
+import Textarea from '@/Core/Components/Textarea.vue';
+import { route } from '@/Core/lib/route';
+const props = defineProps<{ projectId: string }>();
+const { t } = useI18n(); const milestoneOpen = ref(false); const sprintOpen = ref(false);
+const milestone = useForm<{ name: string; description: string; due_on: string; project_id?: string }>({ name: '', description: '', due_on: '' });
+const sprint = useForm<{ name: string; goal: string; starts_on: string; ends_on: string; project_id?: string }>({ name: '', goal: '', starts_on: '', ends_on: '' });
+watch(milestoneOpen, (open) => { if (open) { milestone.reset(); milestone.clearErrors(); } });
+watch(sprintOpen, (open) => { if (open) { sprint.reset(); sprint.clearErrors(); } });
+function saveMilestone(): void { milestone.post(route('projects.milestones.store', { project: props.projectId }), { preserveScroll: true, onSuccess: () => { milestoneOpen.value = false; milestone.reset(); } }); }
+function saveSprint(): void { sprint.post(route('projects.sprints.store', { project: props.projectId }), { preserveScroll: true, onSuccess: () => { sprintOpen.value = false; sprint.reset(); } }); }
+</script>
+<template><div class="flex flex-wrap gap-2"><Button size="sm" variant="ghost" @click="milestoneOpen = true"><template #icon><Flag class="size-4" aria-hidden="true" /></template>{{ t('projects.milestones.add') }}</Button><Button size="sm" variant="ghost" @click="sprintOpen = true"><template #icon><Rocket class="size-4" aria-hidden="true" /></template>{{ t('projects.sprints.add') }}</Button></div><Modal v-model:open="milestoneOpen" :title="t('projects.milestones.add')" :persistent="milestone.processing"><form id="milestone-form" class="grid gap-4" @submit.prevent="saveMilestone"><Input v-model="milestone.name" :label="t('projects.fields.name')" :error="milestone.errors.name" required maxlength="160" /><Input v-model="milestone.due_on" type="date" :label="t('projects.fields.dueDate')" :error="milestone.errors.due_on" required /><Textarea v-model="milestone.description" :label="t('projects.fields.description')" :error="milestone.errors.description" optional maxlength="10000" /><p v-if="milestone.errors.project_id" class="text-sm text-danger" role="alert">{{ milestone.errors.project_id }}</p></form><template #footer><Button variant="ghost" :disabled="milestone.processing" @click="milestoneOpen = false">{{ t('projects.common.cancel') }}</Button><Button type="submit" form="milestone-form" variant="primary" :loading="milestone.processing">{{ t('projects.common.save') }}</Button></template></Modal><Modal v-model:open="sprintOpen" :title="t('projects.sprints.add')" :persistent="sprint.processing"><form id="sprint-form" class="grid gap-4 sm:grid-cols-2" @submit.prevent="saveSprint"><Input v-model="sprint.name" class="sm:col-span-2" :label="t('projects.fields.name')" :error="sprint.errors.name" required maxlength="160" /><Input v-model="sprint.starts_on" type="date" :label="t('projects.fields.startDate')" :error="sprint.errors.starts_on" required /><Input v-model="sprint.ends_on" type="date" :label="t('projects.fields.dueDate')" :error="sprint.errors.ends_on" required /><Textarea v-model="sprint.goal" class="sm:col-span-2" :label="t('projects.fields.goal')" :error="sprint.errors.goal" optional maxlength="10000" /><p v-if="sprint.errors.project_id" class="text-sm text-danger sm:col-span-2" role="alert">{{ sprint.errors.project_id }}</p></form><template #footer><Button variant="ghost" :disabled="sprint.processing" @click="sprintOpen = false">{{ t('projects.common.cancel') }}</Button><Button type="submit" form="sprint-form" variant="primary" :loading="sprint.processing">{{ t('projects.common.save') }}</Button></template></Modal></template>
