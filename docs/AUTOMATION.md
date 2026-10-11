@@ -19,6 +19,8 @@ section 27, note under the phase list).
 | CRM action receipts | `crm_automation_action_receipts`, a tenant/action/idempotency-key unique result store used by mutating CRM actions |
 | Projects definitions | Project/task lifecycle triggers and project/task actions under `app/Modules/Projects/Automation` |
 | Projects action receipts | `project_automation_action_receipts`, the same durable tenant/action/idempotency-key boundary for project mutations |
+| Invoicing definitions | Five invoice/payment/credit-note/overdue triggers and the `invoicing.invoice.create_draft` action under `app/Modules/Invoicing/Automation` |
+| Invoicing action receipts | `invoicing_automation_action_receipts`, the same durable tenant/action/idempotency-key boundary |
 | Queue | `automation`, worked by Horizon's `background` supervisor; entitled Projects task maintenance dispatches here every minute |
 
 Definitions are metadata and callable contracts, not workflows. Registering CRM or Projects actions does not schedule or

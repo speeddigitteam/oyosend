@@ -62,7 +62,7 @@ final class ProjectsServiceProvider extends ModuleServiceProvider
         return new ModuleManifest(
             key: 'projects',
             name: 'Project Management',
-            version: '1.0.0',
+            version: '1.0.1',
             dependencies: ['core'],
             permissions: [
                 new PermissionDefinition('projects.projects.view', 'projects_projects', scopable: true),
@@ -128,7 +128,7 @@ final class ProjectsServiceProvider extends ModuleServiceProvider
             featured: true,
             features: ['Projects, templates and visual work planning', 'Tasks, dependencies, sprints and milestones', 'Time, workload, budgets and expenses', 'Approvals and controlled client collaboration'],
             offers: [new AppOffer('included', 'Included', AppBillingType::Free)],
-            releaseNotes: 'Initial project management release.',
+            releaseNotes: 'Initial project management release. 1.0.1 adds project team maintenance, task collaboration and approval requests.',
             routes: self::routes(),
             scheduledJobs: [new ScheduledJobDefinition('projects.task_maintenance', MaintainProjectTasks::class, ScheduledJobFrequency::EveryMinute)],
         );

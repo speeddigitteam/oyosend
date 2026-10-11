@@ -1,7 +1,8 @@
 # Modules
 
 How to add a first-party module. The contract is in `app/Core/Modules`; the production build registers `core` and
-the optional `crm` and `projects` business apps. They are documented in `docs/CRM.md` and `docs/PROJECTS.md`.
+the optional `crm`, `projects` and `invoicing` business apps. They are documented in `docs/CRM.md`,
+`docs/PROJECTS.md` and `docs/INVOICING.md`.
 A small non-core App Store fixture remains in `tests/Support/Fixtures/Crm` under the distinct
 module key `test_crm`.
 

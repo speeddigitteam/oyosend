@@ -18,6 +18,7 @@ const catalogue: MessageSchema['catalogue'] = {
         core: 'ওয়ার্কস্পেস',
         crm: 'CRM ও বিক্রয়',
         projects: 'প্রজেক্ট ব্যবস্থাপনা',
+        invoicing: 'ইনভয়েসিং',
     },
     permissionGroups: {
         members: 'সদস্য',
@@ -46,6 +47,12 @@ const catalogue: MessageSchema['catalogue'] = {
         projects_approvals: 'প্রজেক্ট অনুমোদন',
         projects_reports: 'প্রজেক্ট রিপোর্ট',
         projects_settings: 'প্রজেক্ট সেটিংস',
+        invoicing_invoices: 'ইনভয়েস',
+        invoicing_payments: 'ইনভয়েসের পেমেন্ট',
+        invoicing_credit_notes: 'ক্রেডিট নোট',
+        invoicing_recurring: 'পুনরাবৃত্ত ইনভয়েস',
+        invoicing_reports: 'ইনভয়েসিং রিপোর্ট',
+        invoicing_settings: 'ইনভয়েসিং সেটিংস',
     },
     permissions: {
         'core.members.view': {
@@ -155,6 +162,18 @@ const catalogue: MessageSchema['catalogue'] = {
         'projects.approvals.decide': { label: 'প্রজেক্ট অনুমোদনের সিদ্ধান্ত', description: 'প্রজেক্টের অনুরোধ অনুমোদন বা প্রত্যাখ্যান করতে পারবেন।' },
         'projects.reports.view': { label: 'প্রজেক্ট রিপোর্ট দেখা', description: 'ডেলিভারি, কাজের চাপ, সময় ও বাজেটের রিপোর্ট দেখতে পারবেন।' },
         'projects.settings.manage': { label: 'প্রজেক্ট সেটিংস পরিচালনা', description: 'প্রজেক্টের বিভাগ ও টেমপ্লেট কনফিগার করতে পারবেন।' },
+        'invoicing.invoices.view': { label: 'ইনভয়েস দেখা', description: 'অনুমোদিত পরিসরের ইনভয়েস দেখতে পারবেন।' },
+        'invoicing.invoices.edit': { label: 'ইনভয়েস যোগ ও সম্পাদনা', description: 'খসড়া ইনভয়েস তৈরি, সম্পাদনা ও মুছতে এবং প্রজেক্টের সময় বিল করতে পারবেন।' },
+        'invoicing.invoices.issue': { label: 'ইনভয়েস ইস্যু', description: 'খসড়া ইনভয়েসে নম্বর দিয়ে গ্রাহকের জন্য ইস্যু করতে পারবেন।' },
+        'invoicing.invoices.send': { label: 'ইনভয়েস পাঠানো', description: 'গ্রাহককে ইমেইলে ইনভয়েস পাঠাতে পারবেন।' },
+        'invoicing.invoices.void': { label: 'ইনভয়েস বাতিল', description: 'পেমেন্ট বা ক্রেডিট নোট নেই এমন ইস্যু করা ইনভয়েস বাতিল করতে পারবেন।' },
+        'invoicing.payments.record': { label: 'পেমেন্ট রেকর্ড', description: 'ইনভয়েসের বিপরীতে পাওয়া পেমেন্ট রেকর্ড করতে পারবেন।' },
+        'invoicing.payments.reverse': { label: 'পেমেন্ট ফেরত নেওয়া', description: 'রেকর্ড করা পেমেন্ট ফেরত নিয়ে বাকি পাওনা পুনরুদ্ধার করতে পারবেন।' },
+        'invoicing.credit_notes.issue': { label: 'ক্রেডিট নোট ইস্যু', description: 'ক্রেডিট নোট দিয়ে ইনভয়েসের বাকি পাওনা কমাতে পারবেন।' },
+        'invoicing.recurring.view': { label: 'পুনরাবৃত্ত ইনভয়েস দেখা', description: 'পুনরাবৃত্ত ইনভয়েসের টেমপ্লেট দেখতে পারবেন।' },
+        'invoicing.recurring.manage': { label: 'পুনরাবৃত্ত ইনভয়েস পরিচালনা', description: 'পুনরাবৃত্ত ইনভয়েস তৈরি, সম্পাদনা, বিরতি ও শেষ করতে পারবেন।' },
+        'invoicing.reports.view': { label: 'ইনভয়েসিং রিপোর্ট দেখা', description: 'প্রাপ্যের বয়স, আদায় ও ইনভয়েসের মোট দেখতে পারবেন।' },
+        'invoicing.settings.manage': { label: 'ইনভয়েসিং সেটিংস পরিচালনা', description: 'নম্বর, ডিফল্ট, রিমাইন্ডার ও করের হার কনফিগার করতে পারবেন।' },
     },
     // How far a grant reaches, for permissions that can be narrowed.
     scopes: {
@@ -166,6 +185,7 @@ const catalogue: MessageSchema['catalogue'] = {
     // What a plan can cap.
     limits: {
         'projects.active_projects': { label: 'সক্রিয় প্রজেক্ট', description: 'সম্পন্ন বা বাতিল হয়নি এমন প্রজেক্ট।' },
+        'invoicing.invoices_per_month': { label: 'মাসে ইনভয়েস', description: 'প্ল্যানের বিলিং সময়কালে ইস্যু করা ইনভয়েস। খসড়া ও ক্রেডিট নোট গোনা হয় না।' },
         'core.members': {
             label: 'সদস্য',
             description: 'ওয়ার্কস্পেসের সদস্যরা, এবং যে আমন্ত্রণগুলো এখনো গ্রহণ করা যায়।',

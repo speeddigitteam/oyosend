@@ -119,10 +119,12 @@ describe('creating a plan', function () {
                 ->where('modules', [
                     ['key' => 'crm', 'name' => 'CRM & Sales'],
                     ['key' => 'projects', 'name' => 'Project Management'],
+                    ['key' => 'invoicing', 'name' => 'Invoicing'],
                 ])
                 ->where('limits', [
                     ['key' => 'core.members', 'kind' => 'gauge'],
                     ['key' => 'projects.active_projects', 'kind' => 'gauge'],
+                    ['key' => 'invoicing.invoices_per_month', 'kind' => 'metered'],
                 ])
                 ->where('currencies', config('platform.currencies')));
     });
@@ -133,6 +135,7 @@ describe('creating a plan', function () {
             ->assertInertia(fn (AssertableInertia $page) => $page->where('modules', [
                 ['key' => 'crm', 'name' => 'CRM & Sales'],
                 ['key' => 'projects', 'name' => 'Project Management'],
+                ['key' => 'invoicing', 'name' => 'Invoicing'],
             ]));
     });
 
@@ -359,6 +362,7 @@ describe('editing a plan', function () {
                 ->where('limits', [
                     ['key' => 'core.members', 'kind' => 'gauge'],
                     ['key' => 'projects.active_projects', 'kind' => 'gauge'],
+                    ['key' => 'invoicing.invoices_per_month', 'kind' => 'metered'],
                 ])
                 ->has('currencies'));
     });

@@ -152,7 +152,7 @@ describe('the application\'s own registry', function () {
             fn (string $permission): bool => str_starts_with($permission, 'core.'),
         ));
 
-        expect(array_keys($registry->all()))->toBe(['core', 'crm', 'projects'])
+        expect(array_keys($registry->all()))->toBe(['core', 'crm', 'projects', 'invoicing'])
             ->and($core->core)->toBeTrue()
             ->and($core)->toBe(app()->getProvider(CoreServiceProvider::class)->manifest())
             ->and($registry->get('crm'))->toBe(app()->getProvider(CRMServiceProvider::class)->manifest())
@@ -160,7 +160,9 @@ describe('the application\'s own registry', function () {
             ->and($registry->get('projects'))->toBe(app()->getProvider(ProjectsServiceProvider::class)->manifest())
             ->and($registry->get('projects')->permissions)->toHaveCount(19)
             ->and($registry->get('projects')->routes)->toContain('projects.task-options.index')
-            ->and(array_keys($registry->permissions()))->toHaveCount(59)
+            ->and($registry->get('invoicing')->permissions)->toHaveCount(12)
+            ->and($registry->get('invoicing')->routes)->toContain('invoicing.invoices.payments.store')
+            ->and(array_keys($registry->permissions()))->toHaveCount(71)
             ->and($corePermissions)->toEqualCanonicalizing([
                 'core.members.view', 'core.members.invite', 'core.members.manage',
                 'core.roles.view', 'core.roles.manage', 'core.audit.view', 'core.settings.manage',
@@ -177,10 +179,10 @@ describe('the application\'s own registry', function () {
     });
 
     it('refuses to boot with a module whose dependency is missing', function () {
-        app(ModuleRegistry::class)->register(manifest('invoicing', ['dependencies' => ['billing']]));
+        app(ModuleRegistry::class)->register(manifest('ledger', ['dependencies' => ['billing']]));
 
         expect(fn () => (new ModulesServiceProvider(app()))->boot())
-            ->toThrow(RuntimeException::class, 'invoicing needs billing');
+            ->toThrow(RuntimeException::class, 'ledger needs billing');
     });
 
     it('never stores a class name in a polymorphic column: every model has a morph alias', function () {

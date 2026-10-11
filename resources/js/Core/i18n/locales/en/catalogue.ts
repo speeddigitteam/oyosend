@@ -12,6 +12,7 @@ export default {
         core: 'Workspace',
         crm: 'CRM & Sales',
         projects: 'Project Management',
+        invoicing: 'Invoicing',
     },
     permissionGroups: {
         members: 'Members',
@@ -40,6 +41,12 @@ export default {
         projects_approvals: 'Project approvals',
         projects_reports: 'Project reports',
         projects_settings: 'Project settings',
+        invoicing_invoices: 'Invoices',
+        invoicing_payments: 'Invoice payments',
+        invoicing_credit_notes: 'Credit notes',
+        invoicing_recurring: 'Recurring invoices',
+        invoicing_reports: 'Invoicing reports',
+        invoicing_settings: 'Invoicing settings',
     },
     permissions: {
         'core.members.view': {
@@ -149,6 +156,18 @@ export default {
         'projects.approvals.decide': { label: 'Decide project approvals', description: 'Approve or reject project requests.' },
         'projects.reports.view': { label: 'View project reports', description: 'See delivery, workload, time and budget reports.' },
         'projects.settings.manage': { label: 'Manage project settings', description: 'Configure project categories and templates.' },
+        'invoicing.invoices.view': { label: 'View invoices', description: 'See invoices within the granted record scope.' },
+        'invoicing.invoices.edit': { label: 'Add and edit invoices', description: 'Create, edit and delete draft invoices and bill project time.' },
+        'invoicing.invoices.issue': { label: 'Issue invoices', description: 'Number draft invoices and issue them to customers.' },
+        'invoicing.invoices.send': { label: 'Send invoices', description: 'Email invoices to customers.' },
+        'invoicing.invoices.void': { label: 'Void invoices', description: 'Cancel an issued invoice that has no payments or credit notes.' },
+        'invoicing.payments.record': { label: 'Record payments', description: 'Record payments received against invoices.' },
+        'invoicing.payments.reverse': { label: 'Reverse payments', description: 'Reverse a recorded payment and restore the balance due.' },
+        'invoicing.credit_notes.issue': { label: 'Issue credit notes', description: 'Reduce the balance due on an invoice with a credit note.' },
+        'invoicing.recurring.view': { label: 'View recurring invoices', description: 'See recurring invoice templates.' },
+        'invoicing.recurring.manage': { label: 'Manage recurring invoices', description: 'Create, edit, pause and end recurring invoices.' },
+        'invoicing.reports.view': { label: 'View invoicing reports', description: 'See receivables ageing, collections and invoiced totals.' },
+        'invoicing.settings.manage': { label: 'Manage invoicing settings', description: 'Configure numbering, defaults, reminders and tax rates.' },
     },
     // How far a grant reaches, for permissions that can be narrowed.
     scopes: {
@@ -160,6 +179,7 @@ export default {
     // What a plan can cap.
     limits: {
         'projects.active_projects': { label: 'Active projects', description: 'Projects that are not completed or cancelled.' },
+        'invoicing.invoices_per_month': { label: 'Invoices per month', description: 'Invoices issued in the plan billing period. Drafts and credit notes do not count.' },
         'core.members': {
             label: 'Members',
             description: 'People in the workspace, including invitations that can still be accepted.',

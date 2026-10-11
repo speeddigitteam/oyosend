@@ -95,6 +95,12 @@ and mismatched nested CRM resources. Frontend tests mount the bilingual CRM surf
 empty, list and action states. The CRM browser spec uses the Business demo plan, which
 includes the production `crm` module; the Free workspace remains a useful negative entitlement case.
 
+Phase 6 Invoicing coverage lives in `tests/Feature/Invoicing`: exact money and rounding, the draft-issue-paid state
+machine and immutability, gap-free numbering and rollback, manual and partial payments, overpayment and
+idempotency, reversal, credit notes, the CRM quotation and Projects time hand-offs, recurring idempotency and
+catch-up, reminders and overdue, the receivables report, plan limit enforcement, permission/entitlement/record-scope
+gating over HTTP, the printable document, and tenant isolation of every model and route.
+
 Phase 5 coverage lives in `tests/Feature/Projects`, the Projects unit contract tests,
 `tests/js/projects.test.ts`, and `tests/js/projects-hardening.test.ts`. Backend tests exercise tenant-scoped models,
 project/task lifecycle and dependency cycles, recurrence/reminder scheduling, exact budget/expense/time facts,
@@ -113,6 +119,7 @@ and Kanban workflow on the Business demo plan in addition to checking its catalo
 | `Feature/Members`, `Feature/Invitations` | `MemberManagement`; `InviteMember`, `AcceptInvitation` | Member changes and the hierarchy rule; inviting, mail language, acceptance by new and existing accounts |
 | `Feature/Modules` | `Entitlement`, `NavigationAndDashboard`, `DomainEvent` | A non-core module behind entitlement (routes, permissions, sidebar, widgets); domain event conventions |
 | `Feature/AppStore` | `AppCatalog`, `AppLifecycle`, `AppBilling`, `AppStorePages`, `ScheduledJobs` | Manifest/version sync, store pages, free install, lifecycle retention, tenant-isolated licences, paid verification, renewal/grace/expiry and scheduled-job gating |
+| `Feature/Invoicing` | `InvoiceLifecycle`, `PaymentsAndCreditNotes`, `InvoiceSources`, `RecurringAndReminders`, `ReceivablesReport`, `InvoicingHttp`, `InvoicingModelIsolation` | Invoicing as described above |
 | `Feature/Audit` | `AuditTrail` | What is recorded, redaction, immutability, the audit page and its filters |
 | `Feature/Platform` | `PlatformAuth`, `PlatformPages`, `CreatePlatformAdminCommand` | Super Admin sign-in and mandatory 2FA; dashboard and tenant list; `platform:create-admin` |
 | `Feature/Central` | `CentralSite`, `ErrorPages` | Landing page and workspace finder; error pages per area |

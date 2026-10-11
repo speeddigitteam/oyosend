@@ -100,7 +100,8 @@ Phase boundaries are explicit:
 
 - CRM may request project creation only through the documented Projects action/event boundary; Projects does not
   import CRM models.
-- Invoicing can later provide recognized project revenue through a contract/event boundary.
+- Invoicing consumes `projects.time_entry.approved` (billable time) through its listener and bills it without
+  reading a Projects table; see `docs/INVOICING.md` for the known gap (the event carries no project name).
 - HRM can later consume approved time and resource facts through a contract/event boundary.
 - Phase 8 can turn reminder events plus durable mention and watcher records into notifications.
 

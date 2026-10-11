@@ -4,7 +4,7 @@ A multi-tenant business SaaS platform: one workspace per company on its own subd
 CRM, invoicing, marketing, support, automation) added through a built-in App Store. The full product
 specification is [`MASTER_PROMPT.md`](MASTER_PROMPT.md).
 
-**Current state: Phases 1–5 are complete; Phase 6 Invoicing is next and has not been started.** What exists:
+**Current state: Phases 1–6 are complete; Phase 7 HRM & Payroll is next and has not been started.** What exists:
 
 - **Foundation (Phase 1):** subdomain tenancy with fail-closed isolation, sign-in with two-factor authentication,
   memberships and invitations, tenant-scoped roles and permissions, an audit trail, the module / entitlement /

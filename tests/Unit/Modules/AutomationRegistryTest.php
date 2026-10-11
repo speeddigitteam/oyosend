@@ -17,6 +17,12 @@ use App\Modules\CRM\Automation\Triggers\ActivityCompletedTrigger;
 use App\Modules\CRM\Automation\Triggers\DealWonTrigger;
 use App\Modules\CRM\Automation\Triggers\LeadCreatedTrigger as CrmLeadCreatedTrigger;
 use App\Modules\CRM\Automation\Triggers\LeadQualifiedTrigger;
+use App\Modules\Invoicing\Automation\Actions\CreateDraftInvoiceAction;
+use App\Modules\Invoicing\Automation\Triggers\CreditNoteIssuedTrigger;
+use App\Modules\Invoicing\Automation\Triggers\InvoiceIssuedTrigger;
+use App\Modules\Invoicing\Automation\Triggers\InvoiceOverdueTrigger;
+use App\Modules\Invoicing\Automation\Triggers\InvoicePaidTrigger;
+use App\Modules\Invoicing\Automation\Triggers\PaymentReceivedTrigger;
 use App\Modules\Projects\Automation\Actions\AssignTaskAction;
 use App\Modules\Projects\Automation\Actions\CreateProjectAction;
 use App\Modules\Projects\Automation\Actions\CreateTaskAction;
@@ -240,6 +246,11 @@ describe('the application\'s own registry', function () {
             'projects.task.created' => TaskCreatedTrigger::class,
             'projects.task.completed' => TaskCompletedTrigger::class,
             'projects.milestone.completed' => MilestoneCompletedTrigger::class,
+            'invoicing.invoice.issued' => InvoiceIssuedTrigger::class,
+            'invoicing.invoice.paid' => InvoicePaidTrigger::class,
+            'invoicing.payment.received' => PaymentReceivedTrigger::class,
+            'invoicing.credit_note.issued' => CreditNoteIssuedTrigger::class,
+            'invoicing.invoice.overdue' => InvoiceOverdueTrigger::class,
         ])
             ->and($registry->actions())->toBe([
                 'crm.lead.assign' => CrmAssignLeadAction::class,
@@ -248,6 +259,7 @@ describe('the application\'s own registry', function () {
                 'projects.project.create' => CreateProjectAction::class,
                 'projects.task.create' => CreateTaskAction::class,
                 'projects.task.assign' => AssignTaskAction::class,
+                'invoicing.invoice.create_draft' => CreateDraftInvoiceAction::class,
             ])
             ->and(app(AutomationRegistry::class))->toBe($registry);
     });

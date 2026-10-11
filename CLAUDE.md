@@ -5,8 +5,8 @@ Multi-tenant business SaaS, modular monolith. Spec: `MASTER_PROMPT.md` (sections
 `docs/MODULES.md`, `docs/DATABASE.md`, `docs/TESTING.md`, `resources/js/README.md`; `docs/BILLING.md` before
 touching billing. The code is the source of truth; if a doc and the code disagree, fix the doc and say so.
 
-State: Phases 1–5 are complete; Phase 6 Invoicing is next and has not been started. CRM and Projects are production
-optional apps. One phase per session; stop at the end of the phase and report.
+State: Phases 1–6 are complete; Phase 7 HRM & Payroll is next and has not been started. CRM, Projects and Invoicing
+are production optional apps. One phase per session; stop at the end of the phase and report.
 
 ## Stack
 
@@ -46,7 +46,7 @@ app/Core/{Tenancy,Identity,Access,Organization,Contacts,Settings,Registration,Bi
           Automation,Events,Audit,Dashboard,Http,Support}
 app/Core/CoreServiceProvider.php     the `core` module: manifest, bindings, Gate::before, gateways
 app/Platform/                        Super Admin panel (the only code that reads across tenants)
-app/Modules/<Module>/                optional apps (`CRM` and `Projects` are production modules)
+app/Modules/<Module>/                optional apps (`CRM`, `Projects` and `Invoicing` are production modules)
 routes/{central,tenant,tenant-callbacks,platform,console}.php     routes/web.php is NOT loaded
 config/{platform,tenancy,modules,permission,trustedproxy,horizon,ziggy}.php
 database/{migrations,factories,seeders}          lang/{en,bn}, lang/bn.json (server-side strings)

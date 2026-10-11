@@ -27,6 +27,17 @@ export default {
             ],
             releaseNotes: 'Initial project management release.',
         },
+        invoicing: {
+            name: 'Invoicing',
+            description: 'Issue numbered invoices and credit notes, record payments and track what customers owe.',
+            features: [
+                'Numbered invoices with exact tax and discounts',
+                'Manual payments, partial payments and credit notes',
+                'Recurring invoices and payment reminders',
+                'Print-ready documents and receivables ageing',
+            ],
+            releaseNotes: 'Initial customer invoicing release.',
+        },
     },
     terms: {
         category: {

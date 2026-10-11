@@ -443,6 +443,23 @@ Every table uses a ULID key and carries `tenant_id`; tenant-owned unique keys an
 client/team identity is referenced from core, not copied. Money uses unsigned integer minor units, durations use
 integer minutes and timestamps represent UTC. See `docs/PROJECTS.md` for access and integration boundaries.
 
+## 3e. Phase 6 Invoicing tables
+
+Module migrations live in `app/Modules/Invoicing/Database/Migrations` and are loaded by `InvoicingServiceProvider`.
+These are customer invoices; the platform's own `invoices` table (3a) is unrelated.
+
+| Area | Tables | Important constraints |
+|---|---|---|
+| Documents | `invoicing_invoices`, `invoicing_invoice_lines` | `UNIQUE(tenant_id, number)` (nullable: drafts have none), `UNIQUE(tenant_id, source_key)` for idempotent creation from a quote, recurring period or automation key; customer/seller snapshot columns; integer subtotal/discount/tax/total/paid/credited/balance; owner/department/branch scope indexes; `UNIQUE(tenant_id, invoice_id, position)` |
+| Settlement | `invoicing_payments`, `invoicing_credit_notes`, `invoicing_credit_note_lines` | `UNIQUE(tenant_id, idempotency_key)` on payments; reversal columns instead of deletes; `UNIQUE(tenant_id, number)` on credit notes |
+| Numbering | `invoicing_number_sequences` | `UNIQUE(tenant_id, kind, period)`; the row is locked `FOR UPDATE` inside the issuing transaction |
+| Configuration | `invoicing_settings`, `invoicing_tax_rates` | One settings row per tenant; tax rate names unique per tenant |
+| Recurring and sources | `invoicing_recurring_templates`, `invoicing_billable_time` | Next-run index; billable time keyed `UNIQUE(tenant_id, time_entry_id)` with opaque project/entry ids (no foreign key into Projects) |
+| Operations | `invoicing_reminder_logs`, `invoicing_automation_action_receipts` | `UNIQUE(tenant_id, invoice_id, reminder_key)`; `UNIQUE(tenant_id, action, idempotency_key)` |
+
+Money is unsigned integer minor units next to a `currency`; quantities are `quantity_milli`; rates are basis
+points. See `docs/INVOICING.md`.
+
 ## 4. Later tables (outline only)
 
 Names come from spec section 23. Nothing below is designed in detail or migrated. Spec 3.4 names plans, apps and

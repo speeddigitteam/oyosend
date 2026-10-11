@@ -48,8 +48,8 @@ copying shared customer data into CRM.
   accepting its quotation does not add the order again. An accepted quotation without a deal recognizes its order
   total directly. This keeps standalone sales useful without double-counting opportunity-backed sales.
 - `crm.quote.accepted` is the stable Phase 6 hand-off. Its event payload contains identifiers, currency, integer
-  totals and immutable order-line snapshots; the future invoicing module can create an itemized invoice without
-  importing or querying CRM models.
+  totals and immutable order-line snapshots. The Invoicing module (`docs/INVOICING.md`) creates an itemized draft
+  invoice from it without importing or querying CRM models, once per quotation.
 - Sales orders have explicit status transitions. Contracts may be linked to an order or created for a shared
   customer. Targets and reports expose actual sales, weighted forecast, conversion, order trend and attainment.
 

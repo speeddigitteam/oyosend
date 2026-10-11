@@ -5,9 +5,9 @@ Rules for working in this repository are in `CLAUDE.md`; the product specificati
 
 ## Status
 
-**Phases 1 (Architecture & Foundation), 2 (Core SaaS & Billing), 3 (App Store), 4 (CRM) and 5 (Projects) are
-complete as of 2026-10-10. Phase 6 Invoicing is next and has not been started.**
-CRM and Projects are compiled production business applications and catalogue entries. App Store tests retain a separate
+**Phases 1 (Architecture & Foundation), 2 (Core SaaS & Billing), 3 (App Store), 4 (CRM), 5 (Projects) and
+6 (Invoicing) are complete as of 2026-10-11. Phase 7 HRM & Payroll is next and has not been started.**
+CRM, Projects and Invoicing are compiled production business applications and catalogue entries. App Store tests retain a separate
 `test_crm` fixture so production CRM and generic multi-app behaviour can be exercised independently.
 
 ## What exists
@@ -87,6 +87,26 @@ CRM and Projects are compiled production business applications and catalogue ent
 Earlier whole-repository results remain below as historical evidence. Each phase's final totals are recorded only
 after every gate has returned, so they are not guessed.
 
+### Phase 6 final — 2026-10-11
+
+Run natively on Laragon/Windows against `oyosend_testing`; Invoicing and sidebar work was done by delegated agents on
+their own `*_testing` databases and then re-run together here.
+
+| Check | Command | Result |
+|---|---|---|
+| Code style | `vendor/bin/pint --test` | passed |
+| Static analysis | `vendor/bin/phpstan analyse` (level 6) | no errors |
+| Backend tests | `php artisan test --compact` | 2,277 passed, 1 failed, 22,590 assertions in 628s |
+| Type check | `npm run typecheck` | no errors |
+| Frontend tests | `npm run test` | 19 files, 354 tests passed |
+| Production build | `npm run build` | built |
+| End-to-end tests | `tests/e2e/invoicing.spec.ts` | written, **not run** |
+
+The one failure is `ProjectsDomainTest › it creates recurring tasks and emits reminders once per due occurrence`
+(line 306: expected 0 recurrences, got 1). It fails identically on the committed Phase 5 tree with every Phase 6
+change stashed, and passed in three full runs earlier the same day, so it is not caused by Invoicing. It depends on
+the real clock somewhere around the tenant-timezone `until` boundary; the cause was not found. Fix it before relying
+on the Projects recurrence boundary.
 ### Review pass — 2026-10-11 (after Phase 5 hardening)
 
 Same working tree as Phase 5 plus the sidebar and dashboard-copy fixes in the session log.
@@ -278,13 +298,14 @@ Billing and product:
 Frontend and operations:
 
 - Wide data tables scroll horizontally on small screens rather than becoming record cards.
-- App catalogue text (app name, description, features, offer labels, release notes) comes from the module
-  manifests in English only, so the Bengali App Store shows it untranslated. Needs a decision on where catalogue
-  translations live, because each published version is an immutable snapshot hashed from its manifest.
-- My Apps lists App Store installations only. A workspace whose plan includes CRM and Projects can use both, yet
-  My Apps says no apps are installed. Decide whether plan-included apps belong there.
-- The sidebar now holds 26 entries for an owner with CRM and Projects; it scrolls, but each further app adds
-  five to ten more. Collapsible per-app groups will be needed before Phase 6–7 add theirs.
+- App catalogue text is translated on the client by app key (`appStore.catalog.{key}` in the locales, with the
+  server text as fallback). A new app must add its block to both locales. Offer labels (for example "Included")
+  still come from the manifest in English.
+- Phase 6 Invoicing: tenant payment gateways are not built (credentials may not be stored in the database; needs an
+  owner decision), invoice PDFs are print-to-PDF from a standalone HTML document (no LGPL PDF library), and the
+  Projects time event carries only ids, so billable time shows a project id. Not built: invoice-level discounts,
+  tax-inclusive pricing, refunds of paid amounts, a dashboard widget. The Bengali invoicing wording and the
+  Playwright spec (`tests/e2e/invoicing.spec.ts`, not run) still need a native read and a run.
 - Laravel Sail, Horizon, CI, S3, real mail and production deployment have not received an end-to-end run.
 - During the 2026-10-10 Phase 3 verification, `migrate:fresh --env=testing` was accidentally run without an
   `.env.testing` file and rebuilt the local development `oyosend` database. Its schema is present, but any prior
@@ -294,7 +315,7 @@ Frontend and operations:
 
 ## Deferred, by phase
 
-- **Phase 6–7:** Customer invoicing, then HRM/Payroll.
+- **Phase 7:** HRM/Payroll.
 - **Phase 8:** notification centre and communication providers. **Phase 9:** marketing apps.
 - **Phase 10:** the automation engine; only its definition registry exists today.
 - **Phase 11–12:** AI applications, Support and advanced reporting.
@@ -313,6 +334,14 @@ Frontend and operations:
 7. A native Bengali speaker's review of the complete interface wording.
 8. Final name and brand mark approval.
 9. Production support-access policy and whether tenants must explicitly approve a session.
+
+## Phase 6 completion
+
+Invoicing is a compiled optional app (`app/Modules/Invoicing`, `docs/INVOICING.md`): exact integer money, gap-free
+per-tenant numbering, tax lines, credit notes, manual and bank payments with idempotency, recurring invoices,
+reminders, quote and billable-time hand-offs through events, receivables reports, print-ready documents, queued
+email and a bilingual UI. The sidebar groups each app under a collapsible header, My Apps lists plan-included
+apps and the App Store text is translated. Stop for review; do not begin Phase 7 in this session.
 
 ## Phase 5 completion
 
@@ -356,3 +385,8 @@ session.
   the sidebar length under known issues. The local dev database also had the CRM/Projects migrations pending and
   lacked three App Store columns added to an already-run migration; the migrations were applied and the empty
   `app_versions`/`app_installations` tables aligned by hand.
+- **2026-10-11** — Phase 6 Invoicing completed: `app/Modules/Invoicing` (exact integer money, gap-free numbering,
+  tax lines, credit notes, manual/bank payments with idempotency, recurring invoices, reminders, quote and billable-time
+  hand-offs, receivables reports, print-ready documents, queued email), bilingual UI, `docs/INVOICING.md`. Also
+  shipped: collapsible per-app sidebar groups, translated App Store text, plan-included apps in My Apps. Gateway
+  payments deliberately not built. Phase 7 was not started.

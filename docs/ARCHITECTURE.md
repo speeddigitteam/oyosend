@@ -1,6 +1,6 @@
 # Architecture
 
-State: Phases 1–5, including the App Store, CRM and Projects, are implemented. This page describes what is
+State: Phases 1–6, including the App Store, CRM, Projects and Invoicing, are implemented. This page describes what is
 in the code. Anything not built is listed in [section 12](#12-not-built-yet). Decisions are in `docs/adr/`.
 
 ## 1. Shape
@@ -132,6 +132,12 @@ identity, applies the same tenant/record-scope boundary to projects and tasks, a
 time, resource, budget, approval, reporting and client-access records. Its CRM, Invoicing, HRM and notification
 connections remain event/contract hand-offs rather than model imports; see `docs/PROJECTS.md`.
 
+`app/Modules/Invoicing` is the third production optional business module: customer invoices, manually recorded
+payments, credit notes, recurring invoices, reminders and receivables reporting. It is unrelated to the platform's
+own billing in `app/Core/Billing`. It consumes `crm.quote.accepted` and `projects.time_entry.approved` through
+listeners that read only the event payload, and references shared contacts/companies by id; see
+`docs/INVOICING.md`.
+
 ## 5. Module boundaries and the module contract
 
 - A module is one service provider extending `App\Core\Modules\ModuleServiceProvider`, listed in
@@ -141,6 +147,8 @@ connections remain event/contract hand-offs rather than model imports; see `docs
   licence. It is the production reference for scoped optional-module records and retained data on uninstall.
 - Projects is key `projects`, depends on `core`, uses the same entitlement and retention rules, and is independent
   of CRM so either optional app can be installed alone.
+- Invoicing is key `invoicing`, depends on `core` only, and follows the same entitlement and retention rules. It
+  reacts to CRM and Projects events when those apps are present and works without them.
 - Being registered makes a module's code available. Whether a tenant may use it is a separate, server-side
   entitlement check (`EntitlementChecker`).
 - A module owns its routes, controllers, models, migrations, policies, events, jobs and tests. Modules talk to
@@ -275,10 +283,16 @@ route `can:crm.leads.edit`  /  $user->can()  /  Gate::allows()
 - Projects events: `projects.project.created`, `projects.task.created`, `projects.task.completed`,
   `projects.task.reminder_due`, `projects.milestone.completed`, `projects.time_entry.approved`
   (`app/Modules/Projects/Events`).
+- Invoicing events: `invoicing.invoice.issued`, `invoicing.invoice.paid`, `invoicing.payment.received`,
+  `invoicing.payment.reversed`, `invoicing.credit_note.issued`, `invoicing.invoice.overdue`
+  (`app/Modules/Invoicing/Events`). They are the only events with listeners today: Invoicing subscribes to
+  `crm.quote.accepted` and `projects.time_entry.approved`.
 - The automation catalogue exposes three core triggers (`core.member.joined`, `core.contact.created`,
   `core.company.created`), four CRM triggers (`crm.lead.created`, `crm.lead.qualified`, `crm.deal.won`,
   `crm.activity.completed`) and four Projects triggers (`projects.project.created`, `projects.task.created`,
-  `projects.task.completed`, `projects.milestone.completed`).
+  `projects.task.completed`, `projects.milestone.completed`), five Invoicing triggers (`invoicing.invoice.issued`,
+  `invoicing.invoice.paid`, `invoicing.payment.received`, `invoicing.credit_note.issued`,
+  `invoicing.invoice.overdue`) and one Invoicing action (`invoicing.invoice.create_draft`).
 
 ## 10. Queues
 
@@ -299,6 +313,9 @@ route `can:crm.leads.edit`  /  $user->can()  /  Gate::allows()
   after the response with `defer()`, inside the workspace's context.
 - Queued module maintenance today: the entitlement-gated app scheduler dispatches Projects'
   `MaintainProjectTasks` every minute on `automation`; it creates due task recurrences and emits reminder events.
+  Invoicing's `GenerateRecurringInvoices` (hourly, `automation`) creates due recurring drafts and
+  `MaintainReceivables` (hourly, `notifications`) marks invoices overdue and sends payment reminders. `InvoiceMail`
+  (customer invoices and reminders, `notifications`) is queued in the workspace's locale.
 - Scheduled (`routes/console.php`): `billing:run` hourly, which handles base and app subscriptions inside each
   tenant context; `apps:run-scheduled` every minute, which dispatches only compiled jobs of entitled apps through
   a worker-time compiled-definition and entitlement check; and
@@ -320,7 +337,8 @@ strategy, and the gaps that must be closed before the first move, are in `docs/D
 | A verified payment gateway | when credentials exist | SSLCommerz is implemented but has not been run against the sandbox |
 | API tokens (Sanctum) | when first needed | Not installed; there are no API routes |
 | Integration centre (OAuth connections, webhooks) | not assigned in spec 27 | — |
-| Further optional production apps | 6+ | CRM and Projects are compiled; Invoicing, HRM and later apps remain phased work |
+| Further optional production apps | 7+ | CRM, Projects and Invoicing are compiled; HRM and later apps remain phased work |
+| Customer-facing payment gateway for invoices | owner decision | Invoicing records manual payments only; per-tenant gateway credentials cannot live in the database (CLAUDE.md), see `docs/INVOICING.md` |
 | Notification centre, realtime (Reverb) | 8 | Not installed; `BROADCAST_CONNECTION=log` |
 | Automation engine | 10 | Contracts and registry only |
 | General file manager | — | `TenantStorage` backs workspace logos and CRM/Projects private attachments; no general browser exists |

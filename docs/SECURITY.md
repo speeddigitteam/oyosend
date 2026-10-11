@@ -221,6 +221,24 @@ for as typed (member search, audit search, the Super Admin tenant list).
 - Project money, rates, durations, progress and allocations are bounded integers. Automation actions persist a
   durable tenant/action/idempotency receipt atomically with their mutation.
 
+## 5d.1. Invoicing records, documents and payments
+
+- The `invoicing` route group requires tenant resolution, `entitled:invoicing`, authentication, active membership,
+  a healthy subscription and a route-specific permission. No invoicing route is public: there is no public invoice
+  link, the document is attached to the email instead.
+- Invoices and recurring templates apply `RecordAccess`; payments and credit notes are authorized through their
+  invoice, and a payment or credit note id that belongs to another invoice answers 404.
+- Customers are re-validated against the actor's `core.contacts.view` scope. Customer and seller details are
+  snapshotted at issue; an issued invoice's commercial fields are guarded in the model and the lines are immutable.
+- Totals, balances and statuses are server-derived from integer rows and recomputed under a row lock. A payment
+  counts only because a member with `invoicing.payments.record` entered it; no gateway or redirect can settle an
+  invoice. Overpayment, future-dated payments and duplicate idempotency keys are refused; reversal needs
+  `invoicing.payments.reverse` and a reason, and is audited.
+- Document HTML escapes every user value. The embedded logo is read through `TenantStorage`, size- and
+  MIME-checked, and never referenced by URL.
+- The CRM-quote and Projects-time hand-offs read only the event payload, check the entitlement and the active tenant
+  at delivery, and are idempotent.
+
 ## 5e. Browser security headers
 
 `App\Core\Http\Middleware\SecurityHeaders`, appended to the `web` group:
