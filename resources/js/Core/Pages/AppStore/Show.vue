@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { Check, ChevronLeft, KeyRound, Puzzle, ShieldCheck } from 'lucide-vue-next';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppActionPanel from '@/Core/Components/AppStore/AppActionPanel.vue';
 import AppSettingsPanel from '@/Core/Components/AppStore/AppSettingsPanel.vue';
 import AppStatusBadge from '@/Core/Components/AppStore/AppStatusBadge.vue';
+import { useAppCatalog } from '@/Core/Components/AppStore/catalog';
 import { useAppStoreTerms } from '@/Core/Components/AppStore/terms';
 import type { StoreApp } from '@/Core/Components/AppStore/types';
 import Badge from '@/Core/Components/Badge.vue';
@@ -18,15 +20,19 @@ import { route } from '@/Core/lib/route';
 
 defineOptions({ layout: TenantLayout });
 
-defineProps<{ app: StoreApp; dependencyNames: Record<string, string> }>();
+const props = defineProps<{ app: StoreApp; dependencyNames: Record<string, string> }>();
 
 const { t } = useI18n();
 const format = useFormat();
 const terms = useAppStoreTerms();
+const catalog = useAppCatalog();
+const appName = computed(() => catalog.name(props.app));
+const features = computed(() => catalog.features(props.app));
+const releaseNotes = computed(() => catalog.releaseNotes(props.app));
 </script>
 
 <template>
-    <PageHeader :eyebrow="t('appStore.show.eyebrow')" :title="app.name" :description="app.description">
+    <PageHeader :eyebrow="t('appStore.show.eyebrow')" :title="appName" :description="catalog.description(app)">
         <template #actions>
             <Button :href="route('core.apps.index')" variant="ghost">
                 <template #icon><ChevronLeft class="size-4" aria-hidden="true" /></template>
@@ -67,7 +73,7 @@ const terms = useAppStoreTerms();
 
             <Card v-if="app.features.length" :title="t('appStore.show.features.title')" :description="t('appStore.show.features.body')">
                 <ul class="grid gap-3 sm:grid-cols-2">
-                    <li v-for="feature in app.features" :key="feature" class="flex items-start gap-2 text-[0.8125rem] text-ink-muted">
+                    <li v-for="feature in features" :key="feature" class="flex items-start gap-2 text-[0.8125rem] text-ink-muted">
                         <Check class="mt-0.5 size-4 shrink-0 text-ok" aria-hidden="true" />
                         <span>{{ feature }}</span>
                     </li>
@@ -80,7 +86,7 @@ const terms = useAppStoreTerms();
                         v-for="(screenshot, index) in app.screenshots"
                         :key="screenshot"
                         :src="screenshot"
-                        :alt="t('appStore.show.screenshotAlt', { app: app.name, number: format.number(index + 1) })"
+                        :alt="t('appStore.show.screenshotAlt', { app: appName, number: format.number(index + 1) })"
                         loading="lazy"
                         decoding="async"
                         class="aspect-video w-full rounded-control border border-line bg-hover object-cover"
@@ -88,8 +94,8 @@ const terms = useAppStoreTerms();
                 </div>
             </Card>
 
-            <Card v-if="app.releaseNotes" :title="t('appStore.show.releaseNotes', { version: app.version })">
-                <p class="whitespace-pre-line text-[0.8125rem] text-ink-muted">{{ app.releaseNotes }}</p>
+            <Card v-if="releaseNotes" :title="t('appStore.show.releaseNotes', { version: app.version })">
+                <p class="whitespace-pre-line text-[0.8125rem] text-ink-muted">{{ releaseNotes }}</p>
             </Card>
 
             <AppSettingsPanel

@@ -72,6 +72,8 @@ export interface SupportSession {
 
 export interface NavigationItem {
     key: string;
+    /** Manifest key of the module that contributed the entry (`core` for the platform's own). */
+    module: string;
     route: string;
     href: string;
     icon: string;

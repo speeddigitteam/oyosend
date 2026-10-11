@@ -11,6 +11,7 @@ import { useFocusReturn } from '@/Core/Components/Team/focus';
 import { useAccess } from '@/Core/composables/useAccess';
 import { useFormat } from '@/Core/composables/useFormat';
 import { route } from '@/Core/lib/route';
+import { useAppCatalog } from './catalog';
 import { useAppStoreTerms } from './terms';
 import type { AppOffer, StoreApp } from './types';
 
@@ -20,6 +21,8 @@ const { t } = useI18n();
 const { can } = useAccess();
 const format = useFormat();
 const terms = useAppStoreTerms();
+const catalog = useAppCatalog();
+const appName = computed(() => catalog.name(props.app));
 
 const canManage = computed(() => can('core.apps.manage'));
 const canManageBilling = computed(() => can('core.billing.manage'));
@@ -212,7 +215,7 @@ function price(offer: AppOffer): string {
 const confirmationCopy = computed(() => {
     if (confirmation.value === 'purchase' && chosenOffer.value) {
         return {
-            title: t('appStore.confirm.purchase.title', { app: props.app.name }),
+            title: t('appStore.confirm.purchase.title', { app: appName.value }),
             description: t('appStore.confirm.purchase.body', {
                 offer: chosenOffer.value.name,
                 price: price(chosenOffer.value),
@@ -224,7 +227,7 @@ const confirmationCopy = computed(() => {
 
     if (confirmation.value === 'deactivate') {
         return {
-            title: t('appStore.confirm.deactivate.title', { app: props.app.name }),
+            title: t('appStore.confirm.deactivate.title', { app: appName.value }),
             description: t('appStore.confirm.deactivate.body'),
             label: t('appStore.confirm.deactivate.submit'),
             tone: 'default' as const,
@@ -233,7 +236,7 @@ const confirmationCopy = computed(() => {
 
     if (confirmation.value === 'cancel') {
         return {
-            title: t('appStore.confirm.cancel.title', { app: props.app.name }),
+            title: t('appStore.confirm.cancel.title', { app: appName.value }),
             description: t('appStore.confirm.cancel.body', {
                 date: format.date(props.app.subscription?.periodEnd ?? props.app.subscription?.trialEndsAt),
             }),
@@ -243,7 +246,7 @@ const confirmationCopy = computed(() => {
     }
 
     return {
-        title: t('appStore.confirm.uninstall.title', { app: props.app.name }),
+        title: t('appStore.confirm.uninstall.title', { app: appName.value }),
         description: t('appStore.confirm.uninstall.body'),
         label: t('appStore.confirm.uninstall.submit'),
         tone: 'danger' as const,

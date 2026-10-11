@@ -83,3 +83,24 @@ it('requires billing control for paid app cancellation and uninstall', function 
 
     expect($item->refresh()->cancel_at_period_end)->toBeFalse();
 });
+
+it('lists an app the plan includes under My apps without an installation', function () {
+    $plan = Plan::factory()->free()->create(['modules' => ['test_crm']]);
+    $included = $this->createTenant('included');
+    $this->subscribe($included, $plan, withTrial: false);
+
+    $this->actingAsOwner($included)
+        ->get($this->tenantUrl($included, '/apps/my'))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Core/Pages/AppStore/MyApps')
+            ->has('apps', 1)
+            ->where('apps.0.key', 'test_crm')
+            ->where('apps.0.installation', null));
+
+    // A plan without it leaves the page as it was: nothing installed, nothing listed.
+    $this->startNewBrowserSession()
+        ->actingAsOwner($this->acme)
+        ->get($this->tenantUrl($this->acme, '/apps/my'))
+        ->assertInertia(fn (AssertableInertia $page) => $page->where('apps', []));
+});

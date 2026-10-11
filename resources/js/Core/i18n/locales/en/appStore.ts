@@ -1,4 +1,33 @@
 export default {
+    /**
+     * Client-side translations of the first-party app catalogue, keyed by app key. The
+     * manifest text is hashed into immutable catalogue versions, so it cannot be localised
+     * on the server. An app without an entry here shows the server text.
+     */
+    catalog: {
+        crm: {
+            name: 'CRM & Sales',
+            description: 'Turn shared contacts into qualified leads, managed opportunities, quotations and sales orders.',
+            features: [
+                'Lead qualification and assignment',
+                'Visual deal pipelines and activities',
+                'Products, quotations and sales orders',
+                'Customer lifecycle and sales forecasting',
+            ],
+            releaseNotes: 'Initial CRM and sales release.',
+        },
+        projects: {
+            name: 'Project Management',
+            description: 'Plan client work, collaborate on tasks, track time and control project costs.',
+            features: [
+                'Projects, templates and visual work planning',
+                'Tasks, dependencies, sprints and milestones',
+                'Time, workload, budgets and expenses',
+                'Approvals and controlled client collaboration',
+            ],
+            releaseNotes: 'Initial project management release.',
+        },
+    },
     terms: {
         category: {
             hrm_payroll: 'HRM & payroll',

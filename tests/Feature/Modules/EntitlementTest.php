@@ -202,6 +202,7 @@ describe('a workspace that is entitled', function () {
 
                 expect($apps['items'])->toBe([[
                     'key' => 'test_leads',
+                    'module' => 'test_crm',
                     'route' => 'test_crm.leads.index',
                     'href' => 'http://acme.localhost/test-crm/leads',
                     'icon' => 'target',

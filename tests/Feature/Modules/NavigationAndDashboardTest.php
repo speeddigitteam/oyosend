@@ -90,6 +90,7 @@ describe('the sidebar', function () {
 
                 expect($manage['items'][0])->toBe([
                     'key' => 'members',
+                    'module' => 'core',
                     'route' => 'core.members.index',
                     'href' => 'http://acme.localhost/team/members',
                     'icon' => 'users',
@@ -150,6 +151,11 @@ describe('the sidebar', function () {
 
         $sections = collect($this->inTenant($this->acme, fn (): array => app(NavigationBuilder::class)->for($this->ownerOf($this->acme))))
             ->mapWithKeys(fn (array $section): array => [$section['key'] => array_column($section['items'], 'key')]);
+
+        $apps = collect($this->inTenant($this->acme, fn (): array => app(NavigationBuilder::class)->for($this->ownerOf($this->acme))))
+            ->firstWhere('key', 'apps');
+
+        expect(array_column($apps['items'], 'module'))->toBe(['core', 'alpha', 'alpha', 'beta', 'beta']);
 
         expect($sections['apps'])->toBe(['appStore', 'alphaFirst', 'alphaLast', 'betaFirst', 'betaSecond'])
             // An app's own settings entry follows the core entries rather than splitting them.

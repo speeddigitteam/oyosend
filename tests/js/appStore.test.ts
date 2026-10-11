@@ -60,6 +60,7 @@ import AppSettingsPanel from '@/Core/Components/AppStore/AppSettingsPanel.vue';
 import type { AppSubscription, StoreApp } from '@/Core/Components/AppStore/types';
 import { setLocale } from '@/Core/i18n';
 import AppStoreIndex from '@/Core/Pages/AppStore/Index.vue';
+import AppStoreShow from '@/Core/Pages/AppStore/Show.vue';
 
 const mounted: VueWrapper[] = [];
 
@@ -439,5 +440,80 @@ describe('App Store', () => {
         await flushPromises();
 
         expect(inertia.visits).toEqual([{ method: 'delete', url: '/core.apps.uninstall?app=crm' }]);
+    });
+});
+
+describe('App Store catalogue translations', () => {
+    const crmEn = {
+        name: 'CRM & Sales',
+        description: 'Turn shared contacts into qualified leads, managed opportunities, quotations and sales orders.',
+        features: ['Lead qualification and assignment', 'Visual deal pipelines and activities'],
+        releaseNotes: 'Initial CRM and sales release.',
+    };
+
+    function indexProps(apps: StoreApp[]) {
+        return { apps, filters: { q: '', category: null, pricing: null }, categories: [], pricingTypes: [] };
+    }
+
+    it('keeps the server text in English, which matches the manifest', () => {
+        const wrapper = track(mount(AppStoreIndex, { props: indexProps([app({ ...crmEn })]) }));
+
+        expect(wrapper.text()).toContain(crmEn.name);
+        expect(wrapper.text()).toContain(crmEn.description);
+    });
+
+    it('shows Bengali for the crm and projects apps', () => {
+        setLocale('bn');
+        const wrapper = track(
+            mount(AppStoreIndex, {
+                props: indexProps([
+                    app({ ...crmEn }),
+                    app({ key: 'projects', name: 'Project Management', description: 'Plan client work, collaborate on tasks, track time and control project costs.' }),
+                ]),
+            }),
+        );
+
+        expect(wrapper.text()).toContain('CRM ও সেলস');
+        expect(wrapper.text()).toContain('প্রজেক্ট ম্যানেজমেন্ট');
+        expect(wrapper.text()).not.toContain(crmEn.description);
+        expect(wrapper.text()).not.toContain('Plan client work');
+    });
+
+    it('translates features and release notes on the detail page', () => {
+        setLocale('bn');
+        const wrapper = track(
+            mount(AppStoreShow, {
+                props: { app: app({ ...crmEn }), dependencyNames: {} },
+                global: { stubs: { AppActionPanel: true, AppSettingsPanel: true } },
+            }),
+        );
+
+        expect(wrapper.text()).toContain('লিড যাচাই ও দায়িত্ব বণ্টন');
+        expect(wrapper.text()).toContain('ভিজ্যুয়াল ডিল পাইপলাইন ও কার্যকলাপ');
+        expect(wrapper.text()).toContain('CRM ও সেলসের প্রথম প্রকাশ।');
+        expect(wrapper.text()).not.toContain(crmEn.releaseNotes);
+    });
+
+    it('falls back to the server text for an app without a translation', () => {
+        setLocale('bn');
+        const unknown = app({
+            key: 'acme_widgets',
+            name: 'Acme Widgets',
+            description: 'Widgets for everyone.',
+            features: ['Widget builder'],
+            releaseNotes: 'First widgets.',
+        });
+        const index = track(mount(AppStoreIndex, { props: indexProps([unknown]) }));
+        const show = track(
+            mount(AppStoreShow, {
+                props: { app: unknown, dependencyNames: {} },
+                global: { stubs: { AppActionPanel: true, AppSettingsPanel: true } },
+            }),
+        );
+
+        expect(index.text()).toContain('Acme Widgets');
+        expect(index.text()).toContain('Widgets for everyone.');
+        expect(show.text()).toContain('Widget builder');
+        expect(show.text()).toContain('First widgets.');
     });
 });

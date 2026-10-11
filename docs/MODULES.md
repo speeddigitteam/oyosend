@@ -117,6 +117,10 @@ upgrade hook; automatic upgrade orchestration is not built.
 - `section` is `workspace`, `apps` or `manage` (`NavigationBuilder::SECTIONS`). Optional apps use `apps`.
 - Within a section a module's entries stay together: modules are ordered by their lowest `order` there, entries
   by their own. `order` therefore only needs to be unique within the module, and two apps never interleave.
+- Each item is sent with `module` (the manifest key). In the `apps` section the workspace shell shows the entries
+  of every non-core module under one collapsible header named `catalogue.modules.{module}`; core entries and the
+  `workspace` / `manage` sections stay flat. The collapsed state is a per-viewer localStorage preference, and the
+  group holding the current page is always open. The command palette lists every entry regardless.
 - An item is sent to the browser only if the tenant is entitled to the module, the user holds `permission` (when
   set) and the named route exists. That is a convenience; the route enforces access again.
 - Label: `shell.nav.{key}` in `resources/js/Core/i18n/locales/*/shell.ts`. Icon: a name registered in

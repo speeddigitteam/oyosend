@@ -92,6 +92,11 @@ const sections = computed<ShellNavSection[]>(() =>
             icon: item.icon,
             // Recomputed on every visit because it reads the current URL.
             current: page.url !== undefined && isCurrentRoute(item.active),
+            // Optional apps get one collapsible group each; core entries and the other sections stay flat.
+            group:
+                section.key === 'apps' && item.module !== undefined && item.module !== 'core'
+                    ? { key: item.module, label: te(`catalogue.modules.${item.module}`) ? t(`catalogue.modules.${item.module}`) : item.module }
+                    : undefined,
         })),
     })),
 );

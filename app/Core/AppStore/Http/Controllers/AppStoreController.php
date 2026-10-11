@@ -103,18 +103,32 @@ final class AppStoreController
             ->with(['app.currentVersion', 'version'])
             ->latest('updated_at')
             ->get();
-        $apps = $installations->pluck('app');
-        [, $items, $entitlements] = $this->stateFor($apps);
 
-        return Inertia::render('Core/Pages/AppStore/MyApps', [
-            'apps' => $installations->map(fn (AppInstallation $installation): array => AppStorePresenter::app(
-                $installation->app,
-                $installation,
-                $items->get($installation->app_id),
-                $entitlements->get($installation->app_id),
-                $this->manager->isIncludedInPlan($installation->app),
-            ))->all(),
-        ]);
+        // Apps the plan already includes work without an installation; they belong here too.
+        $included = $this->catalogueQuery()
+            ->get()
+            ->reject(fn (CatalogApp $app): bool => $installations->contains('app_id', $app->id))
+            ->filter(fn (CatalogApp $app): bool => $this->manager->isIncludedInPlan($app))
+            ->values();
+
+        $apps = $installations->pluck('app')->concat($included);
+        [$stateInstallations, $items, $entitlements] = $this->stateFor($apps);
+
+        $presented = $installations->map(fn (AppInstallation $installation): array => AppStorePresenter::app(
+            $installation->app,
+            $installation,
+            $items->get($installation->app_id),
+            $entitlements->get($installation->app_id),
+            $this->manager->isIncludedInPlan($installation->app),
+        ))->concat($included->map(fn (CatalogApp $app): array => AppStorePresenter::app(
+            $app,
+            $stateInstallations->get($app->id),
+            $items->get($app->id),
+            $entitlements->get($app->id),
+            true,
+        )));
+
+        return Inertia::render('Core/Pages/AppStore/MyApps', ['apps' => $presented->values()->all()]);
     }
 
     public function install(Request $request, string $app): RedirectResponse

@@ -72,18 +72,22 @@ final class NavigationBuilder
 
             uasort($modules, static fn (array $a, array $b): int => $a[0]->order <=> $b[0]->order);
 
-            $items = array_merge(...array_values($modules));
+            $items = [];
 
-            $navigation[] = [
-                'key' => $key,
-                'items' => array_map(static fn (NavigationItem $item): array => [
-                    'key' => $item->key,
-                    'route' => $item->route,
-                    'href' => route($item->route),
-                    'icon' => $item->icon,
-                    'active' => $item->activePattern ?? $item->route,
-                ], $items),
-            ];
+            foreach ($modules as $moduleKey => $moduleItems) {
+                foreach ($moduleItems as $item) {
+                    $items[] = [
+                        'key' => $item->key,
+                        'module' => (string) $moduleKey,
+                        'route' => $item->route,
+                        'href' => route($item->route),
+                        'icon' => $item->icon,
+                        'active' => $item->activePattern ?? $item->route,
+                    ];
+                }
+            }
+
+            $navigation[] = ['key' => $key, 'items' => $items];
         }
 
         return $navigation;

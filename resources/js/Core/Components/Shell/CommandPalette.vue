@@ -48,7 +48,7 @@ const entries = computed<Entry[]>(() => [
             group: t('shell.palette.groups.navigate'),
             label: item.label,
             iconName: item.icon,
-            keywords: section.label,
+            keywords: item.group ? `${section.label} ${item.group.label}` : section.label,
             perform: () => router.visit(item.href),
         })),
     ),
