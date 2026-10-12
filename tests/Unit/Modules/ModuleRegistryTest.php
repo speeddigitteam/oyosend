@@ -152,7 +152,7 @@ describe('the application\'s own registry', function () {
             fn (string $permission): bool => str_starts_with($permission, 'core.'),
         ));
 
-        expect(array_keys($registry->all()))->toBe(['core', 'crm', 'projects', 'invoicing'])
+        expect(array_keys($registry->all()))->toBe(['core', 'crm', 'projects', 'invoicing', 'hrm', 'payroll', 'talent', 'automation', 'ai', 'communication', 'social', 'support', 'reports'])
             ->and($core->core)->toBeTrue()
             ->and($core)->toBe(app()->getProvider(CoreServiceProvider::class)->manifest())
             ->and($registry->get('crm'))->toBe(app()->getProvider(CRMServiceProvider::class)->manifest())
@@ -162,7 +162,12 @@ describe('the application\'s own registry', function () {
             ->and($registry->get('projects')->routes)->toContain('projects.task-options.index')
             ->and($registry->get('invoicing')->permissions)->toHaveCount(12)
             ->and($registry->get('invoicing')->routes)->toContain('invoicing.invoices.payments.store')
-            ->and(array_keys($registry->permissions()))->toHaveCount(71)
+            ->and($registry->get('hrm')->permissions)->toHaveCount(20)
+            ->and($registry->get('hrm')->routes)->toContain('hrm.leave.requests.decision')
+            ->and($registry->get('payroll')->permissions)->toHaveCount(22)
+            ->and($registry->get('talent')->permissions)->toHaveCount(30)
+            ->and($registry->get('talent')->dependencies)->toBe(['core', 'hrm'])
+            ->and(array_keys($registry->permissions()))->toHaveCount(203)
             ->and($corePermissions)->toEqualCanonicalizing([
                 'core.members.view', 'core.members.invite', 'core.members.manage',
                 'core.roles.view', 'core.roles.manage', 'core.audit.view', 'core.settings.manage',

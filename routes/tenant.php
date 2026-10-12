@@ -52,10 +52,14 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest:web')->group(function () {
     Route::get('login', [LoginController::class, 'create'])->name('auth.login');
-    Route::post('login', [LoginController::class, 'store'])->name('auth.login.store');
+    Route::post('login', [LoginController::class, 'store'])
+        ->middleware('throttle:30,1')
+        ->name('auth.login.store');
 
     Route::get('two-factor-challenge', [TwoFactorChallengeController::class, 'create'])->name('auth.two-factor.challenge');
-    Route::post('two-factor-challenge', [TwoFactorChallengeController::class, 'store'])->name('auth.two-factor.verify');
+    Route::post('two-factor-challenge', [TwoFactorChallengeController::class, 'store'])
+        ->middleware('throttle:30,1')
+        ->name('auth.two-factor.verify');
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])->name('auth.password.request');
     Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])

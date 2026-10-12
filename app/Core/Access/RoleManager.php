@@ -113,8 +113,15 @@ final class RoleManager
         }
 
         $held = $this->access->effectivePermissions($actor);
+        $assignable = array_flip($this->assignablePermissionNames());
 
         foreach ($this->grants($role) as $permission => $scope) {
+            // A grant of a module the workspace is no longer entitled to is
+            // inert (it is not effective for anyone), so nobody has to hold it.
+            if (! isset($assignable[$permission])) {
+                continue;
+            }
+
             if (! isset($held[$permission]) || ! $held[$permission]->covers($scope)) {
                 return false;
             }
@@ -151,7 +158,11 @@ final class RoleManager
             // Adding, removing and re-scoping all require holding the
             // permission at least as widely as the grant being touched, so a
             // role editor can neither escalate nor strip what is above them.
-            foreach (array_keys($requested + $current) as $permission) {
+            // Stale grants of modules that are no longer entitled are inert and
+            // nobody holds them: removing them needs no permission.
+            $assignable = array_flip($allowed);
+
+            foreach (array_keys($requested + array_intersect_key($current, $assignable)) as $permission) {
                 $before = $current[$permission] ?? null;
                 $after = $requested[$permission] ?? null;
 

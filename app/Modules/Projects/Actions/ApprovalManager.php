@@ -49,6 +49,14 @@ final class ApprovalManager
                     throw ValidationException::withMessages(['entity_id' => __('Submit the time entry or expense before requesting approval.')]);
                 }
 
+                if ($entity instanceof TimeEntry) {
+                    $this->finance->guardDecider($approver, $entity, 'projects.time.approve', $entity->membership_id);
+                }
+
+                if ($entity instanceof Expense) {
+                    $this->finance->guardDecider($approver, $entity, 'projects.expenses.approve', $entity->submitted_by);
+                }
+
                 if (Approval::query()->where('entity_type', $type)->where('entity_id', $entityId)->where('status', ApprovalStatus::Pending)->exists()) {
                     throw ValidationException::withMessages(['entity_id' => __('This item already has a pending approval request.')]);
                 }

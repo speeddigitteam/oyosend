@@ -476,3 +476,28 @@ describe('the audit page', function () {
         ['?search='.str_repeat('a', 101), 'search'],
     ]);
 });
+
+describe('the support families', function () {
+    beforeEach(function () {
+        $this->inTenant($this->acme, function (): void {
+            ($this->logger)()->record('support.session_started');
+            ($this->logger)()->record('support.ticket.created');
+            ($this->logger)()->record('support.csat.answered');
+        });
+    });
+
+    it('lists the support desk apart from support access', function () {
+        $this->startNewBrowserSession()
+            ->actingAsOwner($this->acme)
+            ->get('http://acme.localhost/audit-log')
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('eventGroups', fn ($groups): bool => in_array('support', collect($groups)->all(), true)
+                    && in_array('support_desk', collect($groups)->all(), true)));
+    });
+
+    it('filters each family without the other', function () {
+        expect(($this->pageEvents)($this->acme, '?event=support'))->toBe(['support.session_started'])
+            ->and(collect(($this->pageEvents)($this->acme, '?event=support_desk'))->sort()->values()->all())
+            ->toBe(['support.csat.answered', 'support.ticket.created']);
+    });
+});

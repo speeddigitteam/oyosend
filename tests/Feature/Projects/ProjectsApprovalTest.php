@@ -73,7 +73,7 @@ it('keeps approval decisions and time or expense subject lifecycles atomic', fun
     $tenant = $this->createTenant('projects-approval-finance');
     $this->entitle($tenant, 'projects');
     $owner = $this->membershipOf($tenant, $this->ownerOf($tenant));
-    $approverRole = $this->createRole($tenant, 'Finance approvers', ['projects.approvals.decide']);
+    $approverRole = $this->createRole($tenant, 'Finance approvers', ['projects.approvals.decide', 'projects.time.approve', 'projects.expenses.approve']);
     $approver = $this->membershipOf($tenant, $this->addMember($tenant, $approverRole));
 
     $this->inTenant($tenant, function () use ($owner, $approver): void {

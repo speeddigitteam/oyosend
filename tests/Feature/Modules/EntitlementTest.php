@@ -51,7 +51,7 @@ beforeEach(function () {
 it('registers the module, its permissions and its trigger', function () {
     $registry = app(ModuleRegistry::class);
 
-    expect(array_keys($registry->all()))->toBe(['core', 'crm', 'projects', 'invoicing', 'test_crm'])
+    expect(array_keys($registry->all()))->toBe(['core', 'crm', 'projects', 'invoicing', 'hrm', 'payroll', 'talent', 'automation', 'ai', 'communication', 'social', 'support', 'reports', 'test_crm'])
         ->and($registry->get('test_crm')->core)->toBeFalse()
         ->and($registry->findPermission('test_crm.leads.view')?->module())->toBe('test_crm')
         ->and($registry->missingDependencies())->toBe([])

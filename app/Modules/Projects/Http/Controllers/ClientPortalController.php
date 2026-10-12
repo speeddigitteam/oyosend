@@ -18,6 +18,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -76,7 +77,7 @@ final class ClientPortalController
             'tasks' => $tasks->getCollection()->map(fn (Task $task): array => ['id' => $task->id, 'title' => $task->title, 'description' => $task->description, 'status' => $task->status->value, 'priority' => $task->priority->value, 'startDate' => $task->starts_at?->toImmutable()->setTimezone($timezone)->toDateString(), 'dueDate' => $task->due_at?->toImmutable()->setTimezone($timezone)->toDateString(), 'progress' => $task->progress, 'checklist' => $task->checklistItems->map(fn ($item): array => ['id' => $item->id, 'label' => $item->title, 'completed' => $item->is_completed])->all(), 'comments' => $task->comments->map(fn (TaskComment $comment): array => ['id' => $comment->id, 'body' => $comment->body, 'author' => $comment->author?->user->name ?? $comment->clientAccess?->contact->fullName(), 'createdAt' => $comment->created_at->toIso8601String()])->all()])->all(),
             'tasksPagination' => $this->pagination($tasks),
             'client' => ['name' => $access->contact->fullName(), 'canComment' => $access->can_comment],
-            'financials' => $access->can_view_financials ? $this->analytics->financials($project) : null,
+            'financials' => $access->can_view_financials ? Arr::only($this->analytics->financials($project), ['currency', 'budgetAmount', 'spentAmount', 'budgetRemainingAmount']) : null,
             'token' => $token,
         ]);
     }

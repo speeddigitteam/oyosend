@@ -68,6 +68,12 @@ final class Money
             return $plain;
         }
 
+        // NumberFormatter takes a float. Up to 15 significant digits a double round-trips exactly;
+        // beyond that the exact decimal text is shown rather than a rounded figure.
+        if (abs($minorUnits) >= 10 ** 15) {
+            return $plain;
+        }
+
         $formatter = new NumberFormatter($locale ?? app()->getLocale(), NumberFormatter::CURRENCY);
         $formatted = $formatter->formatCurrency($minorUnits / (10 ** self::decimals($currency)), strtoupper($currency));
 

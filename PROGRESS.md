@@ -5,9 +5,16 @@ Rules for working in this repository are in `CLAUDE.md`; the product specificati
 
 ## Status
 
-**Phases 1 (Architecture & Foundation), 2 (Core SaaS & Billing), 3 (App Store), 4 (CRM), 5 (Projects) and
-6 (Invoicing) are complete as of 2026-10-11. Phase 7 HRM & Payroll is next and has not been started.**
-CRM, Projects and Invoicing are compiled production business applications and catalogue entries. App Store tests retain a separate
+**Phases 1 (Architecture & Foundation), 2 (Core SaaS & Billing), 3 (App Store), 4 (CRM), 5 (Projects),
+6 (Invoicing), 7 (HRM & Payroll) and 8 (Communication Platform) are complete as of 2026-10-12. Phase 9 Marketing
+Apps is next and has not been started.**
+
+The working tree also holds the Social, Support Desk, Automation and AI modules (`app/Modules/{Social,Support,
+Automation,Ai}`, `docs/{SOCIAL,SUPPORT,WORKFLOWS,AI}.md`). They pass the full suite and have a bilingual frontend,
+but they were built outside a recorded phase and have **not been reviewed or signed off**: treat them as present, not
+as the completed Phases 9–12.
+CRM, Projects, Invoicing, HR Management, Payroll and Talent & Performance are compiled production business
+applications and catalogue entries. App Store tests retain a separate
 `test_crm` fixture so production CRM and generic multi-app behaviour can be exercised independently.
 
 ## What exists
@@ -315,7 +322,6 @@ Frontend and operations:
 
 ## Deferred, by phase
 
-- **Phase 7:** HRM/Payroll.
 - **Phase 8:** notification centre and communication providers. **Phase 9:** marketing apps.
 - **Phase 10:** the automation engine; only its definition registry exists today.
 - **Phase 11–12:** AI applications, Support and advanced reporting.
@@ -335,6 +341,24 @@ Frontend and operations:
 8. Final name and brand mark approval.
 9. Production support-access policy and whether tenants must explicitly approve a session.
 
+## Phase 8 completion
+
+Communication is a compiled optional app (`app/Modules/Communication`, `docs/COMMUNICATION.md`): notification
+centre with per-member preferences, outbox with idempotency/suppression/consent/quiet hours/rate limits and a
+metered limit, templates, consent and suppression, signature-verified provider webhooks, unsubscribe, the shared
+interaction timeline and a bilingual UI (nine pages and the dashboard widget). **Honest limits:** no SMS or WhatsApp
+provider exists (both channels report `not_configured`), email goes through the platform mailer, there is no header
+notification bell yet (the summary endpoint exists, no component calls it), and existing modules have not been
+rewired to call `Notifier` / `InteractionRecorder`. Not verified in a browser (360px, dark theme) and no Playwright
+spec was written. Stop for review; do not begin Phase 9 in this session.
+
+## Phase 7 completion
+
+HR is three compiled apps: `hrm` (employees, attendance, leave; `docs/HRM.md`), `payroll` (salary structures, periods,
+four-eyes runs, payslips, loans, data-driven rule sets; `docs/PAYROLL.md`) and `talent` (recruitment, onboarding,
+probation, reviews, goals, training, analytics; `docs/TALENT.md`). Payroll and Talent depend on `hrm` only through
+the `App\Core\Workforce` contracts and events. Stop for review; do not begin Phase 8 in this session.
+
 ## Phase 6 completion
 
 Invoicing is a compiled optional app (`app/Modules/Invoicing`, `docs/INVOICING.md`): exact integer money, gap-free
@@ -351,6 +375,26 @@ persists retry-safe automation receipts, and exposes honest event/contract bound
 notifications without importing their models. The normal seeder includes Projects for Business/Enterprise and
 synchronizes both production apps into the catalogue. Stop for review; do not begin Phase 6 Invoicing in this
 session.
+
+### Phase 8 final — 2026-10-12
+
+Run natively on Laragon/Windows, one process per database (an earlier attempt with eight agents migrating at once
+starved MySQL and produced false failures; a second run on the same database deadlocked).
+
+| Check | Command | Result |
+|---|---|---|
+| Code style | `vendor/bin/pint --test` | passed |
+| Static analysis | `vendor/bin/phpstan analyse` (level 6) | no errors |
+| Backend tests | `php artisan test --compact` | 3,077 passed, 0 failed, 36,561 assertions in 1,304s |
+| Type check | `npm run typecheck` | no errors |
+| Frontend tests | `npm run test` | 28 files, 577 tests passed |
+| Production build | `npm run build` | built |
+| End-to-end tests | Playwright | not run |
+
+Fixes made while verifying: the shared `HasRecordOwner` creating hook gave a workspace-, department- or branch-wide
+CRM sales target to its creator (`keepUnowned()` added); `AiAppStoreTest` overwrote the test case's `$this->app`;
+two Projects tests and the impersonation durable-access test were stale against the stricter approver guard and
+route-model binding order.
 
 ## Session log
 

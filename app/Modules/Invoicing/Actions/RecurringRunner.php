@@ -45,7 +45,12 @@ final class RecurringRunner
             ->where('next_run_on', '<=', $today->toDateString())
             ->chunkById(50, function ($templates) use ($today, &$generated): void {
                 foreach ($templates as $template) {
-                    $generated += $this->runTemplate($template, $today);
+                    try {
+                        $generated += $this->runTemplate($template, $today);
+                    } catch (Throwable $exception) {
+                        // One broken template must not block the ones after it.
+                        $this->fail($template, $exception);
+                    }
                 }
             });
 
@@ -55,6 +60,7 @@ final class RecurringRunner
     private function runTemplate(RecurringTemplate $template, CarbonImmutable $today): int
     {
         $generated = 0;
+        $drafted = 0;
 
         for ($period = 0; $period < self::MAX_PERIODS; $period++) {
             $result = DB::transaction(fn (): ?array => $this->generate($template, $today));
@@ -63,23 +69,68 @@ final class RecurringRunner
                 break;
             }
 
-            [$invoice, $created, $autoIssue, $autoSend] = $result;
+            [$invoice, $created, $autoIssue, $autoSend, $missed] = $result;
 
             if (! $created) {
                 continue;
             }
 
             $generated++;
+
+            if ($missed) {
+                $drafted++;
+            }
+
             $this->finish($template, $invoice, $autoIssue, $autoSend);
+        }
+
+        if ($drafted > 0) {
+            RecurringTemplate::query()->whereKey($template->id)->update([
+                'last_error' => __(':count missed periods were generated as drafts and were not issued or sent automatically.', ['count' => $drafted]),
+            ]);
         }
 
         return $generated;
     }
 
+    /** Records why a template failed; pauses it when its customer no longer exists. */
+    private function fail(RecurringTemplate $template, Throwable $exception): void
+    {
+        report($exception);
+
+        try {
+            $customerGone = $exception instanceof ValidationException && array_key_exists('customer', $exception->errors());
+            $message = $exception instanceof ValidationException
+                ? implode(' ', array_merge(...array_values($exception->errors())))
+                : __('The recurring invoice could not be generated.');
+
+            DB::transaction(function () use ($template, $customerGone, $message): void {
+                /** @var RecurringTemplate $locked */
+                $locked = RecurringTemplate::query()->whereKey($template->id)->lockForUpdate()->firstOrFail();
+                $locked->last_error = mb_substr($message, 0, 500);
+
+                if ($customerGone && $locked->status === RecurringStatus::Active) {
+                    $locked->status = RecurringStatus::Paused;
+                }
+
+                $locked->save();
+
+                if ($customerGone) {
+                    $this->audit->record('invoicing.recurring.paused', $locked, ['name' => $locked->name, 'reason' => 'customer_missing']);
+                }
+            });
+        } catch (Throwable $inner) {
+            report($inner);
+        }
+    }
+
     /**
      * One period inside one transaction: create the draft and advance the schedule together.
      *
-     * @return array{0: Invoice, 1: bool, 2: bool, 3: bool}|null
+     * The last flag marks a period that a later one has already superseded (catch-up):
+     * such a period stays a draft and is never issued or sent on its own.
+     *
+     * @return array{0: Invoice, 1: bool, 2: bool, 3: bool, 4: bool}|null
      */
     private function generate(RecurringTemplate $template, CarbonImmutable $today): ?array
     {
@@ -123,7 +174,16 @@ final class RecurringRunner
         }
 
         $runs = $locked->runs_count + 1;
-        $next = $locked->frequency->occurrence($locked->starts_on->toImmutable(), $locked->every, $runs);
+        $anchor = $locked->starts_on->toImmutable();
+        $index = $runs;
+        $next = $locked->frequency->occurrence($anchor, $locked->every, $index);
+
+        // A resume can have moved the schedule forward, so the next date is the first one after this run.
+        while ($next->toDateString() <= $runDate->toDateString()) {
+            $next = $locked->frequency->occurrence($anchor, $locked->every, ++$index);
+        }
+
+        $missed = $next->toDateString() <= $today->toDateString();
         $locked->runs_count = $runs;
         $locked->last_run_on = Carbon::parse($runDate->toDateString());
         $locked->last_error = null;
@@ -139,7 +199,7 @@ final class RecurringRunner
             $this->audit->record('invoicing.recurring.generated', $locked, ['invoice_id' => $invoice->id, 'period' => $runDate->toDateString()]);
         }
 
-        return [$invoice, $created, $locked->auto_issue, $locked->auto_send];
+        return [$invoice, $created, $locked->auto_issue && ! $missed, $locked->auto_send && ! $missed, $missed];
     }
 
     private function end(RecurringTemplate $template): void

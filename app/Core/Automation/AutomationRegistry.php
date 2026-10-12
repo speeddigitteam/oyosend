@@ -8,6 +8,7 @@ use App\Core\Automation\Contracts\ActionDefinition;
 use App\Core\Automation\Contracts\TriggerDefinition;
 use App\Core\Entitlements\Contracts\EntitlementChecker;
 use App\Core\Tenancy\TenantContext;
+use Closure;
 use InvalidArgumentException;
 
 /**
@@ -24,6 +25,9 @@ final class AutomationRegistry
     /** @var array<string, class-string<ActionDefinition>> */
     private array $actions = [];
 
+    /** @var list<Closure(class-string<TriggerDefinition>): void> */
+    private array $triggerListeners = [];
+
     /**
      * @param  class-string<TriggerDefinition>  $trigger
      */
@@ -36,6 +40,44 @@ final class AutomationRegistry
         $this->guardKey($trigger::key(), $trigger::module(), $this->triggers);
 
         $this->triggers[$trigger::key()] = $trigger;
+
+        foreach ($this->triggerListeners as $listener) {
+            $listener($trigger);
+        }
+    }
+
+    /**
+     * Call back for every trigger registered so far and every one registered later. The workflow engine
+     * uses it to subscribe to each trigger's domain event, however late its module registers.
+     *
+     * @param  Closure(class-string<TriggerDefinition>): void  $listener
+     */
+    public function whenTriggerRegistered(Closure $listener): void
+    {
+        $this->triggerListeners[] = $listener;
+
+        foreach ($this->triggers as $trigger) {
+            $listener($trigger);
+        }
+    }
+
+    /**
+     * Every registered trigger, whatever the active tenant is entitled to. For code that must tell an
+     * unknown key from one the tenant lacks (publish validation) or that subscribes to events.
+     *
+     * @return array<string, class-string<TriggerDefinition>>
+     */
+    public function registeredTriggers(): array
+    {
+        return $this->triggers;
+    }
+
+    /**
+     * @return array<string, class-string<ActionDefinition>>
+     */
+    public function registeredActions(): array
+    {
+        return $this->actions;
     }
 
     /**

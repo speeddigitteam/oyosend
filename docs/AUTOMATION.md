@@ -1,9 +1,11 @@
 # Automation
 
-State: after Phase 5. **There is no engine**: no workflows, builder, executions, workflow steps or logs. What
-exists are the contracts and registry, plus module-owned action-receipt tables for durable retry safety. Core,
-CRM and Projects register definitions now so the Phase 10 engine can consume stable module-owned contracts later (spec
-section 27, note under the phase list).
+State: Phase 10 backend. The contracts and registry below are consumed by the **Workflow Automation app**
+(`app/Modules/Automation`, module key `automation`; full description in `docs/WORKFLOWS.md`), which stores versioned
+JSON workflows, matches domain events to published workflows, runs them one persisted step at a time under the
+member who published them, and re-checks permission and entitlement before every step. The visual editor (Vue Flow,
+ADR 0012) ships with the app. Modules still own their definitions and their durable action-receipt tables; the engine
+only calls the registered contracts.
 
 ## What exists today
 
@@ -21,7 +23,23 @@ section 27, note under the phase list).
 | Projects action receipts | `project_automation_action_receipts`, the same durable tenant/action/idempotency-key boundary for project mutations |
 | Invoicing definitions | Five invoice/payment/credit-note/overdue triggers and the `invoicing.invoice.create_draft` action under `app/Modules/Invoicing/Automation` |
 | Invoicing action receipts | `invoicing_automation_action_receipts`, the same durable tenant/action/idempotency-key boundary |
-| Queue | `automation`, worked by Horizon's `background` supervisor; entitled Projects task maintenance dispatches here every minute |
+| HRM definitions | Five triggers (employee created/terminated, leave requested/approved, attendance day closed) and the `hrm.leave.grant_balance` and `hrm.employee.assign_manager` actions under `app/Modules/Hrm/Automation` |
+| HRM action receipts | `hrm_automation_action_receipts`, the same durable tenant/action/idempotency-key boundary; leave grants additionally carry the key into the append-only ledger |
+| Payroll definitions | Three triggers (run approved, payslip paid, run reversed) and the `payroll.item.create` (pending item) and `payroll.run.prepare_draft` (draft run) actions under `app/Modules/Payroll/Automation`; approving, paying and reversing are deliberately not actions |
+| Payroll action receipts | `payroll_automation_action_receipts`, the same durable tenant/action/idempotency-key boundary |
+| Talent definitions | Nine triggers (candidate hired, application stage changed, interview scheduled, checklist completed, probation review due, review calibrated, training completed, certificate expiring, certificate expired) and the `talent.checklist.start` and `talent.course.enrol` actions under `app/Modules/Talent/Automation`; hiring, rejecting and calibrating are deliberately not actions |
+| Talent action receipts | `talent_automation_action_receipts`, the same durable tenant/action/idempotency-key boundary; `talent.checklist.start` also derives the checklist's unique source key from the idempotency key |
+| Support definitions | Six triggers (ticket created, assigned, customer replied, resolved, SLA breached, satisfaction submitted) and the `support.ticket.create`, `support.ticket.assign` and `support.ticket.add_note` actions under `app/Modules/Support/Automation`; replying to a customer, resolving, merging and closing are deliberately not actions |
+| Support action receipts | `support_automation_action_receipts`, the same durable tenant/action/idempotency-key boundary; `support.ticket.create` and `support.ticket.add_note` also derive a unique `source_key` from the idempotency key, and `support.ticket.assign` advances the round-robin pointer only once per key |
+| Communication definitions | Four triggers (message delivered, failed, bounced; contact unsubscribed) and the `communication.message.send` (transactional templates only; a marketing template is refused) and `communication.interaction.log` actions under `app/Modules/Communication/Automation` |
+| Communication action receipts | `communication_automation_action_receipts`, the same durable tenant/action/idempotency-key boundary; the outbox message also derives its unique idempotency key from the action key, so a retry cannot send twice |
+| Social definitions | Five triggers (post scheduled, approved, published, failed; account needs reauthorization) and the `social.post.create_draft` action under `app/Modules/Social/Automation`; the action only creates a draft, never submits, approves or schedules |
+| Social action receipts | `social_automation_action_receipts`, the same durable tenant/action/idempotency-key boundary |
+| AI definitions | The `ai.proposal.confirmed` trigger and the `ai.text.generate` action (text only, no tools, needs the workspace `automation_enabled` setting) under `app/Modules/Ai/Automation` |
+| AI action receipts | `ai_automation_action_receipts`, the same durable tenant/action/idempotency-key boundary; the token usage key derives from the idempotency key so a retry is neither regenerated nor metered twice |
+| Engine triggers | `automation.trigger.manual`, `automation.trigger.webhook` and `automation.trigger.schedule` (`event()` is null: raised by the engine) under `app/Modules/Automation/Automation/Triggers` |
+| Engine | `app/Modules/Automation` (`TriggerBridge`, `RunStarter`, `RunExecutor`, `Sweeper`, `GraphValidator`); tables `automation_*`; see `docs/WORKFLOWS.md` |
+| Queue | `automation`, worked by Horizon's `background` supervisor; entitled Projects task maintenance dispatches here every minute; `ExecuteRun` and the per-minute `SweepRuns` of the Workflow Automation app run here too |
 
 Definitions are metadata and callable contracts, not workflows. Registering CRM or Projects actions does not schedule or
 execute them by itself; the Phase 10 engine remains responsible for workflow persistence, orchestration and runs. The
@@ -57,30 +75,36 @@ with `{module}.`, and a duplicate key (`tests/Unit/Modules/AutomationRegistryTes
 
 Triggers are driven by domain events. Conventions (`DomainEvent`): past tense, `{module}.{entity}.{verb}`;
 dispatched only after the surrounding transaction commits; payload of ids and scalars, never models. Existing
-events include member/contact/company, billing and App Store lifecycle families. Nothing subscribes to them yet.
+events include member/contact/company, billing and App Store lifecycle families. When the `automation` app is
+entitled, `TriggerBridge` subscribes to the `event()` class of **every registered trigger** (also one registered
+later) and starts the matching published workflows of the event's own tenant (`docs/WORKFLOWS.md` section 4).
 
-### Not wired yet
+### What the engine requires of a definition
 
-- Nothing executes definitions yet. The Phase 10 builder and runner must filter/check `module()` through
-  `EntitlementChecker` and `requiredPermission()` through `AccessChecker` at selection **and** execution time.
-  Deactivation, uninstall or expiry must stop future executions; stored workflow JSON is not an entitlement.
-- `label()` keys have no entries in the client i18n catalogue.
+- **Trigger**: `event()` must be the domain event class whose `payload()` carries the fields the trigger's
+  `inputSchema()` filters on. The engine filters with a plain rule: a config key `minimum_x` means
+  `payload.x >= value`; any other key must equal the payload value. Keep configuration keys equal to payload keys.
+  Return `null` from `event()` only for triggers the engine raises itself (the three `automation.trigger.*`).
+- **Action**: `execute()` is called with the validated input and the key `wf:{runId}:{stepId}`; it must be
+  idempotent per key (use the module's receipt store) and must not rely on a signed-in user: the engine calls it in
+  the tenant's context after re-checking `requiredPermission()` for the workflow's actor, for all records when the
+  permission is scopable. An action that throws `ValidationException`, `ModelNotFoundException` or an
+  authorization/4xx `HttpException` is **not retried**; any other exception is retried with backoff.
+- `requiredPermission()` and `module()` are checked at publish and before every execution of the step; a revoked
+  permission or an inactive app stops the run (`docs/WORKFLOWS.md` section 5).
+- Outputs returned by `execute()` are available to later steps as `steps.<nodeId>.<key>`; keep them small.
 
-## Planned (Phase 10)
+### Registry additions for the engine
 
-From spec section 13, without design beyond what the spec states:
+`AutomationRegistry::registeredTriggers()` / `registeredActions()` return every registered definition regardless of
+the active tenant's entitlements (used to tell an unknown key from one the workspace lacks), and
+`whenTriggerRegistered(Closure)` calls back for each trigger registered so far and later.
 
-- Workflows stored as versioned JSON graphs; only published versions execute.
-- Execution in queued jobs, one step at a time, with persisted state, so delays can last days and survive deploys.
-- A visual builder on Vue Flow with trigger, condition, action, delay, schedule, branch, parallel, approval,
-  webhook, AI action, data transformation, loop, error handler and end nodes.
-- Step-level logs, retries, failure alerts, rate limits, per-tenant quotas, idempotency, timeouts, loop
-  prevention (maximum steps per execution, maximum recursion depth), concurrency control.
+### Open items
 
-Rules the spec fixes:
+- `label()` keys are translated from `automation.triggers` / `automation.actions` in the client catalogue (flat maps
+  keyed by the registered key, both languages); a definition without an entry shows its key.
+- Notification and message actions come from the Communication/Social/Support apps registering `ActionDefinition`s;
+  the engine has no channel of its own. The AI app's `ai.text.generate` is an ordinary action node.
 
-- Never execute tenant-supplied PHP, shell commands or code. Data transformation uses a safe, declarative
-  expression language only.
-- Every execution runs inside its tenant's context and checks the tenant's entitlement first.
-
-Outline of the tables: `docs/DATABASE.md` section 4.
+Table outline: `docs/DATABASE.md` (Automation section). Engine contract: `docs/WORKFLOWS.md`.

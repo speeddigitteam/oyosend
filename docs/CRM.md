@@ -52,6 +52,9 @@ copying shared customer data into CRM.
   invoice from it without importing or querying CRM models, once per quotation.
 - Sales orders have explicit status transitions. Contracts may be linked to an order or created for a shared
   customer. Targets and reports expose actual sales, weighted forecast, conversion, order trend and attainment.
+  A target may belong to a member, department, branch or the whole company (API fields `scope`, `owner_id`,
+  `department_id`, `branch_id`; default is the creator) and attainment honours that scope. A contract linked to an
+  order cannot change its customer, currency or value, and a price list's currency is fixed once it has items.
 
 ## Permissions
 

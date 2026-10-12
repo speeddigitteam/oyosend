@@ -96,6 +96,10 @@ return Application::configure(basePath: dirname(__DIR__))
             $middleware->prependToPriorityList(before: AuthenticatesRequests::class, prepend: $context);
         }
 
+        // A signed-out visitor must be sent to sign in before the app's route is
+        // judged, or 404 versus 302 would tell them which apps a workspace has.
+        $middleware->appendToPriorityList(after: AuthenticatesRequests::class, append: EnsureModuleEntitled::class);
+
         $onAdminHost = static fn (Request $request): bool => $request->getHost() === app(TenantHost::class)->adminHost();
 
         $middleware->redirectGuestsTo(

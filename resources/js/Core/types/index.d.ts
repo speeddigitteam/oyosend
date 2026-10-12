@@ -139,6 +139,7 @@ declare module '@inertiajs/core' {
             toast?: ToastPayload;
             recoveryCodes?: string[];
             clientAccessInvitation?: { accessId: string; url: string };
+            surveyInvitation?: { ticketId: string; url: string };
         };
         errorValueType: string;
     }

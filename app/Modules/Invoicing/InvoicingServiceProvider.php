@@ -15,6 +15,7 @@ use App\Core\Modules\ModuleManifest;
 use App\Core\Modules\ModuleServiceProvider;
 use App\Core\Modules\NavigationItem;
 use App\Core\Modules\PermissionDefinition;
+use App\Core\Reporting\Contracts\ReportProvider;
 use App\Modules\Invoicing\Actions\InvoiceManager;
 use App\Modules\Invoicing\Actions\InvoicingContactMergeReference;
 use App\Modules\Invoicing\Automation\Actions\CreateDraftInvoiceAction;
@@ -36,6 +37,7 @@ use App\Modules\Invoicing\Models\InvoicingSetting;
 use App\Modules\Invoicing\Models\Payment;
 use App\Modules\Invoicing\Models\RecurringTemplate;
 use App\Modules\Invoicing\Models\TaxRate;
+use App\Modules\Invoicing\Reporting\ReportProviders;
 use Illuminate\Support\Facades\Event;
 
 /**
@@ -53,6 +55,7 @@ final class InvoicingServiceProvider extends ModuleServiceProvider
     public function register(): void
     {
         parent::register();
+        $this->app->tag(ReportProviders::ALL, ReportProvider::TAG);
 
         $this->app->tag(InvoicingContactMergeReference::class, ContactMergeReference::class);
     }

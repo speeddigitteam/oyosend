@@ -10,6 +10,17 @@ use App\Core\Contacts\Automation\CompanyCreatedTrigger;
 use App\Core\Contacts\Automation\ContactCreatedTrigger;
 use App\Core\Events\DomainEvent;
 use App\Core\Identity\Events\MemberJoined;
+use App\Modules\Ai\Automation\Actions\GenerateTextAction;
+use App\Modules\Ai\Automation\Triggers\ProposalConfirmedTrigger;
+use App\Modules\Automation\Automation\Triggers\ManualTrigger;
+use App\Modules\Automation\Automation\Triggers\ScheduleTrigger;
+use App\Modules\Automation\Automation\Triggers\WebhookTrigger;
+use App\Modules\Communication\Automation\Actions\LogInteractionAction;
+use App\Modules\Communication\Automation\Actions\SendTemplateMessageAction;
+use App\Modules\Communication\Automation\Triggers\ContactUnsubscribedTrigger;
+use App\Modules\Communication\Automation\Triggers\MessageBouncedTrigger;
+use App\Modules\Communication\Automation\Triggers\MessageDeliveredTrigger;
+use App\Modules\Communication\Automation\Triggers\MessageFailedTrigger;
 use App\Modules\CRM\Automation\Actions\AssignLeadAction as CrmAssignLeadAction;
 use App\Modules\CRM\Automation\Actions\CreateFollowUpAction;
 use App\Modules\CRM\Automation\Actions\MoveDealStageAction;
@@ -17,12 +28,24 @@ use App\Modules\CRM\Automation\Triggers\ActivityCompletedTrigger;
 use App\Modules\CRM\Automation\Triggers\DealWonTrigger;
 use App\Modules\CRM\Automation\Triggers\LeadCreatedTrigger as CrmLeadCreatedTrigger;
 use App\Modules\CRM\Automation\Triggers\LeadQualifiedTrigger;
+use App\Modules\Hrm\Automation\Actions\AssignManagerAction as HrmAssignManagerAction;
+use App\Modules\Hrm\Automation\Actions\GrantLeaveBalanceAction;
+use App\Modules\Hrm\Automation\Triggers\AttendanceDayClosedTrigger;
+use App\Modules\Hrm\Automation\Triggers\EmployeeCreatedTrigger;
+use App\Modules\Hrm\Automation\Triggers\EmployeeTerminatedTrigger;
+use App\Modules\Hrm\Automation\Triggers\LeaveApprovedTrigger;
+use App\Modules\Hrm\Automation\Triggers\LeaveRequestedTrigger;
 use App\Modules\Invoicing\Automation\Actions\CreateDraftInvoiceAction;
 use App\Modules\Invoicing\Automation\Triggers\CreditNoteIssuedTrigger;
 use App\Modules\Invoicing\Automation\Triggers\InvoiceIssuedTrigger;
 use App\Modules\Invoicing\Automation\Triggers\InvoiceOverdueTrigger;
 use App\Modules\Invoicing\Automation\Triggers\InvoicePaidTrigger;
 use App\Modules\Invoicing\Automation\Triggers\PaymentReceivedTrigger;
+use App\Modules\Payroll\Automation\Actions\CreatePayItemAction;
+use App\Modules\Payroll\Automation\Actions\PrepareRunAction;
+use App\Modules\Payroll\Automation\Triggers\PayslipPaidTrigger;
+use App\Modules\Payroll\Automation\Triggers\RunApprovedTrigger;
+use App\Modules\Payroll\Automation\Triggers\RunReversedTrigger;
 use App\Modules\Projects\Automation\Actions\AssignTaskAction;
 use App\Modules\Projects\Automation\Actions\CreateProjectAction;
 use App\Modules\Projects\Automation\Actions\CreateTaskAction;
@@ -30,6 +53,32 @@ use App\Modules\Projects\Automation\Triggers\MilestoneCompletedTrigger;
 use App\Modules\Projects\Automation\Triggers\ProjectCreatedTrigger;
 use App\Modules\Projects\Automation\Triggers\TaskCompletedTrigger;
 use App\Modules\Projects\Automation\Triggers\TaskCreatedTrigger;
+use App\Modules\Social\Automation\Actions\CreateDraftPostAction;
+use App\Modules\Social\Automation\Triggers\AccountNeedsReauthorizationTrigger;
+use App\Modules\Social\Automation\Triggers\PostApprovedTrigger;
+use App\Modules\Social\Automation\Triggers\PostFailedTrigger;
+use App\Modules\Social\Automation\Triggers\PostPublishedTrigger;
+use App\Modules\Social\Automation\Triggers\PostScheduledTrigger;
+use App\Modules\Support\Automation\Actions\AddInternalNoteAction;
+use App\Modules\Support\Automation\Actions\AssignTicketAction;
+use App\Modules\Support\Automation\Actions\CreateTicketAction;
+use App\Modules\Support\Automation\Triggers\CsatSubmittedTrigger;
+use App\Modules\Support\Automation\Triggers\TicketAssignedTrigger;
+use App\Modules\Support\Automation\Triggers\TicketCreatedTrigger;
+use App\Modules\Support\Automation\Triggers\TicketCustomerRepliedTrigger;
+use App\Modules\Support\Automation\Triggers\TicketResolvedTrigger;
+use App\Modules\Support\Automation\Triggers\TicketSlaBreachedTrigger;
+use App\Modules\Talent\Automation\Actions\EnrolInCourseAction;
+use App\Modules\Talent\Automation\Actions\StartChecklistAction;
+use App\Modules\Talent\Automation\Triggers\ApplicationStageChangedTrigger;
+use App\Modules\Talent\Automation\Triggers\CandidateHiredTrigger;
+use App\Modules\Talent\Automation\Triggers\CertificateExpiredTrigger;
+use App\Modules\Talent\Automation\Triggers\CertificateExpiringTrigger;
+use App\Modules\Talent\Automation\Triggers\ChecklistCompletedTrigger;
+use App\Modules\Talent\Automation\Triggers\InterviewScheduledTrigger;
+use App\Modules\Talent\Automation\Triggers\ProbationReviewDueTrigger;
+use App\Modules\Talent\Automation\Triggers\ReviewCalibratedTrigger;
+use App\Modules\Talent\Automation\Triggers\TrainingCompletedTrigger;
 
 /*
  * Small definitions, declared inline: each one is wrong (or right) in exactly one way.
@@ -251,6 +300,42 @@ describe('the application\'s own registry', function () {
             'invoicing.payment.received' => PaymentReceivedTrigger::class,
             'invoicing.credit_note.issued' => CreditNoteIssuedTrigger::class,
             'invoicing.invoice.overdue' => InvoiceOverdueTrigger::class,
+            'hrm.employee.created' => EmployeeCreatedTrigger::class,
+            'hrm.employee.terminated' => EmployeeTerminatedTrigger::class,
+            'hrm.leave.requested' => LeaveRequestedTrigger::class,
+            'hrm.leave.approved' => LeaveApprovedTrigger::class,
+            'hrm.attendance.day_closed' => AttendanceDayClosedTrigger::class,
+            'payroll.run.approved' => RunApprovedTrigger::class,
+            'payroll.payslip.paid' => PayslipPaidTrigger::class,
+            'payroll.run.reversed' => RunReversedTrigger::class,
+            'talent.candidate.hired' => CandidateHiredTrigger::class,
+            'talent.application.stage_changed' => ApplicationStageChangedTrigger::class,
+            'talent.interview.scheduled' => InterviewScheduledTrigger::class,
+            'talent.checklist.completed' => ChecklistCompletedTrigger::class,
+            'talent.probation.review_due' => ProbationReviewDueTrigger::class,
+            'talent.review.calibrated' => ReviewCalibratedTrigger::class,
+            'talent.training.completed' => TrainingCompletedTrigger::class,
+            'talent.certificate.expiring' => CertificateExpiringTrigger::class,
+            'talent.certificate.expired' => CertificateExpiredTrigger::class,
+            'automation.trigger.manual' => ManualTrigger::class,
+            'automation.trigger.webhook' => WebhookTrigger::class,
+            'automation.trigger.schedule' => ScheduleTrigger::class,
+            'ai.proposal.confirmed' => ProposalConfirmedTrigger::class,
+            'communication.message.delivered' => MessageDeliveredTrigger::class,
+            'communication.message.failed' => MessageFailedTrigger::class,
+            'communication.message.bounced' => MessageBouncedTrigger::class,
+            'communication.contact.unsubscribed' => ContactUnsubscribedTrigger::class,
+            'social.post.scheduled' => PostScheduledTrigger::class,
+            'social.post.approved' => PostApprovedTrigger::class,
+            'social.post.published' => PostPublishedTrigger::class,
+            'social.post.failed' => PostFailedTrigger::class,
+            'social.account.needs_reauthorization' => AccountNeedsReauthorizationTrigger::class,
+            'support.ticket.created' => TicketCreatedTrigger::class,
+            'support.ticket.assigned' => TicketAssignedTrigger::class,
+            'support.ticket.customer_replied' => TicketCustomerRepliedTrigger::class,
+            'support.ticket.resolved' => TicketResolvedTrigger::class,
+            'support.ticket.sla_breached' => TicketSlaBreachedTrigger::class,
+            'support.csat.submitted' => CsatSubmittedTrigger::class,
         ])
             ->and($registry->actions())->toBe([
                 'crm.lead.assign' => CrmAssignLeadAction::class,
@@ -260,6 +345,19 @@ describe('the application\'s own registry', function () {
                 'projects.task.create' => CreateTaskAction::class,
                 'projects.task.assign' => AssignTaskAction::class,
                 'invoicing.invoice.create_draft' => CreateDraftInvoiceAction::class,
+                'hrm.leave.grant_balance' => GrantLeaveBalanceAction::class,
+                'hrm.employee.assign_manager' => HrmAssignManagerAction::class,
+                'payroll.item.create' => CreatePayItemAction::class,
+                'payroll.run.prepare_draft' => PrepareRunAction::class,
+                'talent.checklist.start' => StartChecklistAction::class,
+                'talent.course.enrol' => EnrolInCourseAction::class,
+                'ai.text.generate' => GenerateTextAction::class,
+                'communication.message.send' => SendTemplateMessageAction::class,
+                'communication.interaction.log' => LogInteractionAction::class,
+                'social.post.create_draft' => CreateDraftPostAction::class,
+                'support.ticket.create' => CreateTicketAction::class,
+                'support.ticket.assign' => AssignTicketAction::class,
+                'support.ticket.add_note' => AddInternalNoteAction::class,
             ])
             ->and(app(AutomationRegistry::class))->toBe($registry);
     });

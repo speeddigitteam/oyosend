@@ -460,6 +460,150 @@ These are customer invoices; the platform's own `invoices` table (3a) is unrelat
 Money is unsigned integer minor units next to a `currency`; quantities are `quantity_milli`; rates are basis
 points. See `docs/INVOICING.md`.
 
+## 3f. Phase 7 HR Management tables
+
+Module migrations live in `app/Modules/Hrm/Database/Migrations` and are loaded by `HrmServiceProvider`. All
+tables carry `tenant_id` and ULID keys.
+
+| Area | Tables | Important constraints |
+|---|---|---|
+| Employees | `hrm_employees`, `hrm_designations`, `hrm_number_sequences`, `hrm_settings` | `UNIQUE(tenant_id, employee_number)`; `UNIQUE(tenant_id, owner_id)` (the optional linked membership); self-referencing `manager_id`; `national_id` encrypted text; hourly cost as unsigned integer minor units; the counter row is locked `FOR UPDATE` in the creating transaction |
+| Employee records | `hrm_employment_history`, `hrm_emergency_contacts`, `hrm_documents`, `hrm_assets` | The history has `created_at` only and the model refuses update/delete; document paths are `TenantStorage` paths, never public |
+| Attendance | `hrm_shifts`, `hrm_shift_assignments`, `hrm_holidays`, `hrm_attendance_entries`, `hrm_attendance_days`, `hrm_regularizations` | `UNIQUE(tenant_id, holiday_on)`; `UNIQUE(tenant_id, employee_id, open_marker)` allows one open entry per employee; `UNIQUE(tenant_id, employee_id, work_date)` on days; instants in UTC, dates and `HH:MM` shift times are workspace-local |
+| Leave | `hrm_leave_types`, `hrm_leave_policies`, `hrm_leave_requests`, `hrm_leave_approvals`, `hrm_leave_ledger` | Units are integers (one day = 2); `UNIQUE(tenant_id, idempotency_key)` on the append-only ledger; `UNIQUE(tenant_id, leave_request_id, step)` on approvals; owner/department/branch copies on requests, entries, days and corrections for scoped access |
+| Operations | `hrm_automation_action_receipts` | `UNIQUE(tenant_id, action, idempotency_key)` |
+
+See `docs/HRM.md`.
+
+## 3g. Phase 7 Payroll tables
+
+Module migrations live in `app/Modules/Payroll/Database/Migrations` and are loaded by `PayrollServiceProvider`. All
+tables carry `tenant_id` and ULID keys; employees are referenced by a plain ULID column with **no foreign key** to
+HRM tables (Payroll reads HRM only through contracts). Money is unsigned `BIGINT` minor units next to a `currency`.
+
+| Area | Tables | Important constraints |
+|---|---|---|
+| Configuration | `payroll_settings`, `payroll_number_sequences`, `payroll_structures`, `payroll_structure_components` | `UNIQUE(tenant_id)` on settings; `UNIQUE(tenant_id, kind)` on the counters, locked `FOR UPDATE` in the approving transaction; `UNIQUE(tenant_id, structure_id, code)` |
+| Salaries | `payroll_profiles`, `payroll_salary_assignments` | `UNIQUE(tenant_id, employee_id)` on profiles (placement copies, `account_number` encrypted); revisions are immutable (`created_at` only, model refuses update/delete), `UNIQUE(tenant_id, employee_id, revision)` and `(…, effective_from)` |
+| Runs | `payroll_periods`, `payroll_runs`, `payroll_payslips`, `payroll_payslip_lines`, `payroll_payments` | `UNIQUE(tenant_id, starts_on, ends_on)`; `UNIQUE(tenant_id, period_id, regular_marker)` one regular run per period; `UNIQUE(tenant_id, reverses_run_id)`; `UNIQUE(tenant_id, number)` (assigned at approval); `UNIQUE(tenant_id, run_id, employee_id)`; `UNIQUE(tenant_id, idempotency_key)` on the append-only payment ledger; `RESTRICT` foreign keys so locked payslips cannot be removed by a cascade |
+| Inputs | `payroll_items`, `payroll_loans`, `payroll_loan_installments` | `UNIQUE(tenant_id, loan_id, sequence)`; owner/department/branch copies for scoped access |
+| Compliance | `payroll_rule_sets`, `payroll_rule_slabs` | `UNIQUE(tenant_id, code, effective_from)`; `UNIQUE(tenant_id, rule_set_id, position)`; no preloaded rows |
+| Operations | `payroll_automation_action_receipts` | `UNIQUE(tenant_id, action, idempotency_key)` |
+
+See `docs/PAYROLL.md`.
+
+## 3g2. Phase 9 Social tables
+
+Module migrations live in `app/Modules/Social/Database/Migrations` and are loaded by `SocialServiceProvider`. All
+tables carry an indexed `tenant_id` and every unique index starts with it.
+
+| Group | Tables | Notes |
+|---|---|---|
+| Accounts | `social_accounts` | `UNIQUE(tenant_id, platform, external_id)`; `access_token` / `refresh_token` are `text` holding Laravel `encrypted` values, never read back to a browser |
+| Content | `social_posts`, `social_post_targets`, `social_post_media`, `social_comments` | posts carry owner/department/branch; `UNIQUE(tenant_id, post_id, account_id)` and `UNIQUE(tenant_id, idempotency_key)` on targets; instants in UTC |
+| Publishing history | `social_publish_attempts`, `social_post_metrics` | metric figure columns are nullable: null means the platform did not return it |
+| Library | `social_media`, `social_campaigns`, `social_categories`, `social_hashtag_sets`, `social_imports` | `UNIQUE(tenant_id, sha256)` on media; `UNIQUE(tenant_id, file_sha256)` on imports |
+| Operations | `social_settings`, `social_automation_action_receipts` | `UNIQUE(tenant_id)` on settings; `UNIQUE(tenant_id, action, idempotency_key)` |
+
+See `docs/SOCIAL.md`.
+
+## 3h. Phase 7 Talent tables
+
+Module migrations live in `app/Modules/Talent/Database/Migrations` and are loaded by `TalentServiceProvider`. All
+tables carry `tenant_id` and ULID keys; employees are referenced by a plain ULID column with **no foreign key** to
+HRM tables. Placement columns (`owner_id` to `tenant_memberships`, `department_id`, `branch_id`) make scoped
+access work. Money is unsigned `BIGINT` minor units next to a `currency`; review scores are integer hundredths.
+
+| Area | Tables | Important constraints |
+|---|---|---|
+| Configuration | `talent_settings`, `talent_pipelines`, `talent_pipeline_stages`, `talent_rejection_reasons` | `UNIQUE(tenant_id)` on settings; `UNIQUE(tenant_id, name)`; `UNIQUE(tenant_id, pipeline_id, name)` |
+| Recruitment | `talent_job_openings`, `talent_candidates`, `talent_applications`, `talent_application_history`, `talent_candidate_documents`, `talent_notes` | `UNIQUE(tenant_id, opening_id, candidate_id)`; history is append-only (`created_at` only, model refuses update/delete) with plain-id stage columns; email is indexed, not unique (duplicates are detected, not forbidden); document paths are `TenantStorage` paths |
+| Interviews and offers | `talent_interviews`, `talent_interview_panel`, `talent_scorecards`, `talent_offers` | instants in UTC plus the zone name; `UNIQUE(tenant_id, interview_id, employee_id)` on panel and scorecards; `UNIQUE(tenant_id, application_id, live_marker)` allows one live offer |
+| Onboarding and probation | `talent_checklist_templates`, `talent_template_tasks`, `talent_checklists`, `talent_checklist_tasks`, `talent_probations`, `talent_probation_reviews` | `UNIQUE(tenant_id, kind, name)`; `UNIQUE(tenant_id, source_key)` makes event-driven starts idempotent; `UNIQUE(tenant_id, employee_id, open_marker)` one open probation |
+| Performance | `talent_review_forms`, `talent_review_form_items`, `talent_review_cycles`, `talent_reviews`, `talent_review_ratings`, `talent_goals`, `talent_goal_updates` | weights in basis points (sum 10 000, validated); `UNIQUE(tenant_id, cycle_id, employee_id)`; `UNIQUE(tenant_id, review_id, item_id, party)`; goal updates append-only |
+| Training | `talent_courses`, `talent_training_sessions`, `talent_enrolments` | `UNIQUE(tenant_id, title)`; `UNIQUE(tenant_id, course_id, employee_id, open_marker)` one open enrolment |
+| Operations | `talent_reminders`, `talent_automation_action_receipts` | `UNIQUE(tenant_id, reminder_key)` makes reminders idempotent; `UNIQUE(tenant_id, action, idempotency_key)` |
+
+See `docs/TALENT.md`.
+
+## 3h.0. Phase 11 AI Assistant tables
+
+All tenant-owned (`tenant_id` first in every unique index). No credential or provider payload is stored.
+
+| Group | Tables | Notes |
+|---|---|---|
+| Configuration | `ai_settings` | `UNIQUE(tenant_id)`: enabled flags, `data_scopes` (JSON list), `retention_days`, `redact_pii` |
+| Conversations | `ai_conversations`, `ai_messages` | A conversation belongs to one `membership_id` (cascade); messages hold text, a tool trace of names/ids, token counts and the prompt version. Deleted by retention |
+| Proposals | `ai_proposals` | Encrypted `payload`, `status` (pending, confirmed, rejected, failed, expired), `expires_at`; cascade with the conversation |
+| Operations | `ai_automation_action_receipts` | `UNIQUE(tenant_id, action, idempotency_key)` |
+
+Token usage is kept in the shared `usage_records` (`meter = ai.tokens`, idempotency key per provider call). See `docs/AI.md`.
+
+## 3h.1. Customer Support tables
+
+Migration `app/Modules/Support/Database/Migrations/2026_10_13_000100_create_support_tables.php`, loaded by
+`SupportServiceProvider`. Every table carries an indexed `tenant_id` and every unique index leads with it. Tickets
+reference the shared `contacts` / `companies`; the module has no customer table.
+
+| Group | Tables | Notes |
+|---|---|---|
+| Configuration | `support_settings`, `support_number_sequences`, `support_categories`, `support_tags` | `UNIQUE(tenant_id)` on settings; `UNIQUE(tenant_id, kind)` counter row locked `FOR UPDATE` for gap-free ticket numbers; `UNIQUE(tenant_id, name)` |
+| Routing | `support_agents`, `support_queues`, `support_queue_agents`, `support_assignment_rules` | `UNIQUE(tenant_id, membership_id)`; `UNIQUE(tenant_id, queue_id, agent_id)`; `last_assigned_agent_id` is the round-robin pointer; rules are equality columns, no expressions |
+| SLA | `support_calendars`, `support_sla_policies` | weekly windows, holidays and per-priority targets are JSON validated to `HH:MM` and integer minutes |
+| Tickets | `support_tickets`, `support_ticket_tag`, `support_messages`, `support_attachments`, `support_ticket_events` | `UNIQUE(tenant_id, number)`, `UNIQUE(tenant_id, source_key)` on tickets and on messages (inbound/automation idempotency); `owner_id` / `department_id` / `branch_id` follow the record-owner column contract and `owner_id` is the assignee; SLA columns hold due instants (UTC), stored remaining minutes while paused and one-time `*_breached_at` stamps; events are append-only; attachment `path` is a `TenantStorage` path and hidden from serialization |
+| Satisfaction | `support_csat_surveys` | `UNIQUE(tenant_id, token_hash)`; only the SHA-256 of the token is stored and it is nulled once answered, superseded or expired |
+| Knowledge base | `support_kb_categories`, `support_kb_articles`, `support_kb_article_versions` | `UNIQUE(tenant_id, slug)`; `UNIQUE(tenant_id, article_id, version)`; versions are immutable |
+| Operations | `support_canned_responses`, `support_automation_action_receipts` | `UNIQUE(tenant_id, name)`; `UNIQUE(tenant_id, action, idempotency_key)` |
+
+See `docs/SUPPORT.md`.
+
+## 3i. Phase 8 Communication tables
+
+Migration `app/Modules/Communication/Database/Migrations/2026_10_12_000100_create_communication_tables.php`. All
+tables are tenant-owned (`tenant_id` first in every unique index). Documented in `docs/COMMUNICATION.md`.
+
+| Group | Tables | Notes |
+|---|---|---|
+| Notifications | `communication_notifications`, `communication_notification_preferences` | notification: member (`tenant_memberships`), translation keys + JSON params, route name + params, `read_at`, `archived_at`, `UNIQUE(tenant_id, membership_id, dedupe_key)`; preference: `UNIQUE(tenant_id, membership_id, channel, category)` |
+| Configuration | `communication_settings`, `communication_channel_connections` | one settings row per tenant; one connection per `(tenant_id, channel)` holding provider key, non-secret JSON settings and `credential_ref` / `webhook_secret_ref` **names** - never a secret |
+| Templates | `communication_templates` | `UNIQUE(tenant_id, slug, channel, locale)` |
+| Outbox and log | `communication_messages` | `UNIQUE(tenant_id, idempotency_key)`; status, attempts, `next_attempt_at`, provider message id (indexed for webhooks); contact/company/member links nullable; owner/department/branch scope columns |
+| Timeline | `communication_interactions` | contact and/or company, `occurred_at`, `UNIQUE(tenant_id, dedupe_key)`, owner/department/branch scope columns; `message_id` links outbox messages |
+| Consent and suppression | `communication_consents`, `communication_suppressions`, `communication_unsubscribe_tokens` | consent: `UNIQUE(tenant_id, contact_id, channel, purpose)` (current decision; history in the audit trail); suppression: `UNIQUE(tenant_id, channel, address, scope)`; tokens: SHA-256 hash only, `UNIQUE(tenant_id, token_hash)`, expiry |
+| Operations | `communication_webhook_events`, `communication_automation_action_receipts` | `UNIQUE(tenant_id, provider, event_id)` (no payload kept); `UNIQUE(tenant_id, action, idempotency_key)` |
+
+Foreign keys to `contacts`, `companies` and `tenant_memberships` are `nullOnDelete` (consent and tokens of a
+contact cascade). Contact merges are handled by `CommunicationContactMergeReference`.
+
+## 3j. Phase 10 Workflow Automation tables
+
+Migration `app/Modules/Automation/Database/Migrations/2026_10_20_000100_create_automation_tables.php`. All tables are
+tenant-owned (ULID keys, `tenant_id` first in every unique index). Documented in `docs/WORKFLOWS.md`. Every
+foreign key to `tenant_memberships` is `nullOnDelete`.
+
+| Group | Tables | Notes |
+|---|---|---|
+| Definition | `automation_workflows` | name, status (`draft` / `active` / `paused` / `archived`), `actor_membership_id` (the member the workflow runs as: its last publisher), `published_version_id`, `trigger_key` + `trigger_config` copied from the published version for one indexed match, `webhook_token_hash` (SHA-256; `UNIQUE(tenant_id, webhook_token_hash)`), `webhook_secret` (encrypted cast: HMAC needs the secret), `next_run_at` for cron schedules; indexes `(tenant_id, status, trigger_key)` and `(tenant_id, status, next_run_at)` |
+| Versions | `automation_workflow_versions` | `UNIQUE(tenant_id, workflow_id, number)`; `graph` JSON, `graph_hash` (SHA-256 of the canonical graph, set at publish), status `draft` / `published` / `archived`. The model refuses any change to a published row except archiving it, and refuses deleting it |
+| Runs | `automation_runs` | `UNIQUE(tenant_id, workflow_id, idempotency_key)` makes trigger delivery idempotent; `status`, `mode` (`live` / `dry_run`), `source`, `depth` + `parent_run_id` (workflow-triggers-workflow chains), `context` JSON (trigger payload, step outputs, variables, loop/join state), `locked_until` (the executor's lease), `resume_at`, `cancel_requested`, `graph` snapshot for test runs only; index `(tenant_id, status, resume_at)` drives the sweeper |
+| Steps | `automation_run_steps` | one row per node execution: `status`, `attempt`, `sequence`, `scope` (parallel branch), `available_at` (retry backoff), `resume_at` (delay/schedule/approval expiry), redacted `input` / `output`, `logs` (one entry per attempt), `error_code` / `error_message`; index `(tenant_id, run_id, status, available_at)` |
+| Approvals | `automation_approvals` | `UNIQUE(tenant_id, run_step_id)`; approver (permission name or membership), `prevent_self_approval`, `requested_by_membership_id` (the person the run acts for), decision, `expires_at` + `on_timeout`; index `(tenant_id, status, expires_at)` |
+| Endpoints | `automation_webhook_endpoints` | `UNIQUE(tenant_id, name)`; `url`, `secret` (encrypted cast, write-only, hidden from serialization), `is_active`, last call facts |
+
+The spec's `workflow_executions` / `workflow_steps` / `workflow_logs` are `automation_runs` / `automation_run_steps`
+(the step row carries its attempt log). Run history has no retention job yet.
+
+## 3k. Reports & Analytics tables
+
+Migration `app/Modules/Reports/Database/Migrations/2026_10_22_000100_create_reports_tables.php`, loaded by
+`ReportsServiceProvider`.
+
+| Table | Notes |
+|---|---|
+| `reports_saved_reports` | A stored report setup, never data or a query. `tenant_id` FK; `owner_membership_id` -> `tenant_memberships` (`nullOnDelete`); `provider_key`, `columns` (JSON, null = defaults), `filters` (JSON, declared keys only); `range_mode` (`last_days` / `fixed`), `range_days`, `range_from`, `range_to`; `visibility` (`private` / `role` / `department`), `role_id` -> `roles` and `department_id` -> `departments`, both `nullOnDelete`. `UNIQUE(tenant_id, owner_membership_id, name)`; indexes lead with `tenant_id` |
+
+See `docs/REPORTS.md`.
+
 ## 4. Later tables (outline only)
 
 Names come from spec section 23. Nothing below is designed in detail or migrated. Spec 3.4 names plans, apps and
@@ -468,11 +612,10 @@ not name, to be confirmed when they are designed.
 
 | Group | Phase | Tables | Ownership | Fixed by the spec |
 |---|---|---|---|---|
-| Core SaaS | 8 | `notifications` | Tenant-owned | In-app, email, SMS, WhatsApp, realtime; read/unread; delivery tracking |
+| Core SaaS | 8 | `notifications` | Tenant-owned | Built as `communication_notifications` and the message log (section 3i); realtime (Reverb) is not built |
 | Core SaaS | not assigned | `files`, `integrations`, `api_credentials`, `webhooks` | Tenant-owned | Files polymorphic, private, tenant-prefixed; credentials encrypted; webhook idempotency by provider event id |
 | Billing | not assigned | coupons, refunds | Central † | Spec section 16 lists them; nothing is designed |
-| Automation | 10 | `workflows`, `workflow_versions` | Tenant-owned | Versioned JSON graphs; only published versions execute |
-| Automation | 10 | `workflow_executions`, `workflow_steps`, `workflow_logs` | Tenant-owned | Persisted step state, step-level logs, idempotency |
+| Automation | 10 | `workflows`, `workflow_versions`, `workflow_executions`, `workflow_steps`, `workflow_logs` | Tenant-owned | Built as `automation_*` (section 3j) |
 
 ## 5. Dedicated tenant databases
 

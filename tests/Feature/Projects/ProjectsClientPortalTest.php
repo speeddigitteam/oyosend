@@ -132,7 +132,11 @@ it('redacts private work, internal comments, and financials from the client port
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('financials.currency', 'BDT')
-            ->where('financials.budgetAmount', '75000'));
+            ->where('financials.budgetAmount', '75000')
+            ->has('financials', 4)
+            ->missing('financials.billableAmount')
+            ->missing('financials.labourCostAmount')
+            ->missing('financials.projectedProfitAmount'));
 });
 
 it('returns client-visible portal tasks in stable bounded pages', function () {

@@ -120,11 +120,33 @@ describe('creating a plan', function () {
                     ['key' => 'crm', 'name' => 'CRM & Sales'],
                     ['key' => 'projects', 'name' => 'Project Management'],
                     ['key' => 'invoicing', 'name' => 'Invoicing'],
+                    ['key' => 'hrm', 'name' => 'HR Management'],
+                    ['key' => 'payroll', 'name' => 'Payroll'],
+                    ['key' => 'talent', 'name' => 'Talent & Performance'],
+                    ['key' => 'automation', 'name' => 'Workflow Automation'],
+                    ['key' => 'ai', 'name' => 'AI Assistant'],
+                    ['key' => 'communication', 'name' => 'Communication'],
+                    ['key' => 'social', 'name' => 'Social Media'],
+                    ['key' => 'support', 'name' => 'Customer Support'],
+                    ['key' => 'reports', 'name' => 'Reports & Analytics'],
                 ])
                 ->where('limits', [
                     ['key' => 'core.members', 'kind' => 'gauge'],
                     ['key' => 'projects.active_projects', 'kind' => 'gauge'],
                     ['key' => 'invoicing.invoices_per_month', 'kind' => 'metered'],
+                    ['key' => 'hrm.employees', 'kind' => 'gauge'],
+                    ['key' => 'payroll.payslips', 'kind' => 'metered'],
+                    ['key' => 'talent.job_openings', 'kind' => 'gauge'],
+                    ['key' => 'talent.candidates', 'kind' => 'gauge'],
+                    ['key' => 'automation.runs', 'kind' => 'metered'],
+                    ['key' => 'automation.workflows', 'kind' => 'gauge'],
+                    ['key' => 'ai.tokens', 'kind' => 'metered'],
+                    ['key' => 'communication.messages', 'kind' => 'metered'],
+                    ['key' => 'social.scheduled_posts_per_month', 'kind' => 'metered'],
+                    ['key' => 'social.connected_accounts', 'kind' => 'gauge'],
+                    ['key' => 'support.tickets_per_month', 'kind' => 'metered'],
+                    ['key' => 'support.agents', 'kind' => 'gauge'],
+                    ['key' => 'reports.saved_reports', 'kind' => 'gauge'],
                 ])
                 ->where('currencies', config('platform.currencies')));
     });
@@ -136,6 +158,15 @@ describe('creating a plan', function () {
                 ['key' => 'crm', 'name' => 'CRM & Sales'],
                 ['key' => 'projects', 'name' => 'Project Management'],
                 ['key' => 'invoicing', 'name' => 'Invoicing'],
+                ['key' => 'hrm', 'name' => 'HR Management'],
+                ['key' => 'payroll', 'name' => 'Payroll'],
+                ['key' => 'talent', 'name' => 'Talent & Performance'],
+                ['key' => 'automation', 'name' => 'Workflow Automation'],
+                ['key' => 'ai', 'name' => 'AI Assistant'],
+                ['key' => 'communication', 'name' => 'Communication'],
+                ['key' => 'social', 'name' => 'Social Media'],
+                ['key' => 'support', 'name' => 'Customer Support'],
+                ['key' => 'reports', 'name' => 'Reports & Analytics'],
             ]));
     });
 
@@ -312,11 +343,11 @@ describe('validation', function () {
     })->with([
         // Core modules belong to every workspace; a plan neither gives nor withholds them.
         'the core module' => ['core'],
-        'a module this build does not have' => ['payroll'],
+        'a module this build does not have' => ['retired_app'],
     ]);
 
     it('does not include a module that is not registered, even one that exists elsewhere', function () {
-        ($this->store)(['modules' => ['payroll']])->assertSessionHasErrors('modules.0');
+        ($this->store)(['modules' => ['retired_app']])->assertSessionHasErrors('modules.0');
 
         expect(Plan::query()->count())->toBe(0);
     });
@@ -363,6 +394,19 @@ describe('editing a plan', function () {
                     ['key' => 'core.members', 'kind' => 'gauge'],
                     ['key' => 'projects.active_projects', 'kind' => 'gauge'],
                     ['key' => 'invoicing.invoices_per_month', 'kind' => 'metered'],
+                    ['key' => 'hrm.employees', 'kind' => 'gauge'],
+                    ['key' => 'payroll.payslips', 'kind' => 'metered'],
+                    ['key' => 'talent.job_openings', 'kind' => 'gauge'],
+                    ['key' => 'talent.candidates', 'kind' => 'gauge'],
+                    ['key' => 'automation.runs', 'kind' => 'metered'],
+                    ['key' => 'automation.workflows', 'kind' => 'gauge'],
+                    ['key' => 'ai.tokens', 'kind' => 'metered'],
+                    ['key' => 'communication.messages', 'kind' => 'metered'],
+                    ['key' => 'social.scheduled_posts_per_month', 'kind' => 'metered'],
+                    ['key' => 'social.connected_accounts', 'kind' => 'gauge'],
+                    ['key' => 'support.tickets_per_month', 'kind' => 'metered'],
+                    ['key' => 'support.agents', 'kind' => 'gauge'],
+                    ['key' => 'reports.saved_reports', 'kind' => 'gauge'],
                 ])
                 ->has('currencies'));
     });

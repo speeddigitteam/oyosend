@@ -33,11 +33,15 @@ use Illuminate\Support\Facades\Auth;
  */
 trait HasRecordOwner
 {
+    /** Set by {@see keepUnowned()}: the record is workspace-, department- or branch-wide and must not default to its creator. */
+    protected bool $keepsUnowned = false;
+
     public static function bootHasRecordOwner(): void
     {
         // A record made by a signed-in member is theirs unless it was given to someone.
         static::creating(function (Model $model): void {
-            if ($model->getAttribute('owner_id') !== null) {
+            if ($model->getAttribute('owner_id') !== null
+                || (property_exists($model, 'keepsUnowned') && $model->keepsUnowned === true)) {
                 return;
             }
 
@@ -60,6 +64,17 @@ trait HasRecordOwner
         $this->setAttribute('owner_id', $owner?->id);
         $this->setAttribute('department_id', $owner?->department_id);
         $this->setAttribute('branch_id', $owner?->branch_id);
+
+        return $this;
+    }
+
+    /**
+     * Stop the creating hook from handing this record to the signed-in member. Call it before the first save,
+     * for a record that deliberately belongs to a department, a branch or the whole workspace.
+     */
+    public function keepUnowned(): static
+    {
+        $this->keepsUnowned = true;
 
         return $this;
     }

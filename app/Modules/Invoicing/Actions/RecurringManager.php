@@ -10,6 +10,7 @@ use App\Modules\Invoicing\Enums\RecurringFrequency;
 use App\Modules\Invoicing\Enums\RecurringStatus;
 use App\Modules\Invoicing\Models\RecurringTemplate;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -29,6 +30,7 @@ final class RecurringManager
     public function create(array $attributes, array $lines, ?TenantMembership $owner = null): RecurringTemplate
     {
         $data = $this->validated($attributes, $lines);
+        $this->assertNotInThePast($data['starts_on']);
 
         return DB::transaction(function () use ($data, $owner): RecurringTemplate {
             $template = new RecurringTemplate([
@@ -70,6 +72,10 @@ final class RecurringManager
             if ($locked->runs_count > 0) {
                 unset($data['starts_on']);
             } else {
+                if ($locked->starts_on->toDateString() !== $data['starts_on']) {
+                    $this->assertNotInThePast($data['starts_on']);
+                }
+
                 $locked->next_run_on = $data['starts_on'];
             }
 
@@ -96,6 +102,21 @@ final class RecurringManager
                 if ($locked->next_run_on === null) {
                     throw ValidationException::withMessages(['status' => __('This recurring invoice has no further runs.')]);
                 }
+
+                // Periods missed while paused are not billed in a burst: continue from the next future date.
+                $today = $this->settings->today()->toDateString();
+
+                if ($locked->next_run_on->toDateString() < $today) {
+                    $anchor = $locked->starts_on->toImmutable();
+                    $index = $locked->runs_count;
+                    $next = $locked->frequency->occurrence($anchor, $locked->every, $index);
+
+                    while ($next->toDateString() < $today) {
+                        $next = $locked->frequency->occurrence($anchor, $locked->every, ++$index);
+                    }
+
+                    $locked->next_run_on = Carbon::parse($next->toDateString());
+                }
             }
 
             $locked->status = $status;
@@ -104,6 +125,13 @@ final class RecurringManager
 
             return $locked;
         });
+    }
+
+    private function assertNotInThePast(string $startsOn): void
+    {
+        if ($startsOn < $this->settings->today()->toDateString()) {
+            throw ValidationException::withMessages(['starts_on' => __('The start date cannot be in the past.')]);
+        }
     }
 
     private function lock(RecurringTemplate $template): RecurringTemplate
@@ -120,11 +148,7 @@ final class RecurringManager
     private function validated(array $attributes, array $lines): array
     {
         $this->invoices->customer($attributes['contact_id'] ?? null, $attributes['company_id'] ?? null);
-        $currency = strtoupper(trim((string) ($attributes['currency'] ?? '')));
-
-        if (preg_match('/^[A-Z]{3}$/D', $currency) !== 1) {
-            throw ValidationException::withMessages(['currency' => __('Choose a three-letter currency code.')]);
-        }
+        $currency = InvoiceManager::allowedCurrency($attributes['currency'] ?? null);
 
         $frequency = RecurringFrequency::tryFrom((string) ($attributes['frequency'] ?? ''))
             ?? throw ValidationException::withMessages(['frequency' => __('Choose how often to invoice.')]);

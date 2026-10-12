@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Projects\Actions;
 
+use App\Core\Access\RecordAccess;
 use App\Core\Audit\AuditLogger;
 use App\Core\Identity\Enums\MembershipStatus;
 use App\Core\Identity\Models\TenantMembership;
@@ -22,7 +23,7 @@ use Illuminate\Validation\ValidationException;
 
 final class TimeExpenseManager
 {
-    public function __construct(private readonly AuditLogger $audit, private readonly ActivityRecorder $activity, private readonly TenantContext $context) {}
+    public function __construct(private readonly AuditLogger $audit, private readonly ActivityRecorder $activity, private readonly TenantContext $context, private readonly RecordAccess $records) {}
 
     /** @param array<string, mixed> $attributes */
     public function logTime(Project $project, TenantMembership $member, array $attributes, ?TenantMembership $actor = null): TimeEntry
@@ -59,8 +60,14 @@ final class TimeExpenseManager
                 'approved_at' => null,
             ]);
 
-            if ($entry->started_at !== null && $entry->ended_at !== null && $entry->ended_at->lessThanOrEqualTo($entry->started_at)) {
-                throw ValidationException::withMessages(['ended_at' => __('The end time must be after the start time.')]);
+            if ($entry->started_at !== null && $entry->ended_at !== null) {
+                if ($entry->ended_at->lessThanOrEqualTo($entry->started_at)) {
+                    throw ValidationException::withMessages(['ended_at' => __('The end time must be after the start time.')]);
+                }
+
+                if ((int) round($entry->started_at->diffInSeconds($entry->ended_at, true) / 60) !== $minutes) {
+                    throw ValidationException::withMessages(['minutes' => __('The minutes must match the time between the start and end.')]);
+                }
             }
 
             $entry->assignOwner($member)->save();
@@ -98,6 +105,7 @@ final class TimeExpenseManager
                 throw ValidationException::withMessages(['status' => __('Only submitted time can be decided.')]);
             }
 
+            $this->guardDecider($actor, $locked, 'projects.time.approve', $locked->membership_id);
             $this->guardNoPendingApproval(ApprovalEntity::TimeEntry, $locked->id);
 
             $status = $approve ? EntryStatus::Approved : EntryStatus::Rejected;
@@ -160,6 +168,7 @@ final class TimeExpenseManager
                 throw ValidationException::withMessages(['status' => __('Only submitted expenses can be decided.')]);
             }
 
+            $this->guardDecider($actor, $locked, 'projects.expenses.approve', $locked->submitted_by);
             $this->guardNoPendingApproval(ApprovalEntity::Expense, $locked->id);
 
             $status = $approve ? EntryStatus::Approved : EntryStatus::Rejected;
@@ -169,6 +178,23 @@ final class TimeExpenseManager
 
             return $locked;
         });
+    }
+
+    /**
+     * The decider must hold the matching approve permission over this very record
+     * and may never decide their own entry or expense.
+     */
+    public function guardDecider(TenantMembership $actor, TimeEntry|Expense $entry, string $permission, ?string $subjectMembershipId): void
+    {
+        $actor->loadMissing('user');
+
+        if ($subjectMembershipId === $actor->id || $entry->owner_id === $actor->id) {
+            throw ValidationException::withMessages(['status' => __('You cannot approve or reject your own time or expenses.')]);
+        }
+
+        if (! $this->records->allows($actor->user, $permission, $entry)) {
+            throw ValidationException::withMessages(['status' => __('You are not allowed to decide this record.')]);
+        }
     }
 
     private function guardMember(TenantMembership $member): void

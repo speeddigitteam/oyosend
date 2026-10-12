@@ -166,3 +166,8 @@ describe('format', function () {
         expect(Money::format(-125000, 'BDT', 'en'))->toContain('-', '1,250.00');
     });
 });
+
+it('formats a very large amount from the exact decimal string, never through a float', function () {
+    expect(Money::format(9_007_199_254_740_993, 'BDT', 'en'))->toContain('90071992547409.93')
+        ->and(Money::format(-9_007_199_254_740_993, 'BDT', 'en'))->toContain('-90071992547409.93');
+});

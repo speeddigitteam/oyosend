@@ -17,6 +17,7 @@ use App\Core\Modules\ModuleServiceProvider;
 use App\Core\Modules\NavigationItem;
 use App\Core\Modules\PermissionDefinition;
 use App\Core\Modules\WidgetDefinition;
+use App\Core\Reporting\Contracts\ReportProvider;
 use App\Modules\Projects\Actions\ProjectsContactMergeReference;
 use App\Modules\Projects\Automation\Actions\AssignTaskAction;
 use App\Modules\Projects\Automation\Actions\CreateProjectAction;
@@ -46,6 +47,7 @@ use App\Modules\Projects\Models\TaskComment;
 use App\Modules\Projects\Models\TaskDependency;
 use App\Modules\Projects\Models\TaskWatcher;
 use App\Modules\Projects\Models\TimeEntry;
+use App\Modules\Projects\Reporting\ReportProviders;
 use App\Modules\Projects\Widgets\ProjectsOverviewWidget;
 
 /** First-party project delivery, work planning, and time-cost management module. */
@@ -54,6 +56,7 @@ final class ProjectsServiceProvider extends ModuleServiceProvider
     public function register(): void
     {
         parent::register();
+        $this->app->tag(ReportProviders::ALL, ReportProvider::TAG);
         $this->app->tag(ProjectsContactMergeReference::class, ContactMergeReference::class);
     }
 

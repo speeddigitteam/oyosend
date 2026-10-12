@@ -4,6 +4,15 @@ import contacts from './contacts';
 import crm from './crm';
 import projects from './projects';
 import invoicing from './invoicing';
+import hrm from './hrm';
+import talent from './talent';
+import payroll from './payroll';
+import social from './social';
+import automation from './automation';
+import support from './support';
+import ai from './ai';
+import communication from './communication';
+import reports from './reports';
 import organization from './organization';
 import platformAudit from './platformAudit';
 import platformBilling from './platformBilling';
@@ -47,6 +56,15 @@ export default {
     crm,
     projects,
     invoicing,
+    hrm,
+    talent,
+    payroll,
+    social,
+    automation,
+    support,
+    ai,
+    communication,
+    reports,
     workspace,
     billing,
     appStore,

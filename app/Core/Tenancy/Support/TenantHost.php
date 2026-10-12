@@ -12,8 +12,12 @@ use Illuminate\Support\Str;
  */
 final class TenantHost
 {
-    /** Pattern a tenant subdomain label must match (RFC 1123, lower case). */
-    public const string LABEL_PATTERN = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?';
+    /**
+     * Pattern a tenant subdomain label must match (RFC 1123, lower case). A
+     * label that starts `xn--` (punycode) is refused: it can render as another
+     * script and imitate a different workspace or brand.
+     */
+    public const string LABEL_PATTERN = '(?!xn--)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?';
 
     public function domain(): string
     {

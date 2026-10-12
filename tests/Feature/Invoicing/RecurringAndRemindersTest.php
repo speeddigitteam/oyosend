@@ -7,6 +7,7 @@ use App\Core\AppStore\AppStoreManager;
 use App\Core\AppStore\Jobs\RunScheduledAppJob;
 use App\Core\AppStore\Models\CatalogApp;
 use App\Core\Contacts\Models\Contact;
+use App\Modules\Invoicing\Actions\InvoiceDelivery;
 use App\Modules\Invoicing\Actions\InvoiceManager;
 use App\Modules\Invoicing\Actions\InvoicingSettings;
 use App\Modules\Invoicing\Actions\PaymentManager;
@@ -54,8 +55,9 @@ beforeEach(function () {
 });
 
 it('generates one draft per due period, catches up, and is idempotent when run again', function () {
-    ($this->at)('2026-03-15');
+    ($this->at)('2026-01-31');
     $template = ($this->template)();
+    ($this->at)('2026-03-15');
 
     $this->inTenant($this->tenant, function () use ($template): void {
         $runner = app(RecurringRunner::class);
@@ -90,9 +92,10 @@ it('generates one draft per due period, catches up, and is idempotent when run a
 });
 
 it('does not run paused templates, stops at the end date and refuses to resume an ended one', function () {
-    ($this->at)('2026-03-15');
+    ($this->at)('2026-01-31');
     $paused = ($this->template)(['name' => 'Paused one']);
     $ending = ($this->template)(['name' => 'Ends in February', 'ends_on' => '2026-02-28']);
+    ($this->at)('2026-03-15');
 
     $this->inTenant($this->tenant, function () use ($paused, $ending): void {
         app(RecurringManager::class)->setStatus($paused, RecurringStatus::Paused);
@@ -107,15 +110,19 @@ it('does not run paused templates, stops at the end date and refuses to resume a
         expect(fn () => app(RecurringManager::class)->setStatus($ended, RecurringStatus::Active))
             ->toThrow(ValidationException::class);
 
-        app(RecurringManager::class)->setStatus($paused, RecurringStatus::Active);
-        expect(app(RecurringRunner::class)->run())->toBe(2);
+        // Resuming skips the paused periods: the next run is the next future occurrence, not a catch-up burst.
+        $resumed = app(RecurringManager::class)->setStatus($paused, RecurringStatus::Active);
+        expect($resumed->next_run_on->toDateString())->toBe('2026-03-31')
+            ->and(app(RecurringRunner::class)->run())->toBe(0)
+            ->and($paused->refresh()->runs_count)->toBe(0);
     });
 });
 
 it('issues and emails automatically when the template says so, and leaves a draft when it cannot', function () {
     Mail::fake();
-    ($this->at)('2026-02-15');
+    ($this->at)('2026-01-31');
     $template = ($this->template)(['auto_issue' => true, 'auto_send' => true]);
+    ($this->at)('2026-02-15');
 
     $this->inTenant($this->tenant, function () use ($template): void {
         expect(app(RecurringRunner::class)->run())->toBe(1);
@@ -171,6 +178,91 @@ it('queues the real recurring and receivables schedules for an entitled workspac
         && $job->displayName() === MaintainReceivables::class);
 });
 
+it('refuses a start date in the past and resumes without a burst of invoices', function () {
+    ($this->at)('2026-03-15');
+
+    expect(fn () => ($this->template)(['starts_on' => '2026-03-14']))->toThrow(ValidationException::class);
+    expect(($this->template)(['starts_on' => '2026-03-15'])->next_run_on->toDateString())->toBe('2026-03-15');
+
+    ($this->at)('2026-01-31');
+    $template = ($this->template)(['name' => 'Paused for a while', 'auto_issue' => true, 'auto_send' => true]);
+    $this->inTenant($this->tenant, fn () => app(RecurringManager::class)->setStatus($template, RecurringStatus::Paused));
+    ($this->at)('2026-04-10');
+
+    $this->inTenant($this->tenant, function () use ($template): void {
+        $resumed = app(RecurringManager::class)->setStatus($template, RecurringStatus::Active);
+
+        expect($resumed->next_run_on->toDateString())->toBe('2026-04-30')
+            ->and($resumed->runs_count)->toBe(0);
+
+        app(RecurringRunner::class)->run();
+
+        expect($resumed->refresh()->runs_count)->toBe(0);
+    });
+
+    ($this->at)('2026-04-30');
+    $this->inTenant($this->tenant, function () use ($template): void {
+        app(RecurringRunner::class)->run();
+
+        $fresh = $template->refresh();
+        expect($fresh->runs_count)->toBe(1);
+        $fresh->refresh();
+        expect($fresh->next_run_on->toDateString())->toBe('2026-05-31')
+            ->and($fresh->last_run_on->toDateString())->toBe('2026-04-30');
+    });
+});
+
+it('generates missed periods as drafts and only auto-sends the current one', function () {
+    Mail::fake();
+    ($this->at)('2026-01-31');
+    $template = ($this->template)(['auto_issue' => true, 'auto_send' => true]);
+    ($this->at)('2026-03-15');
+
+    $this->inTenant($this->tenant, function () use ($template): void {
+        expect(app(RecurringRunner::class)->run())->toBe(2);
+
+        $invoices = Invoice::query()->where('recurring_template_id', $template->id)->orderBy('issued_on')->get();
+        expect($invoices[0]->status)->toBe(InvoiceStatus::Draft)
+            ->and($invoices[0]->sent_at)->toBeNull()
+            ->and($invoices[1]->status)->toBe(InvoiceStatus::Issued)
+            ->and($invoices[1]->sent_at)->not->toBeNull()
+            ->and($template->refresh()->last_error)->not->toBeNull();
+    });
+
+    Mail::assertQueued(InvoiceMail::class, 1);
+});
+
+it('records the failure of one template, pauses it when its customer is gone, and carries on', function () {
+    ($this->at)('2026-01-31');
+    $gone = $this->inTenant($this->tenant, fn () => Contact::factory()->create(['first_name' => 'Gone', 'last_name' => 'Soon']));
+    $broken = ($this->template)(['name' => 'Broken', 'contact_id' => $gone->id]);
+    $healthy = ($this->template)(['name' => 'Healthy']);
+    $this->inTenant($this->tenant, fn () => $gone->delete());
+    ($this->at)('2026-02-05');
+
+    $this->inTenant($this->tenant, function () use ($broken, $healthy): void {
+        expect(app(RecurringRunner::class)->run())->toBe(1);
+
+        $broken->refresh();
+        expect($broken->status)->toBe(RecurringStatus::Paused)
+            ->and($broken->last_error)->not->toBeNull()
+            ->and($healthy->refresh()->runs_count)->toBe(1);
+    });
+});
+
+it('accepts only the currencies the platform offers', function () {
+    ($this->at)('2026-01-31');
+
+    expect(fn () => ($this->template)(['currency' => 'XYZ']))->toThrow(ValidationException::class);
+
+    $this->inTenant($this->tenant, function (): void {
+        expect(fn () => app(InvoiceManager::class)->create(
+            ['contact_id' => $this->contact->id, 'currency' => 'XYZ'],
+            [['name' => 'x', 'quantity_milli' => 1000, 'unit_price_amount' => 100]],
+        ))->toThrow(ValidationException::class);
+    });
+});
+
 describe('reminders and overdue', function () {
     beforeEach(function () {
         $this->dueInvoice = function (string $dueOn, array $extra = []): Invoice {
@@ -221,6 +313,19 @@ describe('reminders and overdue', function () {
 
         Mail::assertQueuedCount(4);
         Mail::assertQueued(InvoiceMail::class, fn (InvoiceMail $mail): bool => $mail->reminder === 'overdue');
+    });
+
+    it('refuses to send a reminder for an invoice that was paid after the run decided to send it', function () {
+        Mail::fake();
+        ($this->at)('2026-05-01');
+        $invoice = ($this->dueInvoice)('2026-05-02');
+        $stale = $this->inTenant($this->tenant, fn () => Invoice::query()->findOrFail($invoice->id));
+        $this->inTenant($this->tenant, fn () => app(PaymentManager::class)->record($invoice, ['amount' => 50_000, 'method' => 'cash']));
+
+        $this->inTenant($this->tenant, function () use ($stale): void {
+            expect(fn () => app(InvoiceDelivery::class)->send($stale, null, null, 'on_due'))->toThrow(ValidationException::class);
+        });
+        Mail::assertNothingQueued();
     });
 
     it('skips paid invoices, voided invoices and customers without an email address', function () {

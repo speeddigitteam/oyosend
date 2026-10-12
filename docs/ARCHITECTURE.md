@@ -1,6 +1,7 @@
 # Architecture
 
-State: Phases 1–6, including the App Store, CRM, Projects and Invoicing, are implemented. This page describes what is
+State: Phases 1–6, including the App Store, CRM, Projects and Invoicing, are implemented; the HR Management
+backend (Phase 7, part A) is built. This page describes what is
 in the code. Anything not built is listed in [section 12](#12-not-built-yet). Decisions are in `docs/adr/`.
 
 ## 1. Shape
@@ -138,6 +139,57 @@ own billing in `app/Core/Billing`. It consumes `crm.quote.accepted` and `project
 listeners that read only the event payload, and references shared contacts/companies by id; see
 `docs/INVOICING.md`.
 
+`app/Modules/Hrm` is the fourth production optional business module: employee records with an immutable employment
+history, shifts and exact-minute attendance, leave policies with an append-only balance ledger and two-step
+approval, and HR reports. Payroll and Talent will depend on it and read it only through the contracts in
+`app/Core/Workforce` (`EmployeeDirectory`, `EmployeeTimeSummary`, `EmployeeSnapshot`); see `docs/HRM.md`.
+
+`app/Modules/Payroll` is the fifth production optional business module (key `payroll`, depends on `core` and
+`hrm`): salary structures and immutable salary revisions, pay periods, runs with four-eyes approval that lock
+immutable payslip snapshots, loans, one-off items, data-driven tax/contribution rule sets behind the pluggable
+`PayrollRuleSet` contract, payment tracking and reports. It consumes only the `Workforce` contracts and HRM events;
+see `docs/PAYROLL.md`.
+
+`app/Modules/Talent` is the sixth production optional business module (key `talent`, depends on `core` and `hrm`):
+job openings, a configurable candidate pipeline with immutable move history, interview panels with blind scorecards,
+offer tracking, onboarding/offboarding checklists started by HRM employee events, probation tracking with
+reminders, review cycles with exact basis-point weights and calibration, goals and KPIs, training with certificate
+expiry, and HR analytics. It reads employees only through `EmployeeDirectory` and HRM's events and announces
+`talent.candidate.hired` for HRM (or an operator) to act on; see `docs/TALENT.md`.
+
+`app/Modules/Automation` is the Workflow Automation app (key `automation`, category Workflow Automation, free,
+depends only on `core`): the central engine of spec section 13. Workflows are versioned JSON graphs (a published
+version is an immutable, hashed snapshot); `TriggerBridge` follows the domain event of every registered trigger and
+starts runs for the event's own tenant, `RunExecutor` advances a run one persisted step at a time on the `automation`
+queue under the member who published it (permission and entitlement re-checked before every step), and a per-minute
+`Sweeper` (a scheduled job, entitlement-gated like every module's) resumes delays, retries, approvals and abandoned
+runs, so nothing waits in memory. Inbound webhooks are HMAC-signed, replay-windowed routes in the stateless
+`tenant.callback` group; outbound calls go only to registered endpoints through an SSRF guard. Tenant code and
+expressions are never evaluated: conditions use a typed operator registry and data mapping a fixed operation list.
+See `docs/WORKFLOWS.md`.
+
+`app/Modules/Ai` is the paid AI Assistant app (key `ai`, category AI Tools, depends only on `core`): a private
+assistant chat, text-only drafting and an `ai.text.generate` workflow action over the `AiProvider` contract (one
+real Anthropic Messages adapter using a platform-level credential; a scripted fake bound only in `local` and
+`testing`). Data access goes through `App\Core\Ai\Contracts\AiTool` implementations tagged in the container, run as
+the signed-in member under `AccessChecker` / `RecordAccess`; a tool that would change data only produces a
+proposal a person confirms. Every provider call passes `AiGateway` (limits, rate limits, circuit breaker, redaction,
+idempotent token metering on the `ai` queue's `ai.tokens` limit). See `docs/AI.md`.
+
+`app/Modules/Social` is the Social Media app (key `social`, depends only on `core`): connected social accounts behind
+the `SocialPlatform` contract (OAuth state machine, encrypted tokens, refresh and re-authorisation handling),
+posts with per-account variants, a calendar, an approval workflow with four-eyes, a private media library, a
+scheduled publisher with retry/backoff and per-account and per-workspace rate limits, CSV bulk scheduling and
+analytics that report only what a platform returned. Adapters exist for Facebook Pages, LinkedIn (text) and X (text)
+and are unverified against the live platforms; other platforms are listed as unavailable with the reason. See
+`docs/SOCIAL.md`.
+
+`app/Modules/Support` is the Customer Support app (key `support`, depends only on `core`): tickets that reference
+shared contacts and companies, queues and rule-based or round-robin assignment, a thread with public replies and
+internal notes, SLA policies on business-hours calendars (`BusinessCalendar` is pure and unit-tested), single-use
+satisfaction links, an internal knowledge base, merge/split and reports. It publishes
+`Contracts\InboundTicketReceiver` for future channel apps; see `docs/SUPPORT.md`.
+
 ## 5. Module boundaries and the module contract
 
 - A module is one service provider extending `App\Core\Modules\ModuleServiceProvider`, listed in
@@ -149,6 +201,12 @@ listeners that read only the event payload, and references shared contacts/compa
   of CRM so either optional app can be installed alone.
 - Invoicing is key `invoicing`, depends on `core` only, and follows the same entitlement and retention rules. It
   reacts to CRM and Projects events when those apps are present and works without them.
+- HR Management is key `hrm`, depends on `core` only. Later HR apps declare `hrm` as a dependency, and use its
+  `App\Core\Workforce` contracts instead of its models.
+- Reports & Analytics is key `reports`, depends on `core` only, and owns no business data. Modules publish reports
+  through `App\Core\Reporting\Contracts\ReportProvider` (tagged in their own provider); the app discovers them with
+  `ReportRegistry`, runs only those whose module the workspace is entitled to and whose permission the member
+  holds, and each provider narrows to the member's record scope. See `docs/REPORTS.md`.
 - Being registered makes a module's code available. Whether a tenant may use it is a separate, server-side
   entitlement check (`EntitlementChecker`).
 - A module owns its routes, controllers, models, migrations, policies, events, jobs and tests. Modules talk to
@@ -178,7 +236,7 @@ Field-by-field rules and a worked example are in `docs/MODULES.md`.
 | Role changes | `Core\Access\RoleManager` | per call | Create / update / delete roles, `canAssign()`, `flush()` |
 | Audit trail | `Core\Audit\AuditLogger`, `Audit\Concerns\Auditable` | scoped / trait | `record()` for business events; the trait for attribute changes |
 | Navigation, dashboard | `Core\Modules\NavigationBuilder`, `Core\Dashboard\DashboardBuilder` | per call | Entitlement- and permission-filtered sidebar and widgets |
-| Automation registry | `Core\Automation\AutomationRegistry` | singleton | Catalogue of triggers and actions (nothing executes yet) |
+| Automation registry | `Core\Automation\AutomationRegistry` | singleton | Catalogue of triggers and actions; the Workflow Automation app executes it (`registeredTriggers()`, `whenTriggerRegistered()` for the engine) |
 | Two-factor | `Core\Identity\TwoFactor\TwoFactorService` | per call | TOTP for both guards |
 | Flash messages | `Core\Support\Toast` | static | One-shot toast on the next page |
 | Search filters | `Core\Support\Like` | static | `Like::contains($text)` / `Like::escape($text)` for any user text in a `LIKE` |
@@ -292,7 +350,14 @@ route `can:crm.leads.edit`  /  $user->can()  /  Gate::allows()
   `crm.activity.completed`) and four Projects triggers (`projects.project.created`, `projects.task.created`,
   `projects.task.completed`, `projects.milestone.completed`), five Invoicing triggers (`invoicing.invoice.issued`,
   `invoicing.invoice.paid`, `invoicing.payment.received`, `invoicing.credit_note.issued`,
-  `invoicing.invoice.overdue`) and one Invoicing action (`invoicing.invoice.create_draft`).
+  `invoicing.invoice.overdue`) and one Invoicing action (`invoicing.invoice.create_draft`), five HRM triggers (`hrm.employee.created`,
+  `hrm.employee.terminated`, `hrm.leave.requested`, `hrm.leave.approved`, `hrm.attendance.day_closed`) and two HRM
+  actions (`hrm.leave.grant_balance`, `hrm.employee.assign_manager`).
+- HRM events: `hrm.employee.created|updated|terminated`, `hrm.leave.requested|approved`,
+  `hrm.attendance.day_closed` (`app/Modules/Hrm/Events`); Payroll's `RefreshEmployeePlacement` listens to the three
+  employee events (by class name) to keep its copied placement and account link current.
+- Payroll adds three triggers (`payroll.run.approved`, `payroll.payslip.paid`, `payroll.run.reversed`) and two
+  actions (`payroll.item.create`, `payroll.run.prepare_draft`); nothing that approves or moves money is an action.
 
 ## 10. Queues
 
@@ -315,7 +380,15 @@ route `can:crm.leads.edit`  /  $user->can()  /  Gate::allows()
   `MaintainProjectTasks` every minute on `automation`; it creates due task recurrences and emits reminder events.
   Invoicing's `GenerateRecurringInvoices` (hourly, `automation`) creates due recurring drafts and
   `MaintainReceivables` (hourly, `notifications`) marks invoices overdue and sends payment reminders. `InvoiceMail`
-  (customer invoices and reminders, `notifications`) is queued in the workspace's locale.
+  (customer invoices and reminders, `notifications`) is queued in the workspace's locale. HRM's
+  `CloseAttendanceDays` (hourly) closes finished attendance days and `AccrueLeave` (daily) posts leave accruals,
+  both on `automation`, both idempotent. Communication's `SendMessage` (one outbox message, `notifications`,
+  after commit) is idempotent per row; `DispatchDueMessages` (every minute) re-queues due or stuck messages and
+  `CleanupCommunication` (daily) forgets expired tokens and old provider event ids. Its stateless callbacks use
+  `ModuleServiceProvider::loadTenantCallbackRoutes()` (the `tenant.callback` group plus the module's entitlement).
+  Workflow Automation's `ExecuteRun` (one run, at most ten persisted steps per job, then re-queued) runs on
+  `automation`; its `SweepRuns` (every minute, scheduled job `automation.sweep`) re-dispatches due, stalled and
+  decided runs and fires cron schedules, which is why a delay of days survives a deploy.
 - Scheduled (`routes/console.php`): `billing:run` hourly, which handles base and app subscriptions inside each
   tenant context; `apps:run-scheduled` every minute, which dispatches only compiled jobs of entitled apps through
   a worker-time compiled-definition and entitlement check; and
@@ -337,10 +410,12 @@ strategy, and the gaps that must be closed before the first move, are in `docs/D
 | A verified payment gateway | when credentials exist | SSLCommerz is implemented but has not been run against the sandbox |
 | API tokens (Sanctum) | when first needed | Not installed; there are no API routes |
 | Integration centre (OAuth connections, webhooks) | not assigned in spec 27 | — |
-| Further optional production apps | 7+ | CRM, Projects and Invoicing are compiled; HRM and later apps remain phased work |
+| Further optional production apps | 7+ | CRM, Projects, Invoicing and HR Management are compiled; Payroll, Talent and later apps remain phased work |
 | Customer-facing payment gateway for invoices | owner decision | Invoicing records manual payments only; per-tenant gateway credentials cannot live in the database (CLAUDE.md), see `docs/INVOICING.md` |
-| Notification centre, realtime (Reverb) | 8 | Not installed; `BROADCAST_CONNECTION=log` |
-| Automation engine | 10 | Contracts and registry only |
+| Notification centre, message outbox, email, interaction timeline | 8 | Built as the optional `communication` app (`docs/COMMUNICATION.md`); other modules are not rewired to call its `Notifier` / `InteractionRecorder` contracts yet |
+| SMS and WhatsApp providers | 8 | Interfaces and an honest `not_configured` adapter only; no real provider |
+| Realtime (Reverb) | later | Not installed; `BROADCAST_CONNECTION=log` |
+| Automation engine | 10 | Built as the optional `automation` app, backend and Vue Flow editor (`docs/WORKFLOWS.md`); notification/messaging actions and run-history retention are not built |
 | General file manager | — | `TenantStorage` backs workspace logos and CRM/Projects private attachments; no general browser exists |
 | Global data search | — | Scout installed (`database` driver), no searchable model; Ctrl/Cmd+K is navigation only. Contacts are searched with `LIKE` on their own page |
 | Custom domains | future | `tenant_domains.type` exists, no routing |

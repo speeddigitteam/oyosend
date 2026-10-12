@@ -280,10 +280,18 @@ final class InvoiceManager
 
     private function currency(mixed $currency): string
     {
-        $currency = strtoupper(trim((string) $currency));
+        return self::allowedCurrency($currency);
+    }
 
-        if (preg_match('/^[A-Z]{3}$/D', $currency) !== 1) {
-            throw ValidationException::withMessages(['currency' => __('Choose a three-letter currency code.')]);
+    /** A currency the platform offers (`platform.currencies`); anything else is refused. */
+    public static function allowedCurrency(mixed $currency): string
+    {
+        $currency = strtoupper(trim((string) $currency));
+        /** @var list<string> $allowed */
+        $allowed = array_map('strtoupper', (array) config('platform.currencies', []));
+
+        if (preg_match('/^[A-Z]{3}$/D', $currency) !== 1 || ! in_array($currency, $allowed, true)) {
+            throw ValidationException::withMessages(['currency' => __('Choose a supported currency.')]);
         }
 
         return $currency;

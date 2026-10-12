@@ -22,11 +22,13 @@ use Illuminate\Validation\ValidationException;
 it('validates time references and moves a time entry through one approval decision', function () {
     Event::fake([TimeEntryApproved::class]);
     $tenant = $this->createTenant('projects-time');
+    $this->entitle($tenant, 'projects');
+    $approver = $this->membershipOf($tenant, $this->addMember($tenant, $this->createRole($tenant, 'Time approvers', ['projects.time.approve', 'projects.expenses.approve'])));
     $foreignTenant = $this->createTenant('projects-time-foreign');
     $owner = $this->membershipOf($tenant, $this->ownerOf($tenant));
     $foreign = $this->membershipOf($foreignTenant, $this->ownerOf($foreignTenant));
 
-    $this->inTenant($tenant, function () use ($owner, $foreign): void {
+    $this->inTenant($tenant, function () use ($owner, $foreign, $approver): void {
         $projectManager = app(ProjectManager::class);
         $project = $projectManager->create(['name' => 'Time project'], $owner, $owner);
         $otherProject = $projectManager->create(['name' => 'Other project'], $owner, $owner);
@@ -67,15 +69,15 @@ it('validates time references and moves a time entry through one approval decisi
             ->and($entry->approved_at)->toBeNull();
 
         $manager->submitTime($entry, $owner);
-        $manager->decideTime($entry, true, $owner);
+        $manager->decideTime($entry, true, $approver);
 
-        expect(fn () => $manager->decideTime($entry, false, $owner))
+        expect(fn () => $manager->decideTime($entry, false, $approver))
             ->toThrow(ValidationException::class)
             ->and(fn () => $manager->submitTime($entry, $owner))
             ->toThrow(ValidationException::class);
 
         expect($entry->refresh()->status)->toBe(EntryStatus::Approved)
-            ->and($entry->approved_by)->toBe($owner->id)
+            ->and($entry->approved_by)->toBe($approver->id)
             ->and($entry->approved_at)->not->toBeNull();
     });
 
@@ -84,9 +86,11 @@ it('validates time references and moves a time entry through one approval decisi
 
 it('keeps expense approval immutable and computes exact project financials', function () {
     $tenant = $this->createTenant('projects-financials');
+    $this->entitle($tenant, 'projects');
+    $approver = $this->membershipOf($tenant, $this->addMember($tenant, $this->createRole($tenant, 'Finance approvers', ['projects.time.approve', 'projects.expenses.approve'])));
     $owner = $this->membershipOf($tenant, $this->ownerOf($tenant));
 
-    $this->inTenant($tenant, function () use ($owner): void {
+    $this->inTenant($tenant, function () use ($owner, $approver): void {
         $project = app(ProjectManager::class)->create([
             'name' => 'Financial project',
             'currency' => 'bdt',
@@ -101,7 +105,7 @@ it('keeps expense approval immutable and computes exact project financials', fun
             'cost_rate_amount' => 6_001,
         ], $owner);
         $manager->submitTime($entry, $owner);
-        $manager->decideTime($entry, true, $owner);
+        $manager->decideTime($entry, true, $approver);
 
         $expense = $manager->createExpense($project, $owner, [
             'description' => 'Hosting',
@@ -116,7 +120,7 @@ it('keeps expense approval immutable and computes exact project financials', fun
             ->and($expense->approved_by)->toBeNull()
             ->and($expense->approved_at)->toBeNull();
         $submittedExpense = $manager->submitExpense($expense, $owner);
-        $manager->decideExpense($submittedExpense, true, $owner);
+        $manager->decideExpense($submittedExpense, true, $approver);
 
         // Drafts and other currencies never enter approved project totals.
         TimeEntry::query()->create([
@@ -142,7 +146,7 @@ it('keeps expense approval immutable and computes exact project financials', fun
         expect($project->currency)->toBe('BDT')
             ->and($expense->refresh()->status)->toBe(EntryStatus::Approved)
             ->and($expense->currency)->toBe('BDT')
-            ->and(fn () => $manager->decideExpense($submittedExpense, false, $owner))->toThrow(ValidationException::class)
+            ->and(fn () => $manager->decideExpense($submittedExpense, false, $approver))->toThrow(ValidationException::class)
             ->and(app(PortfolioAnalytics::class)->financials($project))->toBe([
                 'currency' => 'BDT',
                 'budgetAmount' => '50000',

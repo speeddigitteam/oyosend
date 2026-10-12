@@ -75,4 +75,20 @@ abstract class ModuleServiceProvider extends ServiceProvider
             ->middleware(['web', 'tenant', ...($manifest->core ? [] : ['entitled:'.$manifest->key])])
             ->group($path);
     }
+
+    /**
+     * Load a routes file of stateless callbacks (provider webhooks, one-click links).
+     *
+     * Same host and tenant resolution as the payment callbacks (`tenant.callback`: no session, no cookies,
+     * no CSRF, throttled), plus the module's entitlement, so a workspace without the app answers 404.
+     * Each route must verify what it is sent; see `routes/tenant-callbacks.php`.
+     */
+    protected function loadTenantCallbackRoutes(string $path): void
+    {
+        $manifest = $this->manifest();
+
+        Route::domain('{tenant}.'.config('platform.domain'))
+            ->middleware(['tenant.callback', ...($manifest->core ? [] : ['entitled:'.$manifest->key])])
+            ->group($path);
+    }
 }

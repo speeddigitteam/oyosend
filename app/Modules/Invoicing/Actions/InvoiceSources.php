@@ -91,7 +91,7 @@ final class InvoiceSources
         ?string $label = null,
         ?TenantMembership $owner = null,
     ): Invoice {
-        $currency = strtoupper($currency);
+        $currency = InvoiceManager::allowedCurrency($currency);
 
         return DB::transaction(function () use ($projectId, $contactId, $companyId, $currency, $label, $owner): Invoice {
             $entries = BillableTime::query()

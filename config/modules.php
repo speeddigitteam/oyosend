@@ -1,9 +1,18 @@
 <?php
 
 use App\Core\CoreServiceProvider;
+use App\Modules\Ai\AiServiceProvider;
+use App\Modules\Automation\AutomationServiceProvider;
+use App\Modules\Communication\CommunicationServiceProvider;
 use App\Modules\CRM\CRMServiceProvider;
+use App\Modules\Hrm\HrmServiceProvider;
 use App\Modules\Invoicing\InvoicingServiceProvider;
+use App\Modules\Payroll\PayrollServiceProvider;
 use App\Modules\Projects\ProjectsServiceProvider;
+use App\Modules\Reports\ReportsServiceProvider;
+use App\Modules\Social\SocialServiceProvider;
+use App\Modules\Support\SupportServiceProvider;
+use App\Modules\Talent\TalentServiceProvider;
 
 return [
 
@@ -26,6 +35,15 @@ return [
         CRMServiceProvider::class,
         ProjectsServiceProvider::class,
         InvoicingServiceProvider::class,
+        HrmServiceProvider::class,
+        PayrollServiceProvider::class,
+        TalentServiceProvider::class,
+        AutomationServiceProvider::class,
+        AiServiceProvider::class,
+        CommunicationServiceProvider::class,
+        SocialServiceProvider::class,
+        SupportServiceProvider::class,
+        ReportsServiceProvider::class,
     ],
 
 ];

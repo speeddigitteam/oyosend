@@ -244,9 +244,9 @@ final class CrmContactMergeReference implements ContactMergeReference
         $ranks = [
             'lead' => 0,
             'prospect' => 1,
-            'customer' => 2,
-            'inactive' => 3,
-            'churned' => 4,
+            'inactive' => 2,
+            'churned' => 3,
+            'customer' => 4,
         ];
         $canonical = is_string($canonical) && array_key_exists($canonical, $ranks) ? $canonical : 'lead';
         $duplicate = is_string($duplicate) && array_key_exists($duplicate, $ranks) ? $duplicate : 'lead';

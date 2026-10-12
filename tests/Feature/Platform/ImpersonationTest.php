@@ -393,30 +393,55 @@ describe('during a session', function () {
         $this->get('http://acme.localhost/team/roles')->assertOk();
         $this->get('http://acme.localhost/audit-log')->assertOk();
 
+        $this->post('http://acme.localhost/organization/branches', ['name' => 'Dhaka'])
+            ->assertRedirect()->assertSessionHasNoErrors();
+    });
+
+    it('refuses to create durable access: invitations, members, roles and apps', function (string $method, string $path, array $input) {
+        $before = $this->auditTrail($this->acme)->count();
+
+        // Route-model binding runs before the support-session guard, so the ids must exist.
+        $path = str_replace(
+            ['{member}', '{role}'],
+            [$this->membershipOf($this->acme, $this->owner)->id, $this->roleOf($this->acme, Role::EMPLOYEE)->id],
+            $path,
+        );
+
+        $this->call($method, 'http://acme.localhost'.$path, $input)->assertForbidden();
+
+        $written = $this->auditTrail($this->acme)->slice($before)->values();
+
+        expect($written->pluck('event')->all())->toContain('support.action_blocked')
+            ->and(session(ImpersonationManager::SESSION_KEY))->not->toBeNull();
+    })->with(fn () => [
+        'inviting someone' => ['POST', '/team/invitations', ['email' => 'new.hire@example.test', 'role_id' => str_repeat('0', 26)]],
+        'changing a member' => ['PATCH', '/team/members/{member}', []],
+        'removing a member' => ['DELETE', '/team/members/{member}', []],
+        'creating a role' => ['POST', '/team/roles', ['name' => 'Backdoor', 'permissions' => ['core.audit.view']]],
+        'changing a role' => ['PUT', '/team/roles/{role}', []],
+        'installing an app' => ['POST', '/apps/crm/install', []],
+        'activating an app' => ['POST', '/apps/crm/activate', []],
+    ]);
+
+    it('creates no invitation or role while the session lasts', function () {
         $this->post('http://acme.localhost/team/invitations', [
             'email' => 'new.hire@example.test',
             'role_id' => $this->roleOf($this->acme, Role::EMPLOYEE)->id,
-        ])->assertRedirect()->assertSessionHasNoErrors();
+        ])->assertForbidden();
 
-        expect(Invitation::forTenant($this->acme)->where('email', 'new.hire@example.test')->exists())->toBeTrue();
+        expect(Invitation::forTenant($this->acme)->where('email', 'new.hire@example.test')->exists())->toBeFalse();
     });
 
     it('marks every audit entry written during it as done through a support session', function () {
         $marker = ['id' => $this->session->id, 'by' => $this->admin->email];
         $before = $this->auditTrail($this->acme)->count();
 
-        $this->post('http://acme.localhost/team/invitations', [
-            'email' => 'new.hire@example.test',
-            'role_id' => $this->roleOf($this->acme, Role::EMPLOYEE)->id,
-        ])->assertSessionHasNoErrors();
-
-        $this->post('http://acme.localhost/team/roles', ['name' => 'Auditors', 'description' => null, 'permissions' => ['core.audit.view']])
-            ->assertSessionHasNoErrors();
+        $this->post('http://acme.localhost/organization/branches', ['name' => 'Dhaka'])->assertSessionHasNoErrors();
+        $this->post('http://acme.localhost/organization/departments', ['name' => 'Sales'])->assertSessionHasNoErrors();
 
         $written = $this->auditTrail($this->acme)->slice($before)->values();
 
-        expect($written->pluck('event')->all())->toContain('member.invited', 'role.created')
-            ->and($written->count())->toBeGreaterThanOrEqual(2);
+        expect($written->count())->toBeGreaterThanOrEqual(2);
 
         foreach ($written as $entry) {
             // Whoever the entry names as its actor, it says who was really at the keyboard.
@@ -424,7 +449,7 @@ describe('during a session', function () {
         }
 
         // The entry names the owner as its actor: that is who the session is signed in as.
-        expect($written->firstWhere('event', 'member.invited')->actor_id)->toBe($this->owner->id);
+        expect($written->first()->actor_id)->toBe($this->owner->id);
     });
 
     it('ends by itself after thirty minutes: the next request signs out and records it', function () {

@@ -55,6 +55,165 @@ const DECLARED_BY_CRM = [
     'crm.targets.view',
 ];
 
+const DECLARED_BY_PAYROLL = [
+    'payroll.items.manage',
+    'payroll.items.view',
+    'payroll.loans.approve',
+    'payroll.loans.manage',
+    'payroll.loans.view',
+    'payroll.payments.export',
+    'payroll.payments.record',
+    'payroll.payslips.view',
+    'payroll.periods.manage',
+    'payroll.periods.view',
+    'payroll.reports.view',
+    'payroll.rules.manage',
+    'payroll.rules.view',
+    'payroll.runs.approve',
+    'payroll.runs.prepare',
+    'payroll.runs.reverse',
+    'payroll.runs.view',
+    'payroll.salaries.manage',
+    'payroll.salaries.view',
+    'payroll.settings.manage',
+    'payroll.structures.manage',
+    'payroll.structures.view',
+];
+
+const DECLARED_BY_TALENT = [
+    'talent.analytics.view',
+    'talent.applications.hire',
+    'talent.applications.manage',
+    'talent.applications.view',
+    'talent.candidates.manage',
+    'talent.candidates.view',
+    'talent.courses.manage',
+    'talent.courses.view',
+    'talent.cycles.manage',
+    'talent.enrolments.manage',
+    'talent.enrolments.view',
+    'talent.goals.manage',
+    'talent.goals.view',
+    'talent.interviews.feedback',
+    'talent.interviews.manage',
+    'talent.interviews.view',
+    'talent.offers.manage',
+    'talent.onboarding.manage',
+    'talent.onboarding.view',
+    'talent.openings.create',
+    'talent.openings.manage',
+    'talent.openings.view',
+    'talent.probation.manage',
+    'talent.probation.view',
+    'talent.reviews.calibrate',
+    'talent.reviews.submit',
+    'talent.reviews.view',
+    'talent.self.view',
+    'talent.settings.manage',
+    'talent.tasks.complete',
+];
+
+const DECLARED_BY_AI = [
+    'ai.assistant.use',
+    'ai.drafts.generate',
+    'ai.proposals.confirm',
+    'ai.settings.manage',
+    'ai.usage.view',
+];
+
+const DECLARED_BY_AUTOMATION = [
+    'automation.approvals.decide',
+    'automation.runs.manage',
+    'automation.runs.start',
+    'automation.runs.view',
+    'automation.webhooks.manage',
+    'automation.workflows.manage',
+    'automation.workflows.publish',
+    'automation.workflows.view',
+];
+
+const DECLARED_BY_COMMUNICATION = [
+    'communication.audience.view',
+    'communication.consent.manage',
+    'communication.messages.send',
+    'communication.messages.view',
+    'communication.notifications.view',
+    'communication.settings.manage',
+    'communication.suppressions.manage',
+    'communication.templates.manage',
+    'communication.templates.view',
+    'communication.timeline.log',
+    'communication.timeline.view',
+];
+
+const DECLARED_BY_REPORTS = [
+    'reports.reports.export',
+    'reports.reports.view',
+    'reports.saved.manage',
+    'reports.saved.manage_all',
+];
+
+const DECLARED_BY_SOCIAL = [
+    'social.accounts.manage',
+    'social.accounts.view',
+    'social.analytics.view',
+    'social.imports.create',
+    'social.library.manage',
+    'social.library.view',
+    'social.media.manage',
+    'social.media.view',
+    'social.posts.approve',
+    'social.posts.comment',
+    'social.posts.create',
+    'social.posts.delete',
+    'social.posts.edit',
+    'social.posts.schedule',
+    'social.posts.view',
+    'social.settings.manage',
+];
+
+const DECLARED_BY_SUPPORT = [
+    'support.canned.manage',
+    'support.canned.view',
+    'support.kb.manage',
+    'support.kb.publish',
+    'support.kb.view',
+    'support.queues.manage',
+    'support.reports.view',
+    'support.settings.manage',
+    'support.sla.manage',
+    'support.tickets.assign',
+    'support.tickets.create',
+    'support.tickets.edit',
+    'support.tickets.merge',
+    'support.tickets.reply',
+    'support.tickets.resolve',
+    'support.tickets.view',
+];
+
+const DECLARED_BY_HRM = [
+    'hrm.attendance.approve',
+    'hrm.attendance.clock',
+    'hrm.attendance.manage',
+    'hrm.attendance.regularize',
+    'hrm.attendance.view',
+    'hrm.employees.create',
+    'hrm.employees.lifecycle',
+    'hrm.employees.manage',
+    'hrm.employees.view',
+    'hrm.holidays.manage',
+    'hrm.holidays.view',
+    'hrm.leave.approve',
+    'hrm.leave.finalize',
+    'hrm.leave.manage',
+    'hrm.leave.request',
+    'hrm.leave.view',
+    'hrm.personal.view',
+    'hrm.reports.view',
+    'hrm.self.view',
+    'hrm.settings.manage',
+];
+
 const DECLARED_BY_INVOICING = [
     'invoicing.credit_notes.issue',
     'invoicing.invoices.edit',
@@ -104,12 +263,13 @@ it('creates the permissions the registered modules declare', function () {
 
     sort($result['created']);
 
-    expect($result['created'])->toBe([...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_PROJECTS])
+    expect($result['created'])->toBe([...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT])
         ->and($result['stale'])->toBe([])
         ->and($result['pruned'])->toBe([])
-        ->and(($this->names)())->toBe([...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_PROJECTS])
+        ->and(($this->names)())->toBe([...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT])
         ->and(Permission::query()->where('guard_name', 'web')->where('module', 'core')->count())->toBe(count(DECLARED_BY_CORE))
         ->and(Permission::query()->where('guard_name', 'web')->where('module', 'crm')->count())->toBe(count(DECLARED_BY_CRM))
+        ->and(Permission::query()->where('guard_name', 'web')->where('module', 'hrm')->count())->toBe(count(DECLARED_BY_HRM))
         ->and(Permission::query()->where('guard_name', 'web')->where('module', 'invoicing')->count())->toBe(count(DECLARED_BY_INVOICING))
         ->and(Permission::query()->where('guard_name', 'web')->where('module', 'projects')->count())->toBe(count(DECLARED_BY_PROJECTS));
 });
@@ -183,7 +343,7 @@ describe('permissions no module declares any more', function () {
             ->and(Permission::query()->whereKey($this->legacy->id)->exists())->toBeFalse()
             ->and(DB::table('role_has_permissions')->where('permission_id', $this->legacy->id)->count())->toBe(0)
             // Everything still declared survives, grants included.
-            ->and(($this->names)())->toBe([...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_PROJECTS])
+            ->and(($this->names)())->toBe([...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT])
             ->and(app(RoleManager::class)->grantedNames($this->roleOf($this->acme, Role::MANAGER)))
             ->toBe(['core.apps.view', 'core.contacts.manage', 'core.contacts.view', 'core.members.invite', 'core.members.view', 'core.organization.view', 'core.roles.view']);
     });
@@ -200,7 +360,7 @@ describe('permissions no module declares any more', function () {
 
 describe('php artisan permissions:sync', function () {
     it('reports what it added', function () {
-        $declared = [...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_PROJECTS];
+        $declared = [...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT];
 
         $this->artisan('permissions:sync')
             ->expectsOutputToContain(count($declared).' permission(s) added.')
@@ -228,6 +388,6 @@ describe('php artisan permissions:sync', function () {
             ->doesntExpectOutputToContain('Re-run with --prune')
             ->assertSuccessful();
 
-        expect(($this->names)())->toBe([...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_PROJECTS]);
+        expect(($this->names)())->toBe([...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT]);
     });
 });

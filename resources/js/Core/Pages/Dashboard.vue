@@ -9,7 +9,17 @@ import ActivityWidget from '@/Core/Components/Widgets/ActivityWidget.vue';
 import SecurityWidget from '@/Core/Components/Widgets/SecurityWidget.vue';
 import TeamWidget from '@/Core/Components/Widgets/TeamWidget.vue';
 import PipelineWidget from '@/Modules/CRM/Components/PipelineWidget.vue';
+import HrmOverviewWidget from '@/Modules/Hrm/Components/HrmOverviewWidget.vue';
+import HrmSelfWidget from '@/Modules/Hrm/Components/HrmSelfWidget.vue';
+import PayrollOverviewWidget from '@/Modules/Payroll/Components/PayrollOverviewWidget.vue';
+import PayrollSelfWidget from '@/Modules/Payroll/Components/PayrollSelfWidget.vue';
 import ProjectsOverviewWidget from '@/Modules/Projects/Components/ProjectsOverviewWidget.vue';
+import NotificationsWidget from '@/Modules/Communication/Components/NotificationsWidget.vue';
+import SocialOverviewWidget from '@/Modules/Social/Components/SocialOverviewWidget.vue';
+import SupportOverviewWidget from '@/Modules/Support/Components/SupportOverviewWidget.vue';
+import AiUsageWidget from '@/Modules/Ai/Components/AiUsageWidget.vue';
+import TalentOverviewWidget from '@/Modules/Talent/Components/TalentOverviewWidget.vue';
+import TalentSelfWidget from '@/Modules/Talent/Components/TalentSelfWidget.vue';
 import { usePageTitle } from '@/Core/composables/usePageTitle';
 import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
 
@@ -40,6 +50,16 @@ const WIDGETS: Record<string, Component> = {
     ActivityWidget,
     PipelineWidget,
     ProjectsOverviewWidget,
+    HrmSelfWidget,
+    HrmOverviewWidget,
+    TalentSelfWidget,
+    TalentOverviewWidget,
+    PayrollSelfWidget,
+    PayrollOverviewWidget,
+    SocialOverviewWidget,
+    SupportOverviewWidget,
+    AiUsageWidget,
+    NotificationsWidget,
 };
 
 // Tailwind needs to see whole class names, so spans are looked up, not built.

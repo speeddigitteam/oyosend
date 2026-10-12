@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Platform\Impersonation\Http;
 
+use App\Core\Audit\AuditLogger;
 use App\Platform\Impersonation\ImpersonationManager;
 use Closure;
 use Illuminate\Http\Request;
@@ -18,6 +19,9 @@ use Symfony\Component\HttpFoundation\Response;
  *  - It may work in the workspace, not on the person it signs in as: their
  *    profile, password, second factor and language stay untouched and unseen,
  *    and it cannot hop to another workspace that person belongs to.
+ *  - It may not create durable access for itself or others: inviting people,
+ *    changing members and roles, and changing the workspace's apps. Those
+ *    attempts answer 403 and are written to the workspace's trail.
  *  - However it is left, its end is recorded.
  */
 final class EnforceSupportSession
@@ -37,7 +41,34 @@ final class EnforceSupportSession
         'core.workspaces.switch',
     ];
 
-    public function __construct(private readonly ImpersonationManager $impersonation) {}
+    /**
+     * Changes that would outlive the support session or widen who can get in.
+     * Reading these pages stays possible: support needs to see them.
+     */
+    private const array DURABLE_ACCESS = [
+        'core.invitations.store',
+        'core.invitations.destroy',
+        'core.members.update',
+        'core.members.destroy',
+        'core.roles.store',
+        'core.roles.update',
+        'core.roles.destroy',
+        'core.apps.install',
+        'core.apps.reinstall',
+        'core.apps.upgrade',
+        'core.apps.purchase',
+        'core.apps.activate',
+        'core.apps.deactivate',
+        'core.apps.uninstall',
+        'core.apps.settings.update',
+        'core.apps.subscriptions.cancel',
+        'core.apps.subscriptions.resume',
+    ];
+
+    public function __construct(
+        private readonly ImpersonationManager $impersonation,
+        private readonly AuditLogger $audit,
+    ) {}
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -62,6 +93,15 @@ final class EnforceSupportSession
         }
 
         abort_if($request->routeIs(...self::PERSONAL), 403);
+
+        if ($request->routeIs(...self::DURABLE_ACCESS)) {
+            $this->audit->record('support.action_blocked', properties: [
+                'route' => $request->route()?->getName(),
+                'method' => $request->method(),
+            ]);
+
+            abort(403, __('This cannot be done from a support session.'));
+        }
 
         return $next($request);
     }

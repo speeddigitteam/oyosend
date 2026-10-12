@@ -28,6 +28,7 @@ use App\Modules\Projects\Models\ProjectTemplate;
 use App\Modules\Projects\Models\Sprint;
 use App\Modules\Projects\Models\Task;
 use App\Modules\Projects\Models\TimeEntry;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -89,10 +90,12 @@ final class ProjectController
         $membership = $this->support->membership($actor);
         $this->records->authorize($actor, self::VIEW, $project);
         $project->load(['category:id,name,colour', 'contact:id,first_name,last_name,email', 'company:id,name', 'owner.user:id,name', 'members.membership.user:id,name']);
+        $visibleTaskIds = $this->records->constrain(Task::query(), $actor, TaskController::VIEW)->select('project_tasks.id');
+
         if ($actor->can(TaskController::VIEW)) {
             $taskQuery = $this->records->constrain(Task::query()->where('project_id', $project->id), $actor, TaskController::VIEW)
                 ->with([
-                    'owner.user:id,name', 'assignees.membership.user:id,name', 'checklistItems', 'sprint:id,name', 'milestone:id,name', 'dependencies.dependsOn:id,title',
+                    'owner.user:id,name', 'assignees.membership.user:id,name', 'checklistItems', 'sprint:id,name', 'milestone:id,name', 'dependencies' => fn ($query) => $query->whereIn('depends_on_task_id', clone $visibleTaskIds)->with('dependsOn:id,title'),
                     'comments' => fn ($query) => $query->with(['author.user:id,name', 'clientAccess.contact:id,first_name,last_name'])->oldest(),
                     'watchers' => fn ($query) => $query->where('membership_id', $membership->id),
                 ]);
@@ -156,7 +159,7 @@ final class ProjectController
                 'tasks as completed_tasks_count' => fn ($query) => $query->whereIn('project_tasks.id', $tasks->pluck('id'))->where('status', 'completed'),
             ])->orderBy('due_on')->get()->map(fn (Milestone $milestone): array => ['id' => $milestone->id, 'name' => $milestone->name, 'status' => $milestone->status->value, 'dueDate' => $milestone->due_on->toDateString(), 'completed' => $milestone->status->value === 'completed', 'taskCount' => (int) $milestone->getAttribute('tasks_count'), 'completedTaskCount' => (int) $milestone->getAttribute('completed_tasks_count'), 'approvalPending' => $pendingApprovalKeys->has('milestone:'.$milestone->id), 'approvalRequestable' => $canRequestApprovals && ! $pendingApprovalKeys->has('milestone:'.$milestone->id)])->all(),
             'sprints' => Sprint::query()->where('project_id', $project->id)->orderByDesc('starts_on')->get(),
-            'activity' => ActivityHistory::query()->where('project_id', $project->id)->with('actor.user:id,name')->latest('occurred_at')->limit(100)->get()->map(fn (ActivityHistory $entry): array => ['id' => $entry->id, 'event' => $entry->event, 'summary' => $entry->summary, 'actor' => $entry->actor?->user?->name, 'metadata' => $entry->metadata, 'occurredAt' => $entry->occurred_at->toIso8601String()])->all(),
+            'activity' => $this->activityFeed($project, $actor, clone $visibleTaskIds),
             'financials' => $canManageFinancials ? $this->analytics->financials($project) : null,
             'workload' => $this->analytics->workload($project, $this->records->constrain(Task::query(), $actor, TaskController::VIEW)),
             'memberOptions' => $memberOptions,
@@ -274,6 +277,38 @@ final class ProjectController
         }
 
         return $input;
+    }
+
+    /**
+     * The feed shows only what the viewer could reach through the matching
+     * permission; raw metadata is never sent.
+     *
+     * @param  Builder<Task>  $visibleTaskIds
+     * @return list<array<string, mixed>>
+     */
+    private function activityFeed(Project $project, User $actor, $visibleTaskIds): array
+    {
+        $hidden = [];
+
+        foreach (['projects.task.' => TaskController::VIEW, 'projects.time.' => 'projects.time.view', 'projects.expense.' => 'projects.expenses.view'] as $prefix => $permission) {
+            if (! $actor->can($permission)) {
+                $hidden[] = $prefix;
+            }
+        }
+
+        if (! $actor->can('projects.approvals.view') && ! $actor->can('projects.approvals.request') && ! $actor->can('projects.approvals.decide')) {
+            $hidden[] = 'projects.approval.';
+        }
+
+        return ActivityHistory::query()->where('project_id', $project->id)
+            ->where(fn ($query) => $query->whereNull('task_id')->orWhereIn('task_id', $visibleTaskIds))
+            ->where(function ($query) use ($hidden): void {
+                foreach ($hidden as $prefix) {
+                    $query->where('event', 'not like', $prefix.'%');
+                }
+            })
+            ->with('actor.user:id,name')->latest('occurred_at')->limit(100)->get()
+            ->map(fn (ActivityHistory $entry): array => ['id' => $entry->id, 'event' => $entry->event, 'summary' => $entry->summary, 'actor' => $entry->actor?->user?->name, 'occurredAt' => $entry->occurred_at->toIso8601String()])->all();
     }
 
     /** @return array<string, mixed> */

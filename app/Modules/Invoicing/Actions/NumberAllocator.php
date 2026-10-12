@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace App\Modules\Invoicing\Actions;
 
+use App\Core\Tenancy\TenantContext;
 use App\Modules\Invoicing\Models\InvoicingSetting;
 use App\Modules\Invoicing\Models\NumberSequence;
 use Carbon\CarbonImmutable;
-use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use LogicException;
 
 /**
@@ -24,6 +25,8 @@ final class NumberAllocator
     public const string INVOICE = 'invoice';
 
     public const string CREDIT_NOTE = 'credit_note';
+
+    public function __construct(private readonly TenantContext $context) {}
 
     /** The next formatted number of a sequence. Must run inside a transaction. */
     public function next(string $kind, CarbonImmutable $date, InvoicingSetting $settings): string
@@ -58,21 +61,20 @@ final class NumberAllocator
 
     private function lock(string $kind, int $period): NumberSequence
     {
-        $find = static fn (): ?NumberSequence => NumberSequence::query()
-            ->where('kind', $kind)->where('period', $period)->lockForUpdate()->first();
+        // Make sure the row exists first (a no-op when it does), so the locking read below always
+        // finds it and takes a plain row lock instead of a gap lock that two first issuers could deadlock on.
+        NumberSequence::query()->insertOrIgnore([
+            'id' => (string) Str::ulid(),
+            'tenant_id' => $this->context->requireId(),
+            'kind' => $kind,
+            'period' => $period,
+            'last_number' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
 
-        $sequence = $find();
-
-        if ($sequence !== null) {
-            return $sequence;
-        }
-
-        try {
-            NumberSequence::query()->create(['kind' => $kind, 'period' => $period, 'last_number' => 0]);
-        } catch (UniqueConstraintViolationException) {
-            // Another transaction created it first; wait for its lock below.
-        }
-
-        return $find() ?? throw new LogicException('The number sequence could not be locked.');
+        return NumberSequence::query()
+            ->where('kind', $kind)->where('period', $period)->lockForUpdate()->first()
+            ?? throw new LogicException('The number sequence could not be locked.');
     }
 }

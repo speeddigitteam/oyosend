@@ -24,7 +24,7 @@ not an empty result; what the browser receives (`permissions`, `navigation`) is 
 | Exports | **Not applicable yet** | No export feature | — |
 | WebSocket channels | **Not applicable yet** | Reverb is not installed; `BROADCAST_CONNECTION=log`; there is no `routes/channels.php` | — |
 | Notifications | Partly | Workspace mail is queued with `RequiresTenantContext` and built inside the tenant context (invitation, invoice, receipt, workspace ready); password-reset links are generated with the active tenant's host. The sign-up confirmation is platform mail: no tenant exists yet. No notification centre | `Core/Identity/Mail`, `Core/Billing/Mail`, `Platform/Mail`, `Core/Registration/Mail` |
-| Automation executions | **Not applicable yet** | Contracts only; nothing executes | `Core/Automation` |
+| Automation executions | Enforced | A run executes inside its workflow's tenant context; each step re-checks the workspace's entitlement to `automation` and to the step's module and the permission of the member the workflow runs as; triggers match only workflows of the event's tenant; inbound webhook tokens are looked up inside the hostname's tenant; run idempotency keys are tenant-first (section 5d.7) | `Modules/Automation`, `docs/WORKFLOWS.md` |
 | Unique constraints | Enforced | Tenant-first on tenant-owned identities/names, with validation scoped the same way. Deliberate global exceptions are listed in `docs/DATABASE.md`: identity email, token hashes, app licence id and platform-wide billing identifiers | `database/migrations`, `docs/DATABASE.md` |
 
 Deliberate cross-tenant reads, all of them: `User::memberships()` (a person's own workspaces),
@@ -55,7 +55,8 @@ for as typed (member search, audit search, the Super Admin tenant list).
   always answers the same way; for a member the link is created and sent after the response has gone out
   (`defer()`), so neither the answer nor its timing reveals membership (`PasswordResetLinkController`).
 - **Throttling.** `LoginThrottle`: 5 failures per minute per (area or tenant, email, IP). Route throttles: forgot
-  and reset password 6/min, invitation acceptance 10/min, handoff 20/min, password change 6/min, two-factor
+  and reset password 6/min, sign-in and second-factor challenge 30/min per IP, invitation acceptance 10/min (an
+  existing account's password there goes through the same `LoginThrottle` lockout as the sign-in form), handoff 20/min, password change 6/min, two-factor
   settings 10/min, platform enrolment 10/min, workspace finder 20/min, sign-up 6/min, sign-up confirmation
   10/min, support-session entry 20/min, starting a support session 10/min, starting a payment 10/min, logo upload
   10/min, gateway callbacks 60/min. Counts are per workspace. Second-factor
@@ -67,7 +68,10 @@ for as typed (member search, audit search, the Super Admin tenant list).
 - **Invitations.** 64-character random token, stored only as SHA-256, valid 7 days, single use under a row lock,
   bound to the invited email (compared case-insensitively). An existing account must prove its password and
   still passes its second factor. The mail is written in the invitee's own language if they already have an
-  account with one, otherwise the workspace's (`InviteMember`).
+  account with one, otherwise the workspace's (`InviteMember`). Withdrawing an invitation follows the role
+  hierarchy like creating it: nobody withdraws one for a role they could not hand out.
+- **Workspace addresses.** Lower-case RFC 1123 labels; a label starting `xn--` (punycode) is refused
+  (`TenantHost::LABEL_PATTERN`).
 - **First administrator.** `php artisan platform:create-admin {email}` creates a Super Admin panel account. It
   runs only in an interactive terminal and asks for the password; it is never an argument. The account still has
   to enrol in 2FA at its first sign-in.
@@ -106,6 +110,7 @@ for as typed (member search, audit search, the Super Admin tenant list).
 ## 4. Sessions
 
 - Driver `database`; cookie is HTTP-only, `SameSite=lax`, **host-only** (`SESSION_DOMAIN=null`). Do not change that.
+  It is `secure` automatically when `APP_ENV=production`; `SESSION_SECURE_COOKIE` overrides either way.
 - A workspace session stores `auth.tenant_id`. `EnsureTenantMember` requires it to equal the active tenant and
   the user to hold an active membership, on every request; otherwise the session is destroyed.
 - Session id is regenerated on sign-in (`CompleteWorkspaceLogin`, `CompletePlatformLogin`), invalidated on logout.
@@ -124,7 +129,10 @@ for as typed (member search, audit search, the Super Admin tenant list).
   reason. The session reaches the workspace host through a one-time token (64 characters, SHA-256 stored, 60 s,
   bound to that tenant) and is marked in the session (`impersonation`). `EnforceSupportSession` ends it after
   `platform.impersonation.ttl_minutes` (30) and refuses the routes that act on the impersonated person: profile,
-  password, two-factor, language and workspace switch answer 403. Start and end are written to the platform
+  password, two-factor, language and workspace switch answer 403, and so do the changes that would outlive the
+  session: inviting or withdrawing invitations, changing or removing members, creating, changing or deleting
+  roles, and every app install / licence / settings change. Each blocked attempt is written to the workspace's
+  trail as `support.action_blocked`. Start and end are written to the platform
   trail and to the workspace's own; every audit entry made meanwhile carries `properties.support_session`.
 - CSRF protection is the framework's, in the `web` group. The two payment gateway callbacks are outside that
   group on purpose (section 5a). Workspace pages only receive their own area's route table (`config/ziggy.php`).
@@ -218,6 +226,11 @@ for as typed (member search, audit search, the Super Admin tenant list).
   inherits current parent access.
 - Client access is an explicit revocable row. Invite secrets are random and only their SHA-256 hashes are stored;
   expiry, project/contact linkage, internal-comment visibility and financial visibility are checked server-side.
+- Approving time or expenses (directly or through an approval request) needs the matching `projects.time.approve` /
+  `projects.expenses.approve` permission with record scope over that entry, and self-approval is always refused.
+  Task mutation routes also require project view scope; the activity feed omits metadata and filters by area.
+- On a CRM customer page, notes and timeline entries tied to a lead, deal or activity appear only to a viewer who
+  can open that record.
 - Project money, rates, durations, progress and allocations are bounded integers. Automation actions persist a
   durable tenant/action/idempotency receipt atomically with their mutation.
 
@@ -239,6 +252,204 @@ for as typed (member search, audit search, the Super Admin tenant list).
 - The CRM-quote and Projects-time hand-offs read only the event payload, check the entitlement and the active tenant
   at delivery, and are idempotent.
 
+## 5d.2. HR records, attendance and leave
+
+- The `hrm` route group requires tenant resolution, `entitled:hrm`, authentication, active membership, a healthy
+  subscription and a route-specific permission. No HR route is public.
+- Employee, leave, attendance and correction records carry `owner_id` (the employee's own membership),
+  `department_id` and `branch_id`, and every list and record route applies `RecordAccess`; employee self-service is
+  the `own` scope. A person cannot change their own status, their own employment fields (without `all` scope),
+  their own attendance entries (without `all` scope), or decide their own leave request or correction.
+- Personal data (date of birth, national id, address, personal email, emergency contacts, documents and the
+  cost rate) is returned only with `hrm.personal.view` over the record or to the employee. The national id is
+  encrypted at rest and never written to the audit trail. Documents live in `TenantStorage` and are only served
+  through an authorized route as a `nosniff` attachment.
+- Server time is the only attendance clock: clock endpoints take no timestamp, and manual, regularized and
+  device-fed entries must be in the past and cannot overlap. Leave balances move only through append-only ledger
+  rows keyed for idempotency; approval re-checks status under a row lock, so a request is decided once.
+- Other modules read employees only through `App\Core\Workforce` snapshots, which carry no personal data.
+
+## 5d.2b. Talent: candidates, reviews and training
+
+- The `talent` route group requires tenant resolution, `entitled:talent` (which needs `hrm`), authentication,
+  active membership, a healthy subscription and a route-specific permission. Nothing is public: there is no
+  candidate-facing application form.
+- Candidate data is sensitive: records are owned by the recruiter and scoped; contact details are returned only
+  with `talent.candidates.view`; resumes and other documents live in `TenantStorage`, are served only through an
+  authorized route as a `nosniff`, `private, no-store` attachment and are deleted with the record. Candidates have
+  consent and retention fields; `talent.retention` anonymizes the expired ones and deletes their files. Contact
+  details, expected pay and offer amounts are never written to the audit trail.
+- Review ratings are sensitive: employees reach their own review through the `own` scope and never see the
+  manager's ratings, comments, score or the final score before calibration; the manager reaches it as the
+  designated reviewer; nobody reviews or calibrates themselves; a calibrated review is locked. Interview
+  feedback is blind until a panelist has submitted their own scorecard.
+- Events carry ids and scalars, never review text, notes or scorecards. `talent.candidate.hired` carries the
+  candidate's name, email and phone because the HR hand-off needs them; automation workflows subscribed to it
+  hold the same sensitivity.
+- Talent never writes HR tables and reads employees only through `App\Core\Workforce` snapshots; a failing HRM-event
+  listener is reported and never breaks the HRM action that raised the event.
+
+## 5d.2c. Support: tickets, attachments and satisfaction links
+
+- The `support` route group requires tenant resolution, `entitled:support`, authentication, active membership, a
+  healthy subscription and a route-specific permission. `support.tickets.*` (except create) are scopable and the
+  controller narrows with `TicketAccess` (`RecordAccess` plus the unassigned tickets of the agent's own queues);
+  a ticket outside the scope is a 404. Handing a ticket to someone else needs `support.tickets.assign` for `all`.
+- Attachments are private `TenantStorage` files, listed with a hidden path and served only by an authorized
+  download (`attachment`, `nosniff`, `application/octet-stream`, `no-store`) after the attachment is checked to
+  belong to the ticket in the URL. Uploads are limited by count, size and an extension allow-list.
+- The satisfaction link is a 256-bit random token; only its SHA-256 is stored, it is nulled once the survey is
+  answered, superseded or expired, and the answer is a conditional update, so a link works once. The two survey
+  routes are stateless callbacks (`tenant.callback`: tenant from the host, `entitled:support`, throttled `60/min`,
+  `10/min` for the POST; no session, no cookies, no CSRF token, no Inertia); every failure is the same 404 page and
+  the page exposes only the workspace name, ticket number and subject. The emailed link travels in an encrypted queued mailable and is never logged,
+  audited or placed in an event.
+- Canned responses accept only allow-listed placeholders and are rendered by plain string substitution on the
+  server: no expression language, no eval, no recursion. Messages are stored and shown as text.
+- Inbound messages (`InboundTicketReceiver`) are idempotent on `channel + externalId` and are threaded into an
+  existing ticket only when the sender is that ticket's requester: sequential ticket numbers are not a credential.
+- Events carry ids and scalars, never message text, requester names or email addresses. Automation can create
+  tickets, assign them and add internal notes; no action replies to a customer, resolves, merges or closes.
+
+## 5d.3. Payroll
+
+- The `payroll` route group requires tenant resolution, `entitled:payroll`, authentication, active membership, a
+  healthy subscription and a route-specific permission; every salary, run, payslip, payment and report permission is
+  declared sensitive. Salary, item, loan and payslip records carry `owner_id` / `department_id` / `branch_id`
+  and every list and record route applies `RecordAccess`; self-service is the `own` scope, and an out-of-scope
+  payslip is a 404 on the page, the document and the download. Draft payslips are visible only to people holding
+  `payroll.runs.view`.
+- **Four-eyes**: a payroll run, a reversal and a loan are approved by someone other than the person who prepared,
+  submitted or requested it (a workspace setting can relax this; the change is sensitive and audited). Approval
+  re-checks status under a row lock and refuses when the inputs changed since the calculation.
+- Locked runs, payslips, lines, salary revisions and payment records are immutable at the model level; money columns
+  of a payslip can never be updated, corrections are new adjustment or reversal runs.
+- Payroll never moves money and never settles on a payload: a payment counts only when an authorized person records
+  it, with a unique idempotency key. No action in the automation catalogue approves, pays or reverses.
+- The payment account number is encrypted at rest, never written to the audit trail, shown masked, and decrypted only
+  in the payment-sheet export (`payroll.payments.export`, audited). Exports are CSV with a BOM and formula-injection
+  neutralization; the payslip document is `no-store` and `nosniff`.
+- Tax and contribution rules are workspace data evaluated by first-party engines behind the `PayrollRuleSet`
+  contract; no tenant-supplied code or expression is ever executed.
+
+## 5d.4. Communication: messages, consent, provider callbacks
+
+Details: `docs/COMMUNICATION.md`.
+
+- **No secret in the database.** A channel connection stores a provider key, non-secret settings and the *name*
+  of a credential (`credential_ref`, `webhook_secret_ref`). The value is read from `config('communication.credentials')`
+  (environment) at send time into a `ChannelCredentials` object that cannot be serialized, dumped or cast to a
+  string. A reference is usable only if the operator listed it for the workspace (`tenants`); the settings
+  screen shows names, never values; the audit trail records the channel and provider only.
+- **Honest providers.** SMS and WhatsApp ship with a `none` adapter that is always `not_configured` and refuses
+  sends. The in-memory test doubles are registered only in `testing` / `local` and are flagged as test doubles.
+- **Callbacks** (`communication/webhooks/{provider}`, `communication/unsubscribe/{token}`) are on the stateless
+  `tenant.callback` group plus `entitled:communication`. The webhook verifies an HMAC over the raw body with the
+  workspace's own secret before parsing (401 otherwise), caps the body, applies each provider event id once and
+  never discloses whether a provider or message exists. The unsubscribe token is hashed at rest, GET never
+  changes state, and every bad token answers alike.
+- **Consent and suppression are enforced twice**, at queue time and again at worker time. Marketing needs a
+  recorded opt-in and respects quiet hours; transactional messages ignore consent but not `all`-scope
+  suppressions. A workflow can send only transactional templates.
+- **Templates** are text with allow-listed placeholders substituted in one regex pass: no Blade, PHP, filters
+  or expressions from tenant input; email text is escaped by a fixed view; subjects are single-line.
+- **Scope.** A timeline is visible only for contacts the viewer may see (`core.contacts.view` scope); a
+  notification is visible only to its member; messages follow `communication.messages.view` scope.
+
+## 5d.5. Social: tokens, publishing and media
+
+- The `social` route group requires tenant resolution, `entitled:social`, authentication, the membership check and the
+  paywall; every route names its permission. Posts use `HasRecordOwner` and `RecordAccess`; a post outside the
+  viewer's scope is a 404.
+- Platform tokens are stored only through the `encrypted` cast on `social_accounts`, are `$hidden`, never in
+  props, JSON, audit entries, events, logs or exception messages (`TokenSet` / `AccountCredentials` redact
+  themselves; platform error text has the live token stripped). Platform app credentials are operator environment
+  variables read in `config/social.php`, never database rows or settings.
+- The OAuth `state` is random, bound to the session, the signed-in member and a 10-minute expiry, checked with
+  `hash_equals` and consumed on first use; PKCE verifiers live in the session. A granted-pages selection is kept
+  encrypted in the workspace cache for 10 minutes, bound to the member, and deleted when used.
+- Publishing never trusts the browser: the publish runs in the entitlement-gated scheduled job, claims each target
+  atomically, and treats an uncertain outcome as a failure for a person to check instead of retrying blindly.
+  Approval is four-eyes (approver is neither author nor submitter) and a post whose content changes returns to draft.
+- Media is verified by content and allow-listed (no SVG), stored through `TenantStorage` under a generated name and
+  served only by an authorised route with `nosniff` and a sandboxing CSP. CSV imports are size/row capped, UTF-8
+  only, column-whitelisted and never evaluated; CSV output is neutralised against spreadsheet formulas.
+- No platform adapter has been run against its live API here; each needs the platform's app review. Instagram,
+  YouTube, TikTok and Pinterest are refused with a reason, not simulated.
+
+## 5d.6. AI Assistant: provider credential, tools and prompts
+
+Full design in `docs/AI.md`; the security rules:
+
+- The provider credential (`ANTHROPIC_API_KEY`) is platform-level, read from config only and sent only in the
+  provider request header. It is never stored in the database, taken from a tenant or request, shown, logged or put
+  in an exception message; failures log status and error type only. No credential means `not_configured`; the fake
+  provider is bound only in `local` and `testing`.
+- Record content is untrusted data: tool results and drafting inputs are JSON-encoded inside data blocks (tag
+  characters escaped), the system prompt is versioned in code and never built from tenant input, drafting and
+  automation calls have no tools, and whatever the model asks for is re-checked against the tools available to the
+  member (permission in an entitled module, enabled data scope, record scope).
+- Tools are read-only wrappers over documented contracts and run as the member. A mutating tool only creates an
+  encrypted, expiring proposal; confirming it needs the member's own click, `ai.proposals.confirm`, and re-checks
+  the underlying permission and record scope when the module action runs. `ToolRegistry` refuses any tool that
+  touches money or access control. Conversations are private to their membership (404 for others, owner included).
+- Every call is rate limited (workspace and member), output-capped, metered idempotently and guarded by a
+  platform-wide circuit breaker. The audit trail stores tool names, statuses and record ids, never content.
+  Optional PII redaction (default off) masks email, phone and card-like numbers before text leaves.
+
+## 5d.7. Workflow automation: execution authority, webhooks and expressions
+
+Full design in `docs/WORKFLOWS.md`; the security rules:
+
+- **No tenant code, ever.** A workflow is JSON that names registered first-party triggers and actions. Conditions use
+  a closed operator registry (no regex, no expression operator); data mapping is a fixed list of operations
+  (`Transformer::OPERATIONS`); a template is only a dotted path into the run context and is never evaluated.
+  Graph size, nodes, steps, loop iterations, parallel branches, depth and delay length are hard limits.
+- **Execution authority is a person, re-checked every step.** A workflow runs as the member who last published it.
+  At publish, and before every step, `ActorGuard` verifies the workspace's entitlement to `automation` and to the
+  step's module, that the member's membership is active and that they still hold the step's permission for all
+  records (a scopable permission held for less fails with `permission_scope`) and `automation.workflows.publish`.
+  A denial fails the run without running the step and never routes to an error handler. Nothing is cached across
+  steps. Starting a run by hand does not lend the starter's permissions.
+- **Approvals are human.** An approval can be decided only by a member holding `automation.approvals.decide` who
+  is the named approver (or holds the named permission) and, when flagged (default), is not the person the run
+  acts for; the decision is taken under a row lock, audited, and applied by the executor.
+- **Inbound webhooks** are signed: `sha256=HMAC(secret, timestamp + "." + rawBody)` compared in constant time, a
+  +-300 s replay window, redelivery recognised by delivery id/signature (one run), a 64 KB body cap, tenant from
+  the hostname only, no session or cookie. The URL token is stored as a SHA-256 hash; the signing secret is
+  encrypted at rest (HMAC needs it) and shown once; rotation invalidates the old pair immediately. Unknown tokens,
+  another workspace's tokens, paused workflows and unentitled workspaces all answer 404.
+- **Outbound webhooks** go only to endpoints a holder of `automation.webhooks.manage` registered (a workflow
+  never carries a URL). `UrlGuard` requires https on 443 with no credentials and a host name, resolves it and
+  refuses loopback, private, link-local, reserved and carrier-grade-NAT addresses (IPv4-mapped IPv6 included),
+  pins the connection to the approved addresses, does not follow redirects and caps time at 10 s. The body is
+  signed with the endpoint's secret. Secrets are encrypted, write-only and never in logs, audit or exceptions.
+- **Logs are redacted.** Step input/output keep real values only in the run context (actions need them); logged
+  and displayed data masks secret-looking keys (`password`, `token`, `secret`, `authorization`, `api_key`,
+  `signature`, ...) and cuts long strings.
+- **Loop prevention.** Maximum steps per run, loop and parallel caps, a depth limit for workflows that trigger
+  workflows through domain events, per-workflow and per-workspace start rates, and a per-workspace concurrency cap.
+
+## 5d.8. Reports & Analytics: providers, scope and exports
+
+- The `reports` route group requires tenant resolution, `entitled:reports`, authentication, active membership, a
+  healthy subscription and `reports.reports.view`. A report runs only if `ReportRegistry` finds it for the member:
+  the workspace is entitled to the provider's module **and** the member holds the provider's own permission.
+  Unknown, not entitled and not permitted are the same `404`.
+- A report is declarative. Dates are bounded (at most 366 days), columns must be declared, filters must be declared
+  and typed (an undeclared filter is refused), and values are bound parameters inside the provider. No request
+  value is ever SQL, an expression or a class name.
+- A provider over a scopable permission narrows its records with `RecordAccess` for the requesting member, so a
+  report never shows more than the module's own screen; a derived figure the member may not see is `null`.
+- Results are capped at 2000 rows and flagged `truncated`; exports are throttled (`20/min`), need
+  `reports.reports.export` (sensitive) plus the provider's permission, are built from the same output as the screen,
+  and are audited (`reports.report.exported`: report, range, filters, columns, row count, scope).
+- CSV cells that could start a formula (`=`, `+`, `-`, `@`, tab, CR, LF, also after leading spaces) are prefixed
+  with an apostrophe; numbers are written as numbers.
+- Saved reports store a setup, never data. Sharing with a role or department shares the setup only: the person who
+  opens it runs it with their own permission and scope. Only the owner, or a holder of `reports.saved.manage_all`,
+  may change or delete one; anyone else gets a `404`.
+
 ## 5e. Browser security headers
 
 `App\Core\Http\Middleware\SecurityHeaders`, appended to the `web` group:
@@ -255,6 +466,10 @@ for as typed (member search, audit search, the Super Admin tenant list).
 **The Content-Security-Policy is sent report-only by default** (`SECURITY_CSP=report-only`): the browser lists
 violations in its console and blocks nothing. It has not been watched in a browser yet. Set `SECURITY_CSP=enforce`
 after doing that; `off` removes the header. Horizon's dashboard is excluded from the policy.
+
+**Deploy checklist (browser hardening):** set `SECURITY_CSP=enforce` once the console has been watched clean
+(`style-src` still allows `'unsafe-inline'`, limitation 4); serve over HTTPS so HSTS is sent; leave
+`SESSION_SECURE_COOKIE` unset or `true` (see section 4).
 
 Reverse proxies are trusted from `TRUSTED_PROXIES` (`config/trustedproxy.php`). With it unset, forwarded headers
 are ignored.
@@ -311,7 +526,7 @@ Open after Phase 5 implementation. Decide and fix, or accept and record.
 | 7 | A payment confirmed for an invoice that was voided meanwhile is kept and flagged (`billing.payment_unapplied`); there is no refund or credit feature to put it right | `PaymentProcessor::applyTo()` |
 | 8 | Sign-up has no CAPTCHA or proof of work: the throttle (6 a minute per address) and the email confirmation are the only brakes on scripted sign-ups | `routes/central.php` |
 | 9 | Support access is always as the owner, and a workspace cannot refuse or pre-approve it | `ImpersonationManager` |
-| 5 | `SESSION_SECURE_COOKIE` is off unless set (`.env.example` carries it as a commented hint) and `SESSION_ENCRYPT` is false. Set the first wherever the site is served over HTTPS | `.env.example` |
+| 5 | `SESSION_ENCRYPT` is false. The session cookie is `secure` by default when `APP_ENV=production` (`SESSION_SECURE_COOKIE=false` overrides it; other environments leave it off unless set) | `config/session.php`, `.env.example` |
 
 ## 9. Deferred
 

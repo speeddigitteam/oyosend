@@ -7,8 +7,6 @@ namespace App\Core\Identity\Http\Controllers\Auth;
 use App\Core\Access\AccessChecker;
 use App\Core\Identity\Actions\CompleteWorkspaceLogin;
 use App\Core\Identity\Auth\WorkspaceHandoff;
-use App\Core\Identity\Enums\MembershipStatus;
-use App\Core\Identity\Models\TenantMembership;
 use App\Core\Identity\Models\User;
 use App\Core\Tenancy\Models\Tenant;
 use App\Core\Tenancy\TenantContext;
@@ -36,9 +34,8 @@ final class WorkspaceHandoffController
             abort(404);
         }
 
-        $isMember = TenantMembership::forTenant($target)
-            ->where('user_id', $user->getKey())
-            ->where('status', MembershipStatus::Active)
+        $isMember = $user->activeMemberships()
+            ->where('tenant_id', $target->getKey())
             ->exists();
 
         abort_unless($isMember, 404);

@@ -50,6 +50,14 @@ final class ContractManager
                 throw ValidationException::withMessages(['contract' => __('Only a draft contract can be edited.')]);
             }
 
+            if ($locked->sales_order_id !== null) {
+                foreach (['contact_id', 'company_id', 'currency', 'value_amount'] as $field) {
+                    if (array_key_exists($field, $attributes) && $attributes[$field] !== $locked->getAttribute($field)) {
+                        throw ValidationException::withMessages([$field => __('The value, currency and customer of a contract linked to an order cannot be changed.')]);
+                    }
+                }
+            }
+
             $locked->fill($attributes);
             $locked->save();
 

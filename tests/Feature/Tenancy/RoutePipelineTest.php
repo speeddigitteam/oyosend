@@ -70,6 +70,14 @@ const PUBLIC_WORKSPACE_ROUTES = [
 const STATELESS_WORKSPACE_ROUTES = [
     'core.billing.payments.return',
     'core.billing.gateways.notify',
+    // Support: the single-use satisfaction survey link (token only, no session).
+    'support.csat.show', 'support.csat.store',
+    // Communication: provider webhooks (signature-verified) and the one-click unsubscribe page (token).
+    'communication.webhooks.receive',
+    'communication.unsubscribe.show',
+    'communication.unsubscribe.store',
+    // Automation: inbound workflow webhooks (HMAC-signed, replay-windowed).
+    'automation.hooks.receive',
 ];
 
 it('settles the tenant before anything that depends on it', function () {

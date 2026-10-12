@@ -33,6 +33,12 @@ final class InvoiceDelivery
                 throw ValidationException::withMessages(['invoice' => __('Only an issued invoice can be sent.')]);
             }
 
+            // A reminder was decided before the lock was taken: a payment or void may have landed since.
+            if ($reminder !== null && (! in_array($locked->status, [InvoiceStatus::Issued, InvoiceStatus::PartiallyPaid, InvoiceStatus::Overdue], true)
+                || $locked->balance_amount < 1)) {
+                throw ValidationException::withMessages(['invoice' => __('This invoice has no open balance to remind about.')]);
+            }
+
             if ($reminder === null) {
                 $locked->sent_at = now();
                 $locked->save();

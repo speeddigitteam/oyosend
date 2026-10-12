@@ -1,10 +1,44 @@
 # Modules
 
 How to add a first-party module. The contract is in `app/Core/Modules`; the production build registers `core` and
-the optional `crm`, `projects` and `invoicing` business apps. They are documented in `docs/CRM.md`,
-`docs/PROJECTS.md` and `docs/INVOICING.md`.
+the optional `crm`, `projects`, `invoicing` and `hrm` business apps. They are documented in `docs/CRM.md`,
+`docs/PROJECTS.md`, `docs/INVOICING.md` and `docs/HRM.md`. `hrm` is the reference for a module that other apps build
+on: it publishes read contracts under `App\Core\Workforce` so that dependents never import its models.
+`payroll` (`docs/PAYROLL.md`) is the reference for a dependent app: it declares `hrm` in `dependencies`, reads HR
+data only through those contracts, and consumes HRM events by class name through a documented listener.
+`talent` (`docs/TALENT.md`) is the second dependent app (recruitment, onboarding, performance, training); it adds
+no HRM model import either and shows the employee-bound record pattern (`Placed` trait: owner, department and
+branch copied from an `EmployeeSnapshot` so `own` / `department` / `branch` scopes work without an HRM model).
+`communication` (`docs/COMMUNICATION.md`) is the reference for a module that exposes **core contracts**
+(`Notifier`, `InteractionRecorder`) so that other apps use it without importing its models, for **provider
+adapters** behind interfaces with an honest `not_configured` state, and for **stateless callback routes**
+(`loadTenantCallbackRoutes()`: tenant from the hostname, throttled, no session, plus the module's entitlement).
+`support` (`docs/SUPPORT.md`) is the reference for a module that exposes a *write* contract to future channel apps
+(`Contracts\InboundTicketReceiver`), for a pure, unit-tested domain helper (`BusinessCalendar`), for a public
+stateless single-use token page (`loadTenantCallbackRoutes()`, a Blade view) next to authenticated ones, and for assignment-by-queue records: its ticket model uses the
+record-owner column contract without the "creator becomes owner" hook (`Models\Concerns\HasAssignee`), because the
+assignee is not the person who filed the ticket.
+`ai` (`docs/AI.md`) is the reference for a paid app and for AI access to data: it depends on `core` only, declares
+monthly/yearly/trial offers and a metered `ai.tokens` limit, and reads other modules through
+`App\Core\Ai\Contracts\AiTool` implementations that a module tags in its own provider (`AiTool::TAG`); a tool is
+read-only and runs as the member, a change is a `ProposalTool` confirmed by a person.
+`automation` (`docs/WORKFLOWS.md`) is the reference for a module that **consumes other modules' contracts**: it
+depends only on `core`, never imports another module's class, learns triggers and actions from
+`AutomationRegistry` at run time, subscribes to their domain events, re-checks each definition's permission and
+entitlement before every step it executes, and registers its own engine-raised triggers (`event()` is null),
+a per-minute scheduled sweep and stateless inbound webhook routes through `loadTenantCallbackRoutes()`.
 A small non-core App Store fixture remains in `tests/Support/Fixtures/Crm` under the distinct
 module key `test_crm`.
+
+`social` (`docs/SOCIAL.md`) is the reference for a module that talks to outside services: a provider contract
+(`SocialPlatform`) with capability flags, adapters bound by configuration, an honest `unavailable` state, encrypted
+tokens and a scheduled publisher that goes through the entitlement-gated runner.
+`reports` (`docs/REPORTS.md`) is the reference for a module that **aggregates other modules' read models**
+without importing them: it depends on `core` only and runs `App\Core\Reporting\Contracts\ReportProvider`
+implementations that each module tags in its own provider (`ReportProvider::TAG`). A provider declares its columns,
+filters and permission; the app validates a request against that declaration, runs the provider as the member
+(only for entitled modules and held permissions, narrowed by `RecordAccess` when the permission is scopable), caps
+the rows and exports a formula-safe CSV.
 
 ## 1. What a module is
 
@@ -141,10 +175,13 @@ upgrade hook; automatic upgrade orchestration is not built.
 Implement `App\Core\Automation\Contracts\TriggerDefinition` / `ActionDefinition` (static `key()`, `label()`,
 `module()`, `requiredPermission()`, `inputSchema()`, `outputSchema()`; triggers add `event()`, actions add
 `execute(array $input, string $idempotencyKey): array`). Keys must start with `{module}.` and be unique, or
-`AutomationRegistry` throws. Register from Phase 1 onwards even though nothing executes workflows until Phase 10.
-An action that mutates state must make its mutation and durable idempotency result atomic; CRM's tenant/action/key
-receipt store is the reference implementation for returning the same output across process retries.
-See `docs/AUTOMATION.md`.
+`AutomationRegistry` throws. The Workflow Automation app executes what you register: a trigger's `event()` is
+subscribed to automatically, and an action is called with validated input and a stable idempotency key after the
+engine re-checks `requiredPermission()` (held for all records when scopable) and the module's entitlement for the
+workflow's actor. An action that mutates state must make its mutation and durable idempotency result atomic; CRM's
+tenant/action/key receipt store is the reference implementation for returning the same output across process
+retries. An action must not read the signed-in user (there is none in a worker). See `docs/AUTOMATION.md` and
+`docs/WORKFLOWS.md`.
 
 ### Morph map
 

@@ -7,6 +7,7 @@ namespace App\Core\Identity\Http\Controllers\Auth;
 use App\Core\Identity\Actions\AcceptInvitation;
 use App\Core\Identity\Actions\CompleteWorkspaceLogin;
 use App\Core\Identity\Auth\CredentialVerifier;
+use App\Core\Identity\Auth\LoginThrottle;
 use App\Core\Identity\Auth\PendingTwoFactorLogin;
 use App\Core\Identity\Models\Invitation;
 use App\Core\Identity\Models\User;
@@ -67,6 +68,8 @@ final class InvitationAcceptanceController
         CredentialVerifier $verifier,
         CompleteWorkspaceLogin $login,
         PendingTwoFactorLogin $pending,
+        LoginThrottle $throttle,
+        TenantContext $context,
     ): RedirectResponse {
         $invitation = $this->find($token);
 
@@ -85,11 +88,20 @@ final class InvitationAcceptanceController
         } elseif ($account !== null) {
             // An account exists for this address: prove it is theirs.
             $input = $request->validate(['password' => ['required', 'string', 'max:255']]);
+
+            // The same lockout as the sign-in form: this is a password check too.
+            $key = LoginThrottle::key('tenant:'.$context->requireId(), $invitation->email, $request->ip());
+            $throttle->ensureNotLocked($key, 'password');
+
             $verified = $verifier->verify('web', $invitation->email, $input['password']);
 
             if (! $verified instanceof User) {
+                $throttle->hit($key);
+
                 throw ValidationException::withMessages(['password' => trans('auth.password')]);
             }
+
+            $throttle->clear($key);
 
             $user = $accept->handle($invitation, $verified);
         } else {

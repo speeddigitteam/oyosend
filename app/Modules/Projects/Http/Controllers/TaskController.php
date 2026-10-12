@@ -59,7 +59,7 @@ final class TaskController
     public function update(Request $request, Project $project, Task $task): RedirectResponse
     {
         $actor = $this->support->actor($request);
-        $this->guardTask($project, $task);
+        $this->guardTask($actor, $project, $task);
         $this->records->authorize($actor, self::EDIT, $task);
         $input = $this->validated($request, $project, $task);
         $status = $input['status'] ?? null;
@@ -100,7 +100,7 @@ final class TaskController
     public function status(Request $request, Project $project, Task $task): RedirectResponse
     {
         $actor = $this->support->actor($request);
-        $this->guardTask($project, $task);
+        $this->guardTask($actor, $project, $task);
         $this->records->authorize($actor, self::EDIT, $task);
         $input = $request->validate(['status' => ['required', 'string', Rule::in([...array_column(TaskStatus::cases(), 'value'), 'done'])]]);
         $this->tasks->changeStatus($task, $this->normalizeStatus($input['status']), $this->support->membership($actor));
@@ -112,7 +112,7 @@ final class TaskController
     public function assign(Request $request, Project $project, Task $task): RedirectResponse
     {
         $actor = $this->support->actor($request);
-        $this->guardTask($project, $task);
+        $this->guardTask($actor, $project, $task);
         $this->records->authorize($actor, self::ASSIGN, $task);
         $input = $request->validate(['assignees' => ['present', 'array', 'max:50'], 'assignees.*.membership_id' => ['required', 'string', 'size:26', 'distinct'], 'assignees.*.allocation_percent' => ['required', 'integer', 'between:0,100']]);
         $allocations = [];
@@ -131,7 +131,7 @@ final class TaskController
     public function watch(Request $request, Project $project, Task $task): RedirectResponse
     {
         $actor = $this->support->actor($request);
-        $this->guardTask($project, $task);
+        $this->guardTask($actor, $project, $task);
         $this->records->authorize($actor, self::VIEW, $task);
         $this->tasks->watch($task, $this->support->membership($actor));
 
@@ -141,7 +141,7 @@ final class TaskController
     public function unwatch(Request $request, Project $project, Task $task): RedirectResponse
     {
         $actor = $this->support->actor($request);
-        $this->guardTask($project, $task);
+        $this->guardTask($actor, $project, $task);
         $this->records->authorize($actor, self::VIEW, $task);
         $this->tasks->unwatch($task, $this->support->membership($actor));
 
@@ -228,6 +228,11 @@ final class TaskController
         if (array_key_exists('recurrence_rule', $input)) {
             $rule = $input['recurrence_rule'];
 
+            if (is_array($rule) && array_key_exists('interval', $rule)) {
+                $rule['interval'] = $rule['interval'] === null ? null : (int) $rule['interval'];
+                $input['recurrence_rule'] = $rule;
+            }
+
             if ($rule === null) {
                 $input['next_recurrence_at'] = null;
             } else {
@@ -250,9 +255,10 @@ final class TaskController
         return $input;
     }
 
-    private function guardTask(Project $project, Task $task): void
+    private function guardTask(User $actor, Project $project, Task $task): void
     {
         abort_unless($task->project_id === $project->id, 404);
+        $this->records->authorize($actor, ProjectController::VIEW, $project);
     }
 
     private function normalizeStatus(string $status): TaskStatus

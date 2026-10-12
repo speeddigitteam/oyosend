@@ -8,13 +8,14 @@ use App\Core\Automation\Contracts\ActionDefinition;
 use App\Core\Identity\Enums\MembershipStatus;
 use App\Core\Identity\Models\TenantMembership;
 use App\Modules\CRM\Actions\ActivityManager;
+use App\Modules\CRM\Automation\ActionReceiptStore;
 use App\Modules\CRM\Enums\ActivityPriority;
 use App\Modules\CRM\Enums\ActivityType;
 use App\Modules\CRM\Models\Activity;
 
 final class CreateFollowUpAction implements ActionDefinition
 {
-    public function __construct(private readonly ActivityManager $activities) {}
+    public function __construct(private readonly ActivityManager $activities, private readonly ActionReceiptStore $receipts) {}
 
     public static function key(): string
     {
@@ -48,25 +49,27 @@ final class CreateFollowUpAction implements ActionDefinition
 
     public function execute(array $input, string $idempotencyKey): array
     {
-        $existing = Activity::query()->where('automation_key', $idempotencyKey)->first();
+        return $this->receipts->run(self::key(), $idempotencyKey, function () use ($input, $idempotencyKey): array {
+            $existing = Activity::query()->where('automation_key', $idempotencyKey)->first();
 
-        if ($existing !== null) {
-            return ['activity_id' => $existing->id];
-        }
+            if ($existing !== null) {
+                return ['activity_id' => $existing->id];
+            }
 
-        $owner = ($input['owner_id'] ?? null) === null ? null : TenantMembership::query()->where('status', MembershipStatus::Active)->findOrFail($input['owner_id']);
-        $activity = $this->activities->create([
-            'type' => ActivityType::FollowUp,
-            'priority' => ActivityPriority::Normal,
-            'subject' => $input['subject'],
-            'due_at' => $input['due_at'],
-            'lead_id' => $input['lead_id'] ?? null,
-            'deal_id' => $input['deal_id'] ?? null,
-            'contact_id' => $input['contact_id'] ?? null,
-            'company_id' => $input['company_id'] ?? null,
-            'automation_key' => $idempotencyKey,
-        ], $owner);
+            $owner = ($input['owner_id'] ?? null) === null ? null : TenantMembership::query()->where('status', MembershipStatus::Active)->findOrFail($input['owner_id']);
+            $activity = $this->activities->create([
+                'type' => ActivityType::FollowUp,
+                'priority' => ActivityPriority::Normal,
+                'subject' => $input['subject'],
+                'due_at' => $input['due_at'],
+                'lead_id' => $input['lead_id'] ?? null,
+                'deal_id' => $input['deal_id'] ?? null,
+                'contact_id' => $input['contact_id'] ?? null,
+                'company_id' => $input['company_id'] ?? null,
+                'automation_key' => $idempotencyKey,
+            ], $owner);
 
-        return ['activity_id' => $activity->id];
+            return ['activity_id' => $activity->id];
+        });
     }
 }

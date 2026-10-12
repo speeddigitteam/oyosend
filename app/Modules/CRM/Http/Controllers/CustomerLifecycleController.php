@@ -102,14 +102,14 @@ final class CustomerLifecycleController
         $type = $customerProfile->contact_id !== null ? CrmEntityType::Contact : CrmEntityType::Company;
         $entityId = $customerProfile->contact_id ?? $customerProfile->company_id ?? abort(404);
         $timeline = $type === CrmEntityType::Contact
-            ? $this->timeline->forContact($entityId)
-            : $this->timeline->forCompany($entityId);
+            ? $this->timeline->forContact($entityId, 100, $actor)
+            : $this->timeline->forCompany($entityId, 100, $actor);
 
         return Inertia::render('Modules/CRM/Pages/Sales/Customers/Show', [
             'customer' => $this->present($customerProfile, $actor),
             'entityType' => $type->value,
             'entityId' => $entityId,
-            'content' => $this->content->for($type, $entityId),
+            'content' => $this->content->for($type, $entityId, $actor),
             'timeline' => $timeline->map(fn (TimelineEntry $entry): array => [
                 'id' => $entry->id,
                 'event' => $entry->event,

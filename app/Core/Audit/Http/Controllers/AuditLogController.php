@@ -14,6 +14,9 @@ use Inertia\Response;
 
 final class AuditLogController
 {
+    /** Filter value for the Customer Support module's events (`support.ticket.*`, `support.csat.*` ...). */
+    private const DESK_FAMILY = 'support_desk';
+
     public function index(Request $request, TenantContext $context): Response
     {
         $filters = $request->validate([
@@ -35,9 +38,14 @@ final class AuditLogController
                 ->where('actor_label', 'like', $contains)
                 ->orWhere('subject_label', 'like', $contains)))
             // A whole family (`member`) or one event (`member.invited`); never a mere prefix of another name.
-            ->when($filters['event'] ?? null, fn ($query, string $event) => $query->where(fn ($match) => $match
-                ->where('event', $event)
-                ->orWhere('event', 'like', Like::escape($event).'.%')))
+            ->when($filters['event'] ?? null, fn ($query, string $event) => $query->where(fn ($match) => match ($event) {
+                // Customer Support's desk events (`support.ticket.created`) form their own family, apart from the
+                // platform's support-access events (`support.session_started`), which have only two segments.
+                self::DESK_FAMILY => $match->where('event', 'like', 'support.%.%'),
+                'support' => $match->where('event', 'like', 'support.%')->where('event', 'not like', 'support.%.%'),
+                default => $match->where('event', $event)
+                    ->orWhere('event', 'like', Like::escape($event).'.%'),
+            }))
             ->when($filters['from'] ?? null, fn ($query, string $from) => $query
                 ->where('created_at', '>=', Carbon::parse($from, $timezone)->startOfDay()->utc()))
             ->when($filters['to'] ?? null, fn ($query, string $to) => $query
@@ -75,7 +83,7 @@ final class AuditLogController
             ],
             // Event families present in this tenant's trail, for the filter.
             'eventGroups' => AuditLog::query()
-                ->selectRaw("SUBSTRING_INDEX(event, '.', 1) as family")
+                ->selectRaw("CASE WHEN event LIKE 'support.%.%' THEN '".self::DESK_FAMILY."' ELSE SUBSTRING_INDEX(event, '.', 1) END as family")
                 ->distinct()
                 ->orderBy('family')
                 ->pluck('family')

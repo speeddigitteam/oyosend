@@ -69,6 +69,12 @@ service contract; Projects never queries a future Invoicing model.
 Approval requests reference a supported project entity and an active workspace approver. An authorized requester
 may cancel their own pending request; an eligible decider may cancel one stranded by an approver who is no
 longer available.
+Time and expense decisions (direct or through an approval request) require the decider to hold
+`projects.time.approve` / `projects.expenses.approve` with a record scope that reaches that entry, and nobody may
+approve or reject their own time or expenses. A task mutation also requires view scope over its project, and the
+project activity feed never sends raw metadata and hides entries from areas the viewer cannot open. The client
+portal shows only currency, budget, spent and remaining budget. Automation task assignment adds an assignee unless
+`replace` is true.
 Approved and rejected decisions retain immutable decision metadata. Reports and the dashboard derive status,
 due-date, workload, time, expense and budget summaries from tenant-scoped rows.
 

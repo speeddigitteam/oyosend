@@ -13,6 +13,7 @@ use App\Core\Modules\ModuleServiceProvider;
 use App\Core\Modules\NavigationItem;
 use App\Core\Modules\PermissionDefinition;
 use App\Core\Modules\WidgetDefinition;
+use App\Core\Reporting\Contracts\ReportProvider;
 use App\Modules\CRM\Actions\CrmContactMergeReference;
 use App\Modules\CRM\Automation\Actions\AssignLeadAction;
 use App\Modules\CRM\Automation\Actions\CreateFollowUpAction;
@@ -45,6 +46,7 @@ use App\Modules\CRM\Models\SalesTarget;
 use App\Modules\CRM\Models\Segment;
 use App\Modules\CRM\Models\Tag;
 use App\Modules\CRM\Models\TimelineEntry;
+use App\Modules\CRM\Reporting\ReportProviders;
 use App\Modules\CRM\Widgets\PipelineWidget;
 
 /** First-party CRM and sales workspace module. */
@@ -53,6 +55,7 @@ final class CRMServiceProvider extends ModuleServiceProvider
     public function register(): void
     {
         parent::register();
+        $this->app->tag(ReportProviders::ALL, ReportProvider::TAG);
 
         $this->app->tag(CrmContactMergeReference::class, ContactMergeReference::class);
     }

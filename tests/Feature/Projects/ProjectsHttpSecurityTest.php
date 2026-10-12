@@ -206,7 +206,7 @@ it('projects approval request state into time and expense workspaces', function 
     $this->entitle($tenant, 'projects');
     $owner = $this->ownerOf($tenant);
     $ownerMembership = $this->membershipOf($tenant, $owner);
-    $approverUser = $this->addMember($tenant, $this->createRole($tenant, 'Finance request approvers', ['projects.approvals.decide']));
+    $approverUser = $this->addMember($tenant, $this->createRole($tenant, 'Finance request approvers', ['projects.approvals.decide', 'projects.time.approve']));
     $approver = $this->membershipOf($tenant, $approverUser);
 
     [$time, $expense] = $this->inTenant($tenant, function () use ($ownerMembership, $approver): array {

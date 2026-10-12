@@ -79,7 +79,7 @@ it('deactivates, reactivates, uninstalls and reinstalls without deleting data or
 
 it('requires dependencies and prevents removing one while a dependent app is active', function () {
     app(ModuleRegistry::class)->register(new ModuleManifest(
-        key: 'reports',
+        key: 'crm_reports',
         name: 'Reports',
         version: '1.0.0',
         dependencies: ['core', 'test_crm'],
@@ -88,7 +88,7 @@ it('requires dependencies and prevents removing one while a dependent app is act
         offers: [new AppOffer('free', 'Free', AppBillingType::Free)],
     ));
     app(AppCatalogSynchronizer::class)->sync();
-    $reports = CatalogApp::query()->where('module_key', 'reports')->sole();
+    $reports = CatalogApp::query()->where('module_key', 'crm_reports')->sole();
 
     $this->inTenant($this->acme, function () use ($reports): void {
         $manager = app(AppStoreManager::class);

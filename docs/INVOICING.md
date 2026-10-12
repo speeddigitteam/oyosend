@@ -59,12 +59,15 @@ Integer minor units everywhere, with a `currency`. `InvoiceMath` is the only ari
 
 A line takes either `tax_rate_id` (an active workspace tax rate; its name and rate are **snapshotted** on the line) or
 an explicit `tax_bps`. Editing or deactivating a tax rate never changes an existing invoice. Different currencies
-are never added together (reports are per currency).
+are never added together (reports are per currency). A currency must be one of `config('platform.currencies')`:
+`InvoiceManager::allowedCurrency()` is the single check, used by invoices, recurring templates and billable-time
+invoicing.
 
 ## Numbering
 
 `NumberAllocator` keeps one counter row per tenant, kind (`invoice`, `credit_note`) and period in
-`invoicing_number_sequences`, `UNIQUE(tenant_id, kind, period)`. The row is read with `FOR UPDATE` and incremented
+`invoicing_number_sequences`, `UNIQUE(tenant_id, kind, period)`. The row is first created with `INSERT IGNORE` (so a new kind/period never races on a gap lock), then read with
+`FOR UPDATE` and incremented
 **inside the issuing transaction**, so concurrent issuers queue and a rollback gives the number back: committed
 documents form an unbroken sequence. Drafts have no number. Format: `{prefix}[{fiscal year}-]{zero padded number}`,
 e.g. `INV-0001`, `INV-2026-0001`, `INV-2026-27-0001`. Prefix, padding, fiscal-year numbering and the fiscal year
@@ -120,6 +123,16 @@ source key makes a retry or a second worker incapable of billing a period twice.
 issued after the period commits; if issuing is refused (plan limit, customer gone) the draft stays and
 `last_error` explains why. Auto-send queues the email.
 
+Failure isolation: each template runs in its own `try`. A failure is reported, written to `last_error` and the next
+template still runs; a template whose contact or company no longer exists is paused (audit
+`invoicing.recurring.paused`) so it does not fail every hour.
+
+Catch-up is deliberately conservative. A new template's start date cannot be before today (workspace timezone), and
+an edit that moves the start of a never-run template is held to the same rule. When the job fell behind, missed
+periods are generated as drafts only: a period that a later due period has already superseded is never auto-issued or
+auto-sent, and `last_error` notes how many were left as drafts. Only the current period follows `auto_issue` /
+`auto_send`. Resuming a paused template moves `next_run_on` forward to the next future occurrence instead of billing
+the paused months in a burst (the skipped periods are not invoiced; create drafts by hand if they are owed).
 ## Documents and email
 
 `GET invoicing/invoices/{invoice}/document` (and the credit-note equivalent) returns **server-rendered,
@@ -139,7 +152,8 @@ unauthenticated route exists.
 once) and then, when the workspace turned reminders on (off by default), queues reminders: `before_due` (within N
 days), `on_due`, then `overdue:1..6` every N days. Each is reserved in `invoicing_reminder_logs`
 (`UNIQUE(tenant_id, invoice_id, reminder_key)`) before it is queued, so reruns and overlapping workers send nothing
-twice. Only open invoices with a balance and a customer email are reminded.
+twice. Only open invoices with a balance and a customer email are reminded; the invoice is re-checked under its row
+lock at send time, so a payment or void that landed after the run picked it refuses the reminder.
 
 ## Receivables report
 
@@ -152,7 +166,7 @@ in the range, all per currency and computed as SQL aggregates over integer colum
 | Permission | Scopable | Notes |
 |---|---|---|
 | `invoicing.invoices.view` | yes | list, show, document |
-| `invoicing.invoices.edit` | yes | create, edit and delete drafts, bill project time |
+| `invoicing.invoices.edit` | yes | create, edit and delete drafts, bill project time (see below) |
 | `invoicing.invoices.issue` | yes | draft to issued; consumes a number and plan allowance |
 | `invoicing.invoices.send` | yes | email invoice |
 | `invoicing.invoices.void` | yes, sensitive | |
@@ -165,6 +179,11 @@ in the range, all per currency and computed as SQL aggregates over integer colum
 
 Invoices and recurring templates have `owner_id`, `department_id` and `branch_id` (`HasRecordOwner`); payments and
 credit notes follow their invoice's scope. A member needs `core.contacts.view` to choose a customer.
+
+Billable-time visibility is cross-module and workspace-wide: Projects publishes no contract for "which projects may this
+member see" (only the approved-time event), so the billable-time page lists every unbilled project's time, as opaque
+ids, to anyone holding `invoicing.invoices.edit`, whatever their Projects access. Grant that permission accordingly.
+If Projects later documents such a visibility contract, the page should narrow by it.
 
 ## Limits and metering
 

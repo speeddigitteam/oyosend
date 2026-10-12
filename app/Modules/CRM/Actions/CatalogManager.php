@@ -51,6 +51,10 @@ final class CatalogManager
         return DB::transaction(function () use ($priceList, $attributes): PriceList {
             $priceList->fill($attributes);
 
+            if ($priceList->isDirty('currency') && $priceList->items()->exists()) {
+                throw ValidationException::withMessages(['currency' => __('The currency cannot change while the price list has items.')]);
+            }
+
             if ($priceList->isDirty()) {
                 $priceList->save();
             }

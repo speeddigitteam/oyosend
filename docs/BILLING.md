@@ -140,7 +140,10 @@ provider's own API, never from the payload it is handed.
 - `UsageMeter::record($meter, $quantity, $idempotencyKey)` returns false, and counts nothing, when that key was
   recorded before in the same workspace.
 
-Enforced today: the seat limit when inviting a member. Nothing records metered usage yet.
+Enforced today: the seat limit when inviting a member, and the AI token limit `ai.tokens` (a metered limit of the
+`ai` app: `AiGateway` refuses a call when the plan allowance is used up and records `input + output` tokens with the
+idempotency key `ai:{call id}` after each provider call; see `docs/AI.md`). The AI app is also the reference for a paid
+app with a trial and a monthly/yearly offer. Usage is not yet charged on an invoice.
 
 ## 7. Not built
 

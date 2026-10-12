@@ -4,6 +4,22 @@ State: after Phase 5. **There is no integration centre**: no OAuth connections, 
 messaging, no outgoing webhooks, no API tokens, no tables for any of it. The one outside service the application
 can talk to is a payment gateway, and only once its credentials are configured.
 
+## Communication providers (Phase 8)
+
+The `communication` module (`docs/COMMUNICATION.md`) is the first user of the rules below: provider adapters sit
+behind `EmailChannel`, `SmsChannel` and `WhatsAppChannel` interfaces in a registry; a workspace connection stores
+only non-secret settings and a **credential reference** (the secret stays in the environment); the state is
+`configured` or `not_configured`; webhooks are stateless, signature-verified before parsing and idempotent by
+provider event id; the module's own entitlement is re-checked on every route, queued send and callback.
+
+| Channel | Adapter | State |
+|---|---|---|
+| Email | `mail` (platform Laravel mailer, no delivery receipts) | Real. `not_configured` in production when the mailer is `log` / `array` |
+| SMS | `none` | No provider adapter exists. Honest `not_configured` |
+| WhatsApp | `none` | No provider adapter exists (official Business API only when one is added). Honest `not_configured` |
+
+There is still no integration *centre* (OAuth, API tokens, outgoing webhooks).
+
 ## What exists today
 
 | Piece | State |
@@ -26,6 +42,10 @@ Patterns already in the code that integrations should reuse:
 - `app('cache.central')` for platform-level data that must not land in a tenant's cache namespace.
 - Module domain events and documented contracts for CRM-to-Projects creation and future Projects-to-Invoicing,
   Projects-to-HRM and Projects-to-notification hand-offs; optional modules never import each other's models.
+
+Social platforms (Phase 9) are the first OAuth integrations: `docs/SOCIAL.md` documents the `SocialPlatform`
+contract, the Facebook Pages, LinkedIn and X adapters (unverified against the live platforms), encrypted token
+storage, refresh and re-authorisation, and the platforms listed as unavailable.
 
 ## Planned
 

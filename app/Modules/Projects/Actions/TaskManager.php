@@ -89,6 +89,10 @@ final class TaskManager
             $this->guardReferences($project, $attributes, $locked);
             $locked->fill($attributes);
 
+            if ($locked->isDirty('remind_at')) {
+                $locked->reminder_sent_at = null;
+            }
+
             if ($locked->starts_at !== null && $locked->due_at !== null && $locked->due_at->isBefore($locked->starts_at)) {
                 throw ValidationException::withMessages(['due_at' => __('The due time must be on or after the start time.')]);
             }
@@ -146,7 +150,7 @@ final class TaskManager
     }
 
     /** @param array<string, int> $allocations membership id => percent */
-    public function assign(Task $task, array $allocations, ?TenantMembership $actor = null): void
+    public function assign(Task $task, array $allocations, ?TenantMembership $actor = null, bool $replace = true): void
     {
         if ($actor !== null) {
             $this->guardActiveMember($actor);
@@ -156,7 +160,7 @@ final class TaskManager
             throw ValidationException::withMessages(['assignees' => __('Each assignee may appear only once.')]);
         }
 
-        DB::transaction(function () use ($task, $allocations, $actor): void {
+        DB::transaction(function () use ($task, $allocations, $actor, $replace): void {
             Project::query()->whereKey($task->project_id)->lockForUpdate()->firstOrFail();
             $locked = Task::query()->whereKey($task->id)->lockForUpdate()->firstOrFail();
             $members = TenantMembership::query()->where('status', MembershipStatus::Active)->whereKey(array_keys($allocations))->get()->keyBy('id');
@@ -165,7 +169,11 @@ final class TaskManager
                 throw ValidationException::withMessages(['assignees' => __('One or more assignees are unavailable.')]);
             }
 
-            TaskAssignee::query()->where('task_id', $locked->id)->delete();
+            if ($replace) {
+                TaskAssignee::query()->where('task_id', $locked->id)->delete();
+            } else {
+                TaskAssignee::query()->where('task_id', $locked->id)->whereIn('membership_id', array_keys($allocations))->delete();
+            }
 
             foreach ($allocations as $membershipId => $percent) {
                 if ($percent < 0 || $percent > 100) {
@@ -218,52 +226,61 @@ final class TaskManager
         $due = Task::query()->whereNotNull('recurrence_rule')->whereNotNull('next_recurrence_at')->where('next_recurrence_at', '<=', now())->orderBy('next_recurrence_at')->limit($limit)->get();
 
         foreach ($due as $source) {
-            DB::transaction(function () use ($source, &$created): void {
-                $project = Project::query()->whereKey($source->project_id)->lockForUpdate()->firstOrFail();
-                /** @var Task|null $locked */
-                $locked = Task::query()->whereKey($source->id)->lockForUpdate()->first();
-
-                if ($locked === null || $locked->recurrence_rule === null || $locked->next_recurrence_at === null || $locked->next_recurrence_at->isFuture()) {
-                    return;
-                }
-
-                if (in_array($project->status, [ProjectStatus::Completed, ProjectStatus::Cancelled], true)) {
-                    $locked->update(['next_recurrence_at' => null]);
-
-                    return;
-                }
-
-                $locked->loadMissing('owner');
-                $runAt = $locked->next_recurrence_at->toImmutable();
-                $nextRunAt = $this->advanceOccurrence($runAt, $locked->recurrence_rule);
-
-                if (! $this->occurrenceIsWithinRule($runAt, $locked->recurrence_rule) || $nextRunAt === null) {
-                    $locked->update(['next_recurrence_at' => null]);
-
-                    return;
-                }
-
-                $owner = $locked->owner?->status === MembershipStatus::Active ? $locked->owner : null;
-                $key = 'recurrence:'.$locked->id.':'.$runAt->format('YmdHis');
-                $task = $this->create($project, [
-                    'title' => $locked->title,
-                    'description' => $locked->description,
-                    'priority' => $locked->priority,
-                    'estimated_minutes' => $locked->estimated_minutes,
-                    'starts_at' => $this->shiftDate($locked->starts_at?->toImmutable(), $runAt, $locked->recurrence_rule),
-                    'due_at' => $this->shiftDate($locked->due_at?->toImmutable(), $runAt, $locked->recurrence_rule),
-                    'remind_at' => $this->shiftDate($locked->remind_at?->toImmutable(), $runAt, $locked->recurrence_rule),
-                    'recurrence_rule' => $locked->recurrence_rule,
-                    'next_recurrence_at' => $nextRunAt,
-                    'automation_key' => $key,
-                ], $owner);
-                $locked->update(['next_recurrence_at' => null]);
-                $created++;
-                $this->audit->record('projects.task.recurred', $task, ['source_task_id' => $locked->id]);
-            });
+            try {
+                $this->generateRecurrenceFor($source, $created);
+            } catch (\Throwable $exception) {
+                report($exception);
+            }
         }
 
         return $created;
+    }
+
+    private function generateRecurrenceFor(Task $source, int &$created): void
+    {
+        DB::transaction(function () use ($source, &$created): void {
+            $project = Project::query()->whereKey($source->project_id)->lockForUpdate()->firstOrFail();
+            /** @var Task|null $locked */
+            $locked = Task::query()->whereKey($source->id)->lockForUpdate()->first();
+
+            if ($locked === null || $locked->recurrence_rule === null || $locked->next_recurrence_at === null || $locked->next_recurrence_at->isFuture()) {
+                return;
+            }
+
+            if (in_array($project->status, [ProjectStatus::Completed, ProjectStatus::Cancelled], true)) {
+                $locked->update(['next_recurrence_at' => null]);
+
+                return;
+            }
+
+            $locked->loadMissing('owner');
+            $runAt = $locked->next_recurrence_at->toImmutable();
+            $nextRunAt = $this->advanceOccurrence($runAt, $locked->recurrence_rule);
+
+            if ($nextRunAt === null || ! $this->occurrenceIsWithinRule($nextRunAt, $locked->recurrence_rule)) {
+                $locked->update(['next_recurrence_at' => null]);
+
+                return;
+            }
+
+            $owner = $locked->owner?->status === MembershipStatus::Active ? $locked->owner : null;
+            $key = 'recurrence:'.$locked->id.':'.$runAt->format('YmdHis');
+            $task = $this->create($project, [
+                'title' => $locked->title,
+                'description' => $locked->description,
+                'priority' => $locked->priority,
+                'estimated_minutes' => $locked->estimated_minutes,
+                'starts_at' => $this->shiftDate($locked->starts_at?->toImmutable(), $runAt, $locked->recurrence_rule),
+                'due_at' => $this->shiftDate($locked->due_at?->toImmutable(), $runAt, $locked->recurrence_rule),
+                'remind_at' => $this->shiftDate($locked->remind_at?->toImmutable(), $runAt, $locked->recurrence_rule),
+                'recurrence_rule' => $locked->recurrence_rule,
+                'next_recurrence_at' => $nextRunAt,
+                'automation_key' => $key,
+            ], $owner);
+            $locked->update(['next_recurrence_at' => null]);
+            $created++;
+            $this->audit->record('projects.task.recurred', $task, ['source_task_id' => $locked->id]);
+        });
     }
 
     public function emitDueReminders(int $limit = 250): int

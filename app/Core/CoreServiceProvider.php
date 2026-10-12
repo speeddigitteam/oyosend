@@ -26,6 +26,10 @@ use App\Core\Billing\Models\Invoice;
 use App\Core\Billing\Models\Payment;
 use App\Core\Billing\Models\Plan;
 use App\Core\Billing\Models\Subscription;
+use App\Core\Communication\Contracts\InteractionRecorder;
+use App\Core\Communication\Contracts\Notifier;
+use App\Core\Communication\NullInteractionRecorder;
+use App\Core\Communication\NullNotifier;
 use App\Core\Contacts\Automation\CompanyCreatedTrigger;
 use App\Core\Contacts\Automation\ContactCreatedTrigger;
 use App\Core\Contacts\Models\Company;
@@ -171,6 +175,11 @@ final class CoreServiceProvider extends ModuleServiceProvider
         }
 
         $this->app->scoped(PlatformSettings::class);
+
+        // What other modules call to notify members and to append to the interaction timeline. The
+        // `communication` module rebinds both; until then (or without it) they honestly record nothing.
+        $this->app->bindIf(Notifier::class, NullNotifier::class);
+        $this->app->bindIf(InteractionRecorder::class, NullInteractionRecorder::class);
 
         // Schedule idempotency is platform-wide. It must not be affected by
         // the cache prefix of whichever tenant is being dispatched.

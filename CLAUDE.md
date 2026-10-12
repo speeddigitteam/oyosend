@@ -5,8 +5,9 @@ Multi-tenant business SaaS, modular monolith. Spec: `MASTER_PROMPT.md` (sections
 `docs/MODULES.md`, `docs/DATABASE.md`, `docs/TESTING.md`, `resources/js/README.md`; `docs/BILLING.md` before
 touching billing. The code is the source of truth; if a doc and the code disagree, fix the doc and say so.
 
-State: Phases 1–6 are complete; Phase 7 HRM & Payroll is next and has not been started. CRM, Projects and Invoicing
-are production optional apps. One phase per session; stop at the end of the phase and report.
+State: Phases 1–8 are complete; Phase 9 Marketing Apps is next and has not been started (Social, Support, Automation
+and AI modules exist in the tree but are unreviewed, see `PROGRESS.md`). CRM, Projects,
+Invoicing, HRM, Payroll and Talent are production optional apps. One phase per session; stop at the end of the phase and report.
 
 ## Stack
 
@@ -43,10 +44,10 @@ Billing model (ADR 0006): invoice-driven; nothing is charged automatically. Sign
 
 ```
 app/Core/{Tenancy,Identity,Access,Organization,Contacts,Settings,Registration,Billing,AppStore,Modules,Entitlements,
-          Automation,Events,Audit,Dashboard,Http,Support}
+          Automation,Events,Audit,Dashboard,Workforce,Http,Support}
 app/Core/CoreServiceProvider.php     the `core` module: manifest, bindings, Gate::before, gateways
 app/Platform/                        Super Admin panel (the only code that reads across tenants)
-app/Modules/<Module>/                optional apps (`CRM`, `Projects` and `Invoicing` are production modules)
+app/Modules/<Module>/                optional apps (`CRM`, `Projects`, `Invoicing`, `Hrm`, `Payroll` and `Talent` are production modules)
 routes/{central,tenant,tenant-callbacks,platform,console}.php     routes/web.php is NOT loaded
 config/{platform,tenancy,modules,permission,trustedproxy,horizon,ziggy}.php
 database/{migrations,factories,seeders}          lang/{en,bn}, lang/bn.json (server-side strings)

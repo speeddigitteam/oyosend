@@ -35,7 +35,7 @@ final class AssignTaskAction implements ActionDefinition
 
     public static function inputSchema(): array
     {
-        return ['type' => 'object', 'required' => ['task_id', 'membership_id'], 'properties' => ['task_id' => ['type' => 'string'], 'membership_id' => ['type' => 'string'], 'allocation_percent' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 100]], 'additionalProperties' => false];
+        return ['type' => 'object', 'required' => ['task_id', 'membership_id'], 'properties' => ['task_id' => ['type' => 'string'], 'membership_id' => ['type' => 'string'], 'allocation_percent' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 100], 'replace' => ['type' => 'boolean']], 'additionalProperties' => false];
     }
 
     public static function outputSchema(): array
@@ -47,7 +47,7 @@ final class AssignTaskAction implements ActionDefinition
     {
         return $this->receipts->run(self::key(), $idempotencyKey, function () use ($input): array {
             $task = Task::query()->findOrFail($input['task_id']);
-            $this->tasks->assign($task, [$input['membership_id'] => (int) ($input['allocation_percent'] ?? 100)]);
+            $this->tasks->assign($task, [$input['membership_id'] => (int) ($input['allocation_percent'] ?? 100)], null, (bool) ($input['replace'] ?? false));
 
             return ['task_id' => $task->id, 'membership_id' => $input['membership_id']];
         });

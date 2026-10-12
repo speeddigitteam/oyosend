@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Core\Identity\Http\Controllers\Team;
 
 use App\Core\Access\Models\Role;
+use App\Core\Access\RoleManager;
 use App\Core\Audit\AuditLogger;
 use App\Core\Identity\Actions\InviteMember;
 use App\Core\Identity\Models\Invitation;
@@ -13,6 +14,7 @@ use App\Core\Support\Toast;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 
 final class InvitationController
 {
@@ -35,8 +37,18 @@ final class InvitationController
         return back();
     }
 
-    public function destroy(Invitation $invitation, AuditLogger $audit): RedirectResponse
+    public function destroy(Request $request, Invitation $invitation, AuditLogger $audit, RoleManager $roles): RedirectResponse
     {
+        /** @var User $actor */
+        $actor = $request->user('web');
+
+        // The role hierarchy applies to withdrawing as it does to inviting.
+        if (! $roles->canAssign($actor, $invitation->role)) {
+            throw ValidationException::withMessages([
+                'invitation' => __('You cannot withdraw an invitation for a role you do not hold.'),
+            ]);
+        }
+
         if ($invitation->accepted_at === null && $invitation->revoked_at === null) {
             $invitation->update(['revoked_at' => Carbon::now()]);
 

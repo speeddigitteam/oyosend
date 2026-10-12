@@ -25,7 +25,7 @@ final class CollaborationController
     public function comment(Request $request, Project $project, Task $task): RedirectResponse
     {
         $actor = $this->support->actor($request);
-        $this->guardTask($project, $task);
+        $this->guardTask($actor, $project, $task);
         $this->records->authorize($actor, TaskController::COMMENT, $task);
         $input = $request->validate(['body' => ['required', 'string', 'max:20000'], 'mentions' => ['sometimes', 'array', 'max:50'], 'mentions.*' => ['string', 'size:26', 'distinct'], 'is_internal' => ['sometimes', 'boolean']]);
         $this->collaboration->comment($task, $input['body'], $this->support->membership($actor), $input['mentions'] ?? [], (bool) ($input['is_internal'] ?? false));
@@ -37,7 +37,7 @@ final class CollaborationController
     public function addChecklist(Request $request, Project $project, Task $task): RedirectResponse
     {
         $actor = $this->support->actor($request);
-        $this->guardTask($project, $task);
+        $this->guardTask($actor, $project, $task);
         $this->records->authorize($actor, TaskController::EDIT, $task);
         $input = $request->validate(['title' => ['required', 'string', 'max:240'], 'position' => ['nullable', 'integer', 'between:0,65535']]);
         $this->collaboration->addChecklist($task, $input['title'], (int) ($input['position'] ?? 0), $this->support->membership($actor));
@@ -48,7 +48,7 @@ final class CollaborationController
     public function updateChecklist(Request $request, Project $project, Task $task, ChecklistItem $checklist): RedirectResponse
     {
         $actor = $this->support->actor($request);
-        $this->guardTask($project, $task);
+        $this->guardTask($actor, $project, $task);
         abort_unless($checklist->task_id === $task->id, 404);
         $this->records->authorize($actor, TaskController::EDIT, $task);
         $input = $request->validate(['completed' => ['required', 'boolean']]);
@@ -60,7 +60,7 @@ final class CollaborationController
     public function dependency(Request $request, Project $project, Task $task): RedirectResponse
     {
         $actor = $this->support->actor($request);
-        $this->guardTask($project, $task);
+        $this->guardTask($actor, $project, $task);
         $this->records->authorize($actor, TaskController::EDIT, $task);
         $input = $request->validate(['depends_on_task_id' => ['required', 'string', 'size:26'], 'type' => ['nullable', 'in:finish_to_start,start_to_start,finish_to_finish,start_to_finish']]);
         $dependsOn = $this->records->constrain(Task::query(), $actor, TaskController::VIEW)->findOrFail($input['depends_on_task_id']);
@@ -80,7 +80,7 @@ final class CollaborationController
             $this->collaboration->attachProject($project, $request->file('file'), $actorMembership);
         } else {
             $task = Task::query()->findOrFail($input['task_id']);
-            $this->guardTask($project, $task);
+            $this->guardTask($actor, $project, $task);
             $this->records->authorize($actor, TaskController::EDIT, $task);
             $this->collaboration->attachTask($task, $request->file('file'), $actorMembership);
         }
@@ -110,9 +110,10 @@ final class CollaborationController
         return back();
     }
 
-    private function guardTask(Project $project, Task $task): void
+    private function guardTask(User $actor, Project $project, Task $task): void
     {
         abort_unless($task->project_id === $project->id, 404);
+        $this->records->authorize($actor, ProjectController::VIEW, $project);
     }
 
     private function authorizeAttachment(User $actor, Project $project, Attachment $attachment, bool $edit): void
@@ -126,7 +127,7 @@ final class CollaborationController
 
         abort_unless($attachment->entity_type === 'task', 404);
         $task = Task::query()->findOrFail($attachment->entity_id);
-        $this->guardTask($project, $task);
+        $this->guardTask($actor, $project, $task);
         $this->records->authorize($actor, $edit ? TaskController::EDIT : TaskController::VIEW, $task);
     }
 }
