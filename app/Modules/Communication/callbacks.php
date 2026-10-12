@@ -22,6 +22,11 @@ Route::post('communication/webhooks/{provider}', [WebhookController::class, 'rec
     ->where('provider', '[a-z][a-z0-9_]{0,39}')
     ->name('communication.webhooks.receive');
 
+// The subscription handshake (WhatsApp Cloud API `hub.challenge`), answered only for a connected provider.
+Route::get('communication/webhooks/{provider}', [WebhookController::class, 'verify'])
+    ->where('provider', '[a-z][a-z0-9_]{0,39}')
+    ->name('communication.webhooks.verify');
+
 Route::get('communication/unsubscribe/{token}', [UnsubscribeController::class, 'show'])
     ->where('token', '[A-Za-z0-9]{1,64}')
     ->name('communication.unsubscribe.show');

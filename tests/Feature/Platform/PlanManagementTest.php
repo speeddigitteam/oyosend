@@ -126,8 +126,11 @@ describe('creating a plan', function () {
                     ['key' => 'automation', 'name' => 'Workflow Automation'],
                     ['key' => 'ai', 'name' => 'AI Assistant'],
                     ['key' => 'communication', 'name' => 'Communication'],
+                    ['key' => 'email_marketing', 'name' => 'Email Marketing'],
                     ['key' => 'social', 'name' => 'Social Media'],
+                    ['key' => 'sms_marketing', 'name' => 'SMS Marketing'],
                     ['key' => 'support', 'name' => 'Customer Support'],
+                    ['key' => 'whatsapp_marketing', 'name' => 'WhatsApp Business'],
                     ['key' => 'reports', 'name' => 'Reports & Analytics'],
                 ])
                 ->where('limits', [
@@ -142,10 +145,16 @@ describe('creating a plan', function () {
                     ['key' => 'automation.workflows', 'kind' => 'gauge'],
                     ['key' => 'ai.tokens', 'kind' => 'metered'],
                     ['key' => 'communication.messages', 'kind' => 'metered'],
+                    ['key' => 'email_marketing.campaigns_per_month', 'kind' => 'metered'],
+                    ['key' => 'email_marketing.subscribers', 'kind' => 'gauge'],
                     ['key' => 'social.scheduled_posts_per_month', 'kind' => 'metered'],
                     ['key' => 'social.connected_accounts', 'kind' => 'gauge'],
+                    ['key' => 'sms_marketing.segments_per_month', 'kind' => 'metered'],
+                    ['key' => 'sms_marketing.contacts', 'kind' => 'gauge'],
                     ['key' => 'support.tickets_per_month', 'kind' => 'metered'],
                     ['key' => 'support.agents', 'kind' => 'gauge'],
+                    ['key' => 'whatsapp_marketing.conversations_per_month', 'kind' => 'metered'],
+                    ['key' => 'whatsapp_marketing.agents', 'kind' => 'gauge'],
                     ['key' => 'reports.saved_reports', 'kind' => 'gauge'],
                 ])
                 ->where('currencies', config('platform.currencies')));
@@ -164,8 +173,11 @@ describe('creating a plan', function () {
                 ['key' => 'automation', 'name' => 'Workflow Automation'],
                 ['key' => 'ai', 'name' => 'AI Assistant'],
                 ['key' => 'communication', 'name' => 'Communication'],
+                ['key' => 'email_marketing', 'name' => 'Email Marketing'],
                 ['key' => 'social', 'name' => 'Social Media'],
+                ['key' => 'sms_marketing', 'name' => 'SMS Marketing'],
                 ['key' => 'support', 'name' => 'Customer Support'],
+                ['key' => 'whatsapp_marketing', 'name' => 'WhatsApp Business'],
                 ['key' => 'reports', 'name' => 'Reports & Analytics'],
             ]));
     });
@@ -402,10 +414,16 @@ describe('editing a plan', function () {
                     ['key' => 'automation.workflows', 'kind' => 'gauge'],
                     ['key' => 'ai.tokens', 'kind' => 'metered'],
                     ['key' => 'communication.messages', 'kind' => 'metered'],
+                    ['key' => 'email_marketing.campaigns_per_month', 'kind' => 'metered'],
+                    ['key' => 'email_marketing.subscribers', 'kind' => 'gauge'],
                     ['key' => 'social.scheduled_posts_per_month', 'kind' => 'metered'],
                     ['key' => 'social.connected_accounts', 'kind' => 'gauge'],
+                    ['key' => 'sms_marketing.segments_per_month', 'kind' => 'metered'],
+                    ['key' => 'sms_marketing.contacts', 'kind' => 'gauge'],
                     ['key' => 'support.tickets_per_month', 'kind' => 'metered'],
                     ['key' => 'support.agents', 'kind' => 'gauge'],
+                    ['key' => 'whatsapp_marketing.conversations_per_month', 'kind' => 'metered'],
+                    ['key' => 'whatsapp_marketing.agents', 'kind' => 'gauge'],
                     ['key' => 'reports.saved_reports', 'kind' => 'gauge'],
                 ])
                 ->has('currencies'));

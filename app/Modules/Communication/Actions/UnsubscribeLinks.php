@@ -35,13 +35,29 @@ final class UnsubscribeLinks
     /** Issue a link for the message's recipient. The token is returned inside the URL only. */
     public function issue(Message $message): string
     {
+        return $this->create($message->contact_id, $message->id, $message->channel, $message->recipient);
+    }
+
+    /**
+     * Issue a link for a contact without a message (a marketing app embedding it in its own body).
+     * Null when the contact has no valid address on the channel.
+     */
+    public function issueForContact(Contact $contact, Channel $channel): ?string
+    {
+        $address = $channel->normalize((string) ($channel === Channel::Email ? $contact->email : $contact->phone));
+
+        return $address === null ? null : $this->create($contact->id, null, $channel, $address);
+    }
+
+    private function create(?string $contactId, ?string $messageId, Channel $channel, string $address): string
+    {
         $token = Str::random(40);
 
         UnsubscribeToken::query()->create([
-            'contact_id' => $message->contact_id,
-            'message_id' => $message->id,
-            'channel' => $message->channel,
-            'address' => $message->recipient,
+            'contact_id' => $contactId,
+            'message_id' => $messageId,
+            'channel' => $channel,
+            'address' => $address,
             'token_hash' => $this->hash($token),
             'expires_at' => CarbonImmutable::now()->addDays((int) config('communication.unsubscribe_token_days', 365)),
         ]);

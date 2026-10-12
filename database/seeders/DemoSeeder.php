@@ -116,8 +116,8 @@ class DemoSeeder extends Seeder
         $definitions = [
             'free' => ['Free', 'For trying things out with a small team.', 0, null, 0, 5, 10, []],
             'starter' => ['Starter', 'For a small business getting organised.', 150000, 1500000, 14, 10, 20, []],
-            'business' => ['Business', 'For a growing company with several teams.', 450000, 4500000, 14, 50, 30, ['crm', 'projects', 'invoicing', 'hrm', 'payroll', 'talent', 'automation', 'communication', 'social', 'support', 'reports']],
-            'enterprise' => ['Enterprise', 'For a large organisation. No limit on members.', 1200000, 12000000, 14, null, 40, ['crm', 'projects', 'invoicing', 'hrm', 'payroll', 'talent', 'automation', 'ai', 'communication', 'social', 'support', 'reports']],
+            'business' => ['Business', 'For a growing company with several teams.', 450000, 4500000, 14, 50, 30, ['crm', 'projects', 'invoicing', 'hrm', 'payroll', 'talent', 'automation', 'communication', 'email_marketing', 'social', 'sms_marketing', 'whatsapp_marketing', 'support', 'reports']],
+            'enterprise' => ['Enterprise', 'For a large organisation. No limit on members.', 1200000, 12000000, 14, null, 40, ['crm', 'projects', 'invoicing', 'hrm', 'payroll', 'talent', 'automation', 'ai', 'communication', 'email_marketing', 'social', 'sms_marketing', 'whatsapp_marketing', 'support', 'reports']],
         ];
 
         $plans = [];

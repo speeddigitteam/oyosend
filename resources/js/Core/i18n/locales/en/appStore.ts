@@ -88,6 +88,32 @@ export default {
             ],
             releaseNotes: 'Initial Social Media release. Publishing adapters: Facebook Pages, LinkedIn (text), X (text); each needs the operator to configure and get approved a platform app.',
         },
+        email_marketing: {
+            name: 'Email Marketing',
+            description: 'Build email campaigns and welcome sequences for your contact lists, with consent and unsubscribe handled by the platform.',
+            features: [
+                'Lists, segments and CSV import with consent evidence',
+                'Block editor with personalisation variables',
+                'Scheduled campaigns and A/B subject tests',
+                'Welcome and drip sequences',
+                'Consent, suppression and unsubscribe enforced by the platform',
+                'Delivery reports with clicks and bounces',
+            ],
+            releaseNotes: 'Initial Email Marketing release. Emails are sent as plain text through the platform mailer; opens are not measured.',
+        },
+        sms_marketing: {
+            name: 'SMS Marketing',
+            description: 'Send bulk and scheduled SMS campaigns to contact groups with consent checks, opt-out links, segment-aware cost estimates and delivery status.',
+            features: [
+                'Bulk and scheduled campaigns to contact groups',
+                'Consent and suppression checked at send time; opt-out link in every message',
+                'Unicode and Bengali aware segment counting with cost estimates',
+                'Message templates with personalization from a fixed list',
+                'Recorded sender ids and delivery status from the provider',
+                'Throttling, a daily cap and bounded retries of failed messages',
+            ],
+            releaseNotes: 'Initial SMS Marketing release. Sending needs an SMS provider connected in Communication settings; without one campaigns can be drafted and estimated but not launched.',
+        },
         support: {
             name: 'Customer Support',
             description: 'Customer tickets with queues, assignment rules and SLA targets, a conversation thread with internal notes, canned responses, satisfaction surveys and an internal knowledge base.',
@@ -112,6 +138,19 @@ export default {
                 'Run history with step-level logs, cancel and retry',
             ],
             releaseNotes: 'Initial Workflow Automation release.',
+        },
+        whatsapp_marketing: {
+            name: 'WhatsApp Business',
+            description: 'Message customers on WhatsApp through the official Business Platform: approved templates to opted-in lists, a shared inbox that respects the 24-hour window, agent assignment, quick replies and simple chatbot flows.',
+            features: [
+                'Official WhatsApp Business Platform (Cloud API) through the communication app',
+                'Approved template management with the status Meta reported',
+                'Campaigns to contact lists, sent only to people who opted in',
+                'Shared inbox with assignment, tags and the 24-hour customer-service window',
+                'Quick replies and declarative chatbot flows',
+                'Delivery and read status, conversation counts and reports',
+            ],
+            releaseNotes: 'Initial WhatsApp Business release. The WhatsApp Cloud API adapter has not been exercised against live Meta; it needs a Meta app set up by the operator, a verified business and approved templates.',
         },
         reports: {
             name: 'Reports & Analytics',

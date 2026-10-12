@@ -5,9 +5,9 @@ Multi-tenant business SaaS, modular monolith. Spec: `MASTER_PROMPT.md` (sections
 `docs/MODULES.md`, `docs/DATABASE.md`, `docs/TESTING.md`, `resources/js/README.md`; `docs/BILLING.md` before
 touching billing. The code is the source of truth; if a doc and the code disagree, fix the doc and say so.
 
-State: Phases 1–8 are complete; Phase 9 Marketing Apps is next and has not been started (Social, Support, Automation
-and AI modules exist in the tree but are unreviewed, see `PROGRESS.md`). CRM, Projects,
-Invoicing, HRM, Payroll and Talent are production optional apps. One phase per session; stop at the end of the phase and report.
+State: Phases 1–8 are complete and signed off. Phase 9 Marketing Apps (Email, SMS, WhatsApp, Social) and the
+Automation, AI, Support and Reports modules are built but unreviewed (see `PROGRESS.md`); Phase 13 production
+hardening is not started. CRM, Projects, Invoicing, HRM, Payroll and Talent are production optional apps. One phase per session; stop at the end of the phase and report.
 
 ## Stack
 

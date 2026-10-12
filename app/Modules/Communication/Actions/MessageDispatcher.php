@@ -240,6 +240,9 @@ final class MessageDispatcher
 
         if ($status === MessageStatus::Failed) {
             event(MessageFailed::from($message));
+        } else {
+            // Suppressed or cancelled after queueing: marketing apps hear about it too.
+            app(MarketingStatusRelay::class)->announce($message);
         }
 
         return null;

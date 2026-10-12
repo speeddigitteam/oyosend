@@ -164,7 +164,7 @@ it('hides providers of apps the workspace is not entitled to, even from the owne
 });
 
 it('lists a provider only for members holding its permission, once the workspace is entitled', function () {
-    $this->entitle($this->tenant, 'crm', 'projects', 'invoicing', 'hrm', 'payroll', 'talent', 'support', 'social', 'automation');
+    $this->entitle($this->tenant, 'crm', 'projects', 'invoicing', 'hrm', 'payroll', 'talent', 'support', 'social', 'automation', 'communication', 'email_marketing', 'sms_marketing', 'whatsapp_marketing');
     $registry = fn ($user) => $this->inTenant($this->tenant, fn () => app(ReportRegistry::class)->availableFor($user));
     $all = $this->inTenant($this->tenant, fn () => app(ReportRegistry::class)->all());
 
@@ -176,6 +176,9 @@ it('lists a provider only for members holding its permission, once the workspace
         'payroll.run_totals', 'talent.recruitment_funnel',
         'support.volume', 'support.sla', 'support.csat',
         'social.publishing', 'social.engagement', 'automation.run_outcomes',
+        'email_marketing.campaigns', 'email_marketing.lists',
+        'sms_marketing.campaigns', 'sms_marketing.daily',
+        'whatsapp_marketing.campaign_delivery', 'whatsapp_marketing.conversation_activity',
     );
 
     // Every provider is available to exactly the members holding its own permission.
@@ -198,7 +201,7 @@ it('lists a provider only for members holding its permission, once the workspace
 });
 
 it('declares only well-formed definitions with unique keys', function () {
-    $this->entitle($this->tenant, 'crm', 'projects', 'invoicing', 'hrm', 'payroll', 'talent', 'support', 'social', 'automation');
+    $this->entitle($this->tenant, 'crm', 'projects', 'invoicing', 'hrm', 'payroll', 'talent', 'support', 'social', 'automation', 'communication', 'email_marketing', 'sms_marketing', 'whatsapp_marketing');
     $all = $this->inTenant($this->tenant, fn () => app(ReportRegistry::class)->all());
 
     foreach ($all as $key => $provider) {

@@ -8,8 +8,11 @@ import hrm from './hrm';
 import talent from './talent';
 import payroll from './payroll';
 import social from './social';
+import emailMarketing from './emailMarketing';
+import smsMarketing from './smsMarketing';
 import automation from './automation';
 import support from './support';
+import whatsapp from './whatsapp';
 import ai from './ai';
 import communication from './communication';
 import reports from './reports';
@@ -60,8 +63,11 @@ export default {
     talent,
     payroll,
     social,
+    emailMarketing,
+    smsMarketing,
     automation,
     support,
+    whatsapp,
     ai,
     communication,
     reports,

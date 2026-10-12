@@ -139,6 +139,41 @@ scheduled-job inventory. Platform adapters are unit-tested against `Http::fake` 
 `InteractsWithSocial` helper and `Tests\Support\Fixtures\FakeSocialPlatform` (tests only) build accounts, posts and
 scriptable platform failures.
 
+SMS Marketing coverage lives in `tests/Feature/SmsMarketing`, `tests/Unit/SmsMarketing` and
+`tests/js/smsMarketing.test.ts`: the segment counter as a table (GSM-7, extension characters, UCS-2, Bengali,
+surrogate pairs, boundaries), phone-number normalization, tenant isolation of every model and 404 for every id route,
+entitlement and dependency 404, permission and own-scope, consent blocking, idempotency (repeat runs, repeat
+materialization, a recovered claim), daily cap, throttle, scheduling bounds, cancel, quiet hours, a switched-off
+channel, bounded retries, status webhooks (signed, replayed, late), reconciliation, plan limits, formula-safe CSV,
+merge, automation and reports. The `InteractsWithSmsMarketing` helper builds on `InteractsWithCommunication` and the
+in-memory SMS provider (testing environment only); the testing queue is synchronous, so a campaign run is one call
+(`runCampaigns`).
+Email Marketing coverage lives in `tests/Feature/EmailMarketing` and `tests/Unit/EmailMarketing`: tenant isolation of
+every model and 404 from another workspace for every id route; entitlement 404, permission 403 and own-scope
+narrowing for campaigns; consent blocking (no platform consent, suppression and an unsubscribed address are never
+sent and are recorded as blocked), pending members left out, idempotency (repeated passes and a delivery reset after
+a crash send once), bounded chunks and the per-minute rate, scheduling, plan-limit pausing, status and unsubscribe
+mirroring, A/B determinism and winner (and the honest "not measured" outcomes), test sends to members only,
+sequences (enrolment once, delays, stop on unsubscribe), signed click and web-version links (forged, swapped and
+foreign-tenant tokens are a bare 404), HTML sanitisation (script tags, event handlers, `javascript:` links, markup in
+contact names), CSV import consent rules and bounds, formula-safe export, segment rule validation, automation
+receipts, report providers and contact merge. The `InteractsWithEmailMarketing` helper (on top of
+`InteractsWithCommunication`) builds an entitled workspace with a postal address, lists, subscribers with platform
+consent, campaigns and a manual runner pass (`emRun`). The frontend is covered by `tests/js/emailMarketing.test.ts`.
+
+WhatsApp Business coverage lives in `tests/Feature/WhatsappMarketing` and `tests/Unit/WhatsappMarketing`: tenant
+isolation of every model and 404 from another workspace for every id route; entitlement 404, permission 403 and own
+scope with the enrolled-agent rule; the signed webhook (handshake, unsigned/wrong/tampered rejection, other phone
+number dropped, duplicate and bypassed-duplicate inbound, metadata-only attachments, text cleaning and cap, status
+and read receipts never moving backward, template status for this business account only); the 24-hour window
+(reply inside and after, just before it closes), approved-only templates, consent blocking, utility-versus-marketing
+treatment, unconnected channel, plan limits on windows and agents; campaigns (mapping validation, consent and number
+validity at snapshot and at send, bounded chunks, repeated chunks sending nobody twice, schedule, cancel, channel
+loss); chatbot flows and their closed vocabulary; automation receipts; reports and "not reported" cost; and the
+Cloud API adapter against `Http::fake` (nothing reaches Meta). The `InteractsWithWhatsapp` helper (on top of
+`InteractsWithCommunication`) connects the Cloud API channel with operator credential references, builds
+templates, lists and agents, and signs Meta-shaped webhook bodies.
+
 Phase 8 coverage lives in `tests/Feature/Communication` and `tests/Unit/Communication`: tenant isolation of every
 model, entitlement and permission gating (404 / 403), per-member notification isolation, idempotent and
 rate-limited sending, suppression and marketing consent (queue time and worker time), quiet hours, plan limit and

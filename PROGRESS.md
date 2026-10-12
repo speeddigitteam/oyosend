@@ -6,13 +6,17 @@ Rules for working in this repository are in `CLAUDE.md`; the product specificati
 ## Status
 
 **Phases 1 (Architecture & Foundation), 2 (Core SaaS & Billing), 3 (App Store), 4 (CRM), 5 (Projects),
-6 (Invoicing), 7 (HRM & Payroll) and 8 (Communication Platform) are complete as of 2026-10-12. Phase 9 Marketing
-Apps is next and has not been started.**
+6 (Invoicing), 7 (HRM & Payroll) and 8 (Communication Platform) are complete and were signed off on 2026-10-12.
+Phase 9 (Marketing Apps: Email Marketing, SMS Marketing, WhatsApp Business, Social Media) is built and passes every
+automated gate but has had no independent review and no browser pass. Phases 10 (Automation engine), 11 (AI
+Assistant) and 12 (Support Desk, Reports & Analytics) exist in the tree on the same terms. Phase 13 (production
+hardening, load testing, backup/restore verification) has not been started.**
 
-The working tree also holds the Social, Support Desk, Automation and AI modules (`app/Modules/{Social,Support,
-Automation,Ai}`, `docs/{SOCIAL,SUPPORT,WORKFLOWS,AI}.md`). They pass the full suite and have a bilingual frontend,
-but they were built outside a recorded phase and have **not been reviewed or signed off**: treat them as present, not
-as the completed Phases 9–12.
+Modules built after Phase 8 and not yet reviewed or signed off: `app/Modules/{Social,Support,Automation,Ai,Reports,
+EmailMarketing,SmsMarketing,WhatsappMarketing}` with `docs/{SOCIAL,SUPPORT,WORKFLOWS,AI,REPORTS,EMAIL_MARKETING,
+SMS_MARKETING,WHATSAPP}.md`. Treat them as present, not as completed phases. Provider integrations (social
+platforms, Anthropic, WhatsApp Cloud API) have never been exercised against the live service; SMS has no provider
+adapter and reports `not_configured`.
 CRM, Projects, Invoicing, HR Management, Payroll and Talent & Performance are compiled production business
 applications and catalogue entries. App Store tests retain a separate
 `test_crm` fixture so production CRM and generic multi-app behaviour can be exercised independently.
@@ -434,3 +438,24 @@ route-model binding order.
   hand-offs, receivables reports, print-ready documents, queued email), bilingual UI, `docs/INVOICING.md`. Also
   shipped: collapsible per-app sidebar groups, translated App Store text, plan-included apps in My Apps. Gateway
   payments deliberately not built. Phase 7 was not started.
+
+## Phase 9 and later modules: what was added (2026-10-13)
+
+- **Marketing contracts** (`App\Core\Communication`): `MarketingAudience` (consent/suppression/availability, batch),
+  `UnsubscribeLinks`, `ChannelGateway` (idempotent send, status), `ChannelEventListener`, with Null objects; the
+  Communication app implements them. Marketing apps never import Communication models. See `docs/COMMUNICATION.md` 13-14.
+- **Email Marketing** (`email_marketing`): lists on shared contacts, consent evidence, segments, structured block
+  editor, A/B subject test, scheduled campaigns, sequences, signed click tracking, CSV import/export, reports. Emails are
+  sent as plain text by the platform mailer; the HTML version is the web-version page. Opens are not measured.
+- **SMS Marketing** (`sms_marketing`): groups, templates, GSM-7/UCS-2 segment counting incl. Bengali, estimates, sender
+  ids, campaigns with daily cap. **No SMS provider adapter exists**: the channel is `not_configured` and campaigns cannot launch.
+- **WhatsApp Business** (`whatsapp_marketing`): template registry, opt-in, campaigns, shared inbox with 24h-window
+  rule, assignment, quick replies, declarative flows, Cloud API adapter in Communication (never run against Meta).
+- **Reports & Analytics** (`reports`): provider contract in `App\Core\Reporting`, saved/shared reports, CSV export,
+  providers in every business module (including the three marketing apps).
+- Count-test numbers: 16 registered modules, 250 permissions.
+
+Owner decisions waiting: SMS gateway choice and transactional-send contract; HTML email sending (needs `htmlBody` in the
+outbox/mailer); a `ConsentRecorder` contract (public sign-up forms); whether STOP replies opt out directly; central
+OAuth redirect broker for Social; AI prices and `ANTHROPIC_API_KEY`; native Bengali review of all machine-written
+strings; Playwright runs; Sail/Docker/CI never executed.

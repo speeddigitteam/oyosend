@@ -8,8 +8,11 @@ use App\Core\AppStore\Enums\AppBillingType;
 use App\Core\AppStore\Enums\AppCategory;
 use App\Core\AppStore\Enums\ScheduledJobFrequency;
 use App\Core\AppStore\ScheduledJobDefinition;
+use App\Core\Communication\Contracts\ChannelGateway;
 use App\Core\Communication\Contracts\InteractionRecorder;
+use App\Core\Communication\Contracts\MarketingAudience;
 use App\Core\Communication\Contracts\Notifier;
+use App\Core\Communication\Contracts\UnsubscribeLinks as UnsubscribeLinksContract;
 use App\Core\Contacts\Contracts\ContactMergeReference;
 use App\Core\Modules\AppOffer;
 use App\Core\Modules\LimitDefinition;
@@ -19,6 +22,10 @@ use App\Core\Modules\NavigationItem;
 use App\Core\Modules\PermissionDefinition;
 use App\Core\Modules\WidgetDefinition;
 use App\Modules\Communication\Actions\CommunicationContactMergeReference;
+use App\Modules\Communication\Actions\MarketingAudienceResolver;
+use App\Modules\Communication\Actions\MarketingGateway;
+use App\Modules\Communication\Actions\MarketingStatusRelay;
+use App\Modules\Communication\Actions\MarketingUnsubscribeLinks;
 use App\Modules\Communication\Actions\NotificationCenter;
 use App\Modules\Communication\Actions\Outbox;
 use App\Modules\Communication\Actions\TemplateVariables;
@@ -32,6 +39,11 @@ use App\Modules\Communication\Automation\Triggers\MessageFailedTrigger;
 use App\Modules\Communication\Channels\ProviderRegistry;
 use App\Modules\Communication\Channels\Providers\LaravelMailProvider;
 use App\Modules\Communication\Channels\Providers\NullProvider;
+use App\Modules\Communication\Channels\Providers\WhatsAppCloudProvider;
+use App\Modules\Communication\Events\MessageBounced;
+use App\Modules\Communication\Events\MessageDelivered;
+use App\Modules\Communication\Events\MessageFailed;
+use App\Modules\Communication\Events\MessageSent;
 use App\Modules\Communication\Jobs\CleanupCommunication;
 use App\Modules\Communication\Jobs\DispatchDueMessages;
 use App\Modules\Communication\Models\AutomationActionReceipt;
@@ -48,6 +60,7 @@ use App\Modules\Communication\Models\UnsubscribeToken;
 use App\Modules\Communication\Models\WebhookEvent;
 use App\Modules\Communication\Testing\InMemoryProvider;
 use App\Modules\Communication\Widgets\NotificationsWidget;
+use Illuminate\Support\Facades\Event;
 
 /**
  * The communication platform: the notification center, the message outbox with provider adapters, templates,
@@ -70,6 +83,8 @@ final class CommunicationServiceProvider extends ModuleServiceProvider
             // The honest default for SMS and WhatsApp: never configured, refuses every send.
             $registry->register(NullProvider::sms());
             $registry->register(NullProvider::whatsapp());
+            // The official WhatsApp Cloud API: not_configured until the operator provides credentials.
+            $registry->register(new WhatsAppCloudProvider);
 
             // In-memory doubles exist only for tests and local development, and say so.
             if (app()->environment(['testing', 'local'])) {
@@ -82,6 +97,11 @@ final class CommunicationServiceProvider extends ModuleServiceProvider
 
         $this->app->bind(Notifier::class, NotificationCenter::class);
         $this->app->bind(InteractionRecorder::class, TimelineRecorder::class);
+
+        // Contracts for the marketing apps (email, SMS, WhatsApp): no model import needed on their side.
+        $this->app->bind(MarketingAudience::class, MarketingAudienceResolver::class);
+        $this->app->bind(UnsubscribeLinksContract::class, MarketingUnsubscribeLinks::class);
+        $this->app->bind(ChannelGateway::class, MarketingGateway::class);
         $this->app->tag(CommunicationContactMergeReference::class, ContactMergeReference::class);
     }
 
@@ -196,5 +216,10 @@ final class CommunicationServiceProvider extends ModuleServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
         $this->loadTenantRoutes(__DIR__.'/routes.php');
         $this->loadTenantCallbackRoutes(__DIR__.'/callbacks.php');
+
+        // Marketing apps hear about their messages through the core MarketingMessageStatusChanged event.
+        foreach ([MessageSent::class, MessageDelivered::class, MessageFailed::class, MessageBounced::class] as $event) {
+            Event::listen($event, [MarketingStatusRelay::class, 'handle']);
+        }
     }
 }

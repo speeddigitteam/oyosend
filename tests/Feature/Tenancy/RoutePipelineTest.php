@@ -74,8 +74,12 @@ const STATELESS_WORKSPACE_ROUTES = [
     'support.csat.show', 'support.csat.store',
     // Communication: provider webhooks (signature-verified) and the one-click unsubscribe page (token).
     'communication.webhooks.receive',
+    'communication.webhooks.verify',
     'communication.unsubscribe.show',
     'communication.unsubscribe.store',
+    // Email Marketing: signed click redirect and web version of an email (HMAC token only).
+    'email_marketing.track.click',
+    'email_marketing.web.show',
     // Automation: inbound workflow webhooks (HMAC-signed, replay-windowed).
     'automation.hooks.receive',
 ];

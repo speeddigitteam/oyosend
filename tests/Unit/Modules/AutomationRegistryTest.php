@@ -28,6 +28,9 @@ use App\Modules\CRM\Automation\Triggers\ActivityCompletedTrigger;
 use App\Modules\CRM\Automation\Triggers\DealWonTrigger;
 use App\Modules\CRM\Automation\Triggers\LeadCreatedTrigger as CrmLeadCreatedTrigger;
 use App\Modules\CRM\Automation\Triggers\LeadQualifiedTrigger;
+use App\Modules\EmailMarketing\Automation\Actions\AddToListAction;
+use App\Modules\EmailMarketing\Automation\Triggers\CampaignSentTrigger;
+use App\Modules\EmailMarketing\Automation\Triggers\SubscriberSubscribedTrigger;
 use App\Modules\Hrm\Automation\Actions\AssignManagerAction as HrmAssignManagerAction;
 use App\Modules\Hrm\Automation\Actions\GrantLeaveBalanceAction;
 use App\Modules\Hrm\Automation\Triggers\AttendanceDayClosedTrigger;
@@ -53,6 +56,9 @@ use App\Modules\Projects\Automation\Triggers\MilestoneCompletedTrigger;
 use App\Modules\Projects\Automation\Triggers\ProjectCreatedTrigger;
 use App\Modules\Projects\Automation\Triggers\TaskCompletedTrigger;
 use App\Modules\Projects\Automation\Triggers\TaskCreatedTrigger;
+use App\Modules\SmsMarketing\Automation\Actions\AddContactToGroupAction;
+use App\Modules\SmsMarketing\Automation\Triggers\CampaignCompletedTrigger;
+use App\Modules\SmsMarketing\Automation\Triggers\CampaignLaunchedTrigger;
 use App\Modules\Social\Automation\Actions\CreateDraftPostAction;
 use App\Modules\Social\Automation\Triggers\AccountNeedsReauthorizationTrigger;
 use App\Modules\Social\Automation\Triggers\PostApprovedTrigger;
@@ -79,6 +85,13 @@ use App\Modules\Talent\Automation\Triggers\InterviewScheduledTrigger;
 use App\Modules\Talent\Automation\Triggers\ProbationReviewDueTrigger;
 use App\Modules\Talent\Automation\Triggers\ReviewCalibratedTrigger;
 use App\Modules\Talent\Automation\Triggers\TrainingCompletedTrigger;
+use App\Modules\WhatsappMarketing\Automation\Actions\AssignConversationAction;
+use App\Modules\WhatsappMarketing\Automation\Actions\SendTemplateAction;
+use App\Modules\WhatsappMarketing\Automation\Actions\TagConversationAction;
+use App\Modules\WhatsappMarketing\Automation\Triggers\CampaignCompletedTrigger as WhatsappMarketingCampaignCompletedTrigger;
+use App\Modules\WhatsappMarketing\Automation\Triggers\ConversationAssignedTrigger;
+use App\Modules\WhatsappMarketing\Automation\Triggers\MessageReadTrigger;
+use App\Modules\WhatsappMarketing\Automation\Triggers\MessageReceivedTrigger;
 
 /*
  * Small definitions, declared inline: each one is wrong (or right) in exactly one way.
@@ -325,17 +338,25 @@ describe('the application\'s own registry', function () {
             'communication.message.failed' => MessageFailedTrigger::class,
             'communication.message.bounced' => MessageBouncedTrigger::class,
             'communication.contact.unsubscribed' => ContactUnsubscribedTrigger::class,
+            'email_marketing.campaign.sent' => CampaignSentTrigger::class,
+            'email_marketing.subscriber.subscribed' => SubscriberSubscribedTrigger::class,
             'social.post.scheduled' => PostScheduledTrigger::class,
             'social.post.approved' => PostApprovedTrigger::class,
             'social.post.published' => PostPublishedTrigger::class,
             'social.post.failed' => PostFailedTrigger::class,
             'social.account.needs_reauthorization' => AccountNeedsReauthorizationTrigger::class,
+            'sms_marketing.campaign.launched' => CampaignLaunchedTrigger::class,
+            'sms_marketing.campaign.completed' => CampaignCompletedTrigger::class,
             'support.ticket.created' => TicketCreatedTrigger::class,
             'support.ticket.assigned' => TicketAssignedTrigger::class,
             'support.ticket.customer_replied' => TicketCustomerRepliedTrigger::class,
             'support.ticket.resolved' => TicketResolvedTrigger::class,
             'support.ticket.sla_breached' => TicketSlaBreachedTrigger::class,
             'support.csat.submitted' => CsatSubmittedTrigger::class,
+            'whatsapp_marketing.message.received' => MessageReceivedTrigger::class,
+            'whatsapp_marketing.message.read' => MessageReadTrigger::class,
+            'whatsapp_marketing.conversation.assigned' => ConversationAssignedTrigger::class,
+            'whatsapp_marketing.campaign.completed' => WhatsappMarketingCampaignCompletedTrigger::class,
         ])
             ->and($registry->actions())->toBe([
                 'crm.lead.assign' => CrmAssignLeadAction::class,
@@ -354,10 +375,15 @@ describe('the application\'s own registry', function () {
                 'ai.text.generate' => GenerateTextAction::class,
                 'communication.message.send' => SendTemplateMessageAction::class,
                 'communication.interaction.log' => LogInteractionAction::class,
+                'email_marketing.subscriber.add_to_list' => AddToListAction::class,
                 'social.post.create_draft' => CreateDraftPostAction::class,
+                'sms_marketing.group.add_contact' => AddContactToGroupAction::class,
                 'support.ticket.create' => CreateTicketAction::class,
                 'support.ticket.assign' => AssignTicketAction::class,
                 'support.ticket.add_note' => AddInternalNoteAction::class,
+                'whatsapp_marketing.template.send' => SendTemplateAction::class,
+                'whatsapp_marketing.conversation.assign' => AssignConversationAction::class,
+                'whatsapp_marketing.conversation.add_tag' => TagConversationAction::class,
             ])
             ->and(app(AutomationRegistry::class))->toBe($registry);
     });

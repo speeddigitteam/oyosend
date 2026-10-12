@@ -16,7 +16,10 @@ import PayrollSelfWidget from '@/Modules/Payroll/Components/PayrollSelfWidget.vu
 import ProjectsOverviewWidget from '@/Modules/Projects/Components/ProjectsOverviewWidget.vue';
 import NotificationsWidget from '@/Modules/Communication/Components/NotificationsWidget.vue';
 import SocialOverviewWidget from '@/Modules/Social/Components/SocialOverviewWidget.vue';
+import EmailMarketingOverviewWidget from '@/Modules/EmailMarketing/Components/EmailMarketingOverviewWidget.vue';
+import SmsMarketingOverviewWidget from '@/Modules/SmsMarketing/Components/SmsMarketingOverviewWidget.vue';
 import SupportOverviewWidget from '@/Modules/Support/Components/SupportOverviewWidget.vue';
+import WhatsappOverviewWidget from '@/Modules/WhatsappMarketing/Components/WhatsappOverviewWidget.vue';
 import AiUsageWidget from '@/Modules/Ai/Components/AiUsageWidget.vue';
 import TalentOverviewWidget from '@/Modules/Talent/Components/TalentOverviewWidget.vue';
 import TalentSelfWidget from '@/Modules/Talent/Components/TalentSelfWidget.vue';
@@ -57,7 +60,10 @@ const WIDGETS: Record<string, Component> = {
     PayrollSelfWidget,
     PayrollOverviewWidget,
     SocialOverviewWidget,
+    EmailMarketingOverviewWidget,
+    SmsMarketingOverviewWidget,
     SupportOverviewWidget,
+    WhatsappOverviewWidget,
     AiUsageWidget,
     NotificationsWidget,
 };

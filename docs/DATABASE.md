@@ -507,6 +507,35 @@ tables carry an indexed `tenant_id` and every unique index starts with it.
 
 See `docs/SOCIAL.md`.
 
+## 3g2b. SMS Marketing tables
+
+Module migrations live in `app/Modules/SmsMarketing/Database/Migrations` and are loaded by
+`SmsMarketingServiceProvider`. All tables carry an indexed `tenant_id` and every unique index starts with it.
+
+| Group | Tables | Notes |
+|---|---|---|
+| Configuration | `sms_marketing_settings`, `sms_marketing_sender_ids` | `UNIQUE(tenant_id)` on settings; `segment_cost_amount` is an unsigned `BIGINT` of minor units next to `currency`; `UNIQUE(tenant_id, value)` on sender ids (registration columns are the workspace's own record) |
+| Audience | `sms_marketing_groups`, `sms_marketing_group_members` | `UNIQUE(tenant_id, name)`; members reference `contacts.id` (`UNIQUE(tenant_id, group_id, contact_id)`), never a copy |
+| Content | `sms_marketing_templates`, `sms_marketing_campaigns`, `sms_marketing_campaign_groups` | `UNIQUE(tenant_id, name)`; campaigns carry owner/department/branch and a copy of the text |
+| Delivery | `sms_marketing_recipients` | `UNIQUE(tenant_id, campaign_id, contact_id)`; `message_id` is the communication message id; the phone is E.164 |
+| Operations | `sms_marketing_imports`, `sms_marketing_automation_action_receipts` | `UNIQUE(tenant_id, action, idempotency_key)` on receipts |
+
+Metered usage (`sms_marketing.segments_per_month`) is recorded in the platform's `usage_records`, not here. See
+`docs/SMS_MARKETING.md`.
+## 3g3. Email Marketing tables
+
+Module migrations live in `app/Modules/EmailMarketing/Database/Migrations` and are loaded by
+`EmailMarketingServiceProvider`. All tables carry an indexed `tenant_id` and every unique index starts with it.
+
+| Group | Tables | Notes |
+|---|---|---|
+| Audience | `email_marketing_lists`, `email_marketing_subscriptions`, `email_marketing_segments` | `UNIQUE(tenant_id, name)` on lists; a subscription is `UNIQUE(tenant_id, list_id, contact_id)` and points at the shared `contacts` table, with consent evidence columns and a `properties` JSON map; segments hold declarative `rules` JSON |
+| Content | `email_marketing_templates`, `email_marketing_campaigns`, `email_marketing_sequences`, `email_marketing_sequence_steps` | `blocks` JSON holds typed blocks, never HTML; campaigns carry owner/department/branch and the A/B settings; `UNIQUE(tenant_id, sequence_id, position)` on steps |
+| Sending | `email_marketing_deliveries`, `email_marketing_enrollments` | `UNIQUE(tenant_id, send_key)` is the idempotency key (`campaign:{id}:{contact}` or `sequence:{enrollment}:{step}`); `message_id` is a plain column (the communication message), not a foreign key; `UNIQUE(tenant_id, sequence_id, contact_id)` on enrolments |
+| Operations | `email_marketing_imports`, `email_marketing_settings`, `email_marketing_automation_action_receipts` | imports are `UNIQUE(tenant_id, list_id, file_sha256)` and keep counts and errors only; `UNIQUE(tenant_id)` on settings; `UNIQUE(tenant_id, action, idempotency_key)` |
+
+Index names are explicit (`em_...`) because MySQL limits identifiers to 64 characters. See `docs/EMAIL_MARKETING.md`.
+
 ## 3h. Phase 7 Talent tables
 
 Module migrations live in `app/Modules/Talent/Database/Migrations` and are loaded by `TalentServiceProvider`. All
@@ -603,6 +632,23 @@ Migration `app/Modules/Reports/Database/Migrations/2026_10_22_000100_create_repo
 | `reports_saved_reports` | A stored report setup, never data or a query. `tenant_id` FK; `owner_membership_id` -> `tenant_memberships` (`nullOnDelete`); `provider_key`, `columns` (JSON, null = defaults), `filters` (JSON, declared keys only); `range_mode` (`last_days` / `fixed`), `range_days`, `range_from`, `range_to`; `visibility` (`private` / `role` / `department`), `role_id` -> `roles` and `department_id` -> `departments`, both `nullOnDelete`. `UNIQUE(tenant_id, owner_membership_id, name)`; indexes lead with `tenant_id` |
 
 See `docs/REPORTS.md`.
+
+## 3k2. WhatsApp Business tables
+
+Module migrations live in `app/Modules/WhatsappMarketing/Database/Migrations` and are loaded by
+`WhatsappMarketingServiceProvider`. All tables carry an indexed `tenant_id` and every unique index starts with it. No
+table stores a provider token, secret or verify token (the connection is a credential reference in the
+communication app), and none stores money (cost is "not reported").
+
+| Group | Tables | Notes |
+|---|---|---|
+| Configuration | `whatsapp_settings`, `whatsapp_agents`, `whatsapp_templates`, `whatsapp_quick_replies`, `whatsapp_flows` | `UNIQUE(tenant_id)` on settings; `UNIQUE(tenant_id, membership_id)` on agents; `UNIQUE(tenant_id, name, language)` on templates (status carries `status_source` provider/admin); `UNIQUE(tenant_id, shortcut)`; flows hold only the closed step vocabulary as JSON |
+| Audience | `whatsapp_lists`, `whatsapp_list_members` | members reference `contacts`; `UNIQUE(tenant_id, list_id, contact_id)` |
+| Campaigns | `whatsapp_campaigns`, `whatsapp_campaign_recipients` | campaign has owner/department/branch and snapshots of template name, language, category, body and list name; `UNIQUE(tenant_id, campaign_id, contact_id)`; recipient `state` and `reason` mirror the communication platform's answer |
+| Conversations | `whatsapp_conversations`, `whatsapp_messages`, `whatsapp_windows` | `UNIQUE(tenant_id, phone)` (E.164); owner/department/branch of the assignee; `UNIQUE(tenant_id, provider_message_id)` is the inbound de-duplication key; message `billable` and `pricing_category` are nullable (null = not reported); `attachments` JSON is metadata only; windows are the metered unit |
+| Operations | `whatsapp_automation_receipts` | `UNIQUE(tenant_id, action, idempotency_key)` |
+
+See `docs/WHATSAPP.md`.
 
 ## 4. Later tables (outline only)
 

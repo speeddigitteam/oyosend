@@ -41,6 +41,12 @@ return [
     // Largest webhook body accepted, in bytes.
     'webhook_max_bytes' => 262144,
 
+    // The WhatsApp Cloud API adapter (Graph API). The base URL is operator configuration, never tenant input.
+    'whatsapp' => [
+        'graph_base_url' => 'https://graph.facebook.com',
+        'api_version' => 'v21.0',
+    ],
+
     /*
     |----------------------------------------------------------------------
     | Credentials a workspace may reference
@@ -54,6 +60,11 @@ return [
     |
     | Example:
     |   'sms_gateway_main' => ['secret' => env('COMMUNICATION_SMS_MAIN_SECRET'), 'tenants' => null],
+    |
+    | WhatsApp Cloud API: one entry for the system-user access token (`credential_ref`) and one for the Meta app
+    | secret that signs webhooks, which also carries the subscription `verify_token` (`webhook_secret_ref`):
+    |   'whatsapp_token_main' => ['secret' => env('COMMUNICATION_WHATSAPP_TOKEN'), 'tenants' => null],
+    |   'whatsapp_app_main' => ['secret' => env('COMMUNICATION_WHATSAPP_APP_SECRET'), 'verify_token' => env('COMMUNICATION_WHATSAPP_VERIFY_TOKEN'), 'tenants' => null],
     |
     */
     'credentials' => [],

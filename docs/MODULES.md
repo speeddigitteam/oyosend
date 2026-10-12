@@ -33,12 +33,30 @@ module key `test_crm`.
 `social` (`docs/SOCIAL.md`) is the reference for a module that talks to outside services: a provider contract
 (`SocialPlatform`) with capability flags, adapters bound by configuration, an honest `unavailable` state, encrypted
 tokens and a scheduled publisher that goes through the entitlement-gated runner.
+`sms_marketing` (`docs/SMS_MARKETING.md`) is the reference for a **marketing app on the communication contracts**:
+it depends on `core` and `communication`, imports no Communication class, sends only through
+`ChannelGateway` / `MarketingAudience` / `UnsubscribeLinks`, learns outcomes from the core
+`MarketingMessageStatusChanged` event, shows an honest `not_configured` state until a provider adapter exists,
+meters its own metered and gauge limits, bounds every send (rate, daily cap, attempts) and publishes report
+providers and an automation action with receipts.`email_marketing` (`docs/EMAIL_MARKETING.md`) is the reference for a **marketing app that sends only through the core
+communication contracts** (`MarketingAudience`, `UnsubscribeLinks`, `ChannelGateway`): its recipients are shared
+contacts (a subscriber is a list membership, never a second identity), consent and suppression are decided by the
+platform at send time and mirrored back from `communication.marketing.message_status_changed` and
+`communication.contact.unsubscribed`, and campaigns run in bounded, idempotent chunks on the `campaigns` queue from a
+minute runner. It also shows a structured block editor with no free HTML, signed stateless tracking links and CSV
+import that never grants consent.
 `reports` (`docs/REPORTS.md`) is the reference for a module that **aggregates other modules' read models**
 without importing them: it depends on `core` only and runs `App\Core\Reporting\Contracts\ReportProvider`
 implementations that each module tags in its own provider (`ReportProvider::TAG`). A provider declares its columns,
 filters and permission; the app validates a request against that declaration, runs the provider as the member
 (only for entitled modules and held permissions, narrowed by `RecordAccess` when the permission is scopable), caps
 the rows and exports a formula-safe CSV.
+`whatsapp_marketing` (`docs/WHATSAPP.md`) is the reference for a **marketing app built only on core contracts**: it
+depends on `core` and `communication`, sends through `ChannelGateway`, decides audiences with `MarketingAudience`,
+hears inbound messages, read receipts and template status through `ChannelEventListener` (tagged in its own
+provider) and has no connection, credential or webhook route of its own. It also shows the assignee-owned record
+pattern (`Models\Concerns\HasAssignee`, an enrolled agent also reaches unassigned records), a closed declarative
+vocabulary for tenant-authored bot flows, and a chunked, per-recipient-idempotent sender on the `campaigns` queue.
 
 ## 1. What a module is
 

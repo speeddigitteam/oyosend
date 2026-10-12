@@ -184,6 +184,33 @@ analytics that report only what a platform returned. Adapters exist for Facebook
 and are unverified against the live platforms; other platforms are listed as unavailable with the reason. See
 `docs/SOCIAL.md`.
 
+`app/Modules/SmsMarketing` is the SMS Marketing app (key `sms_marketing`, depends on `core` and `communication`):
+bulk and scheduled SMS campaigns to contact groups (lists of shared-contact references), templates with a fixed
+variable allow-list, recorded sender ids, a Unicode/Bengali-aware segment counter that drives estimates and the plan
+limit, delivery status from the core `MarketingMessageStatusChanged` event and bounded retries. It never imports a
+Communication model and never talks to a provider: it sends through the core `ChannelGateway`, asks
+`MarketingAudience` and issues opt-out links with `UnsubscribeLinks`. A `RunCampaigns` job on queue `campaigns`
+(every minute, entitlement-gated, per-workspace lock) builds recipients and hands out a bounded batch with idempotent
+per-attempt keys. No SMS provider adapter exists yet, so the channel is `not_configured` and campaigns cannot be
+launched; the screens say so. See `docs/SMS_MARKETING.md`.
+`app/Modules/EmailMarketing` is the Email Marketing app (key `email_marketing`, depends on `core` and
+`communication`): lists and declarative segments over shared contacts, a block editor that renders escaped HTML and
+plain text, campaigns with scheduling, A/B subjects and click measurement, welcome/drip sequences, CSV import and
+export, and reports. It never imports a Communication model: it sends through `ChannelGateway`, asks
+`MarketingAudience` and `UnsubscribeLinks`, and mirrors the platform's delivery, bounce and unsubscribe events. A
+`RunEmailMarketing` job on queue `campaigns` (every minute, entitlement-gated) prepares audiences in chunks and hands
+out a bounded number of emails per pass with idempotent per-recipient keys. The platform mailer sends plain text, so
+opens are not measured. See `docs/EMAIL_MARKETING.md`.
+
+`app/Modules/WhatsappMarketing` is the WhatsApp Business app (key `whatsapp_marketing`, depends on `core` and
+`communication`): approved-template campaigns to lists of shared contacts, a shared inbox that enforces the 24-hour
+customer-service window on the server, agent assignment with record scopes, quick replies, declarative chatbot flows,
+delivery/read tracking and two reports. It never imports a Communication model: it sends through the core
+`ChannelGateway`, asks `MarketingAudience` for opt-in decisions and receives provider events through the core
+`ChannelEventListener` feed that the communication app raises after it verified and applied them. The WhatsApp Cloud
+API adapter lives in the communication app's provider registry and has not been exercised against live Meta. See
+`docs/WHATSAPP.md`.
+
 `app/Modules/Support` is the Customer Support app (key `support`, depends only on `core`): tickets that reference
 shared contacts and companies, queues and rule-based or round-robin assignment, a thread with public replies and
 internal notes, SLA policies on business-hours calendars (`BusinessCalendar` is pure and unit-tested), single-use

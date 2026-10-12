@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Modules\Communication\Http\Controllers;
 
 use App\Modules\Communication\Actions\WebhookProcessor;
+use App\Modules\Communication\Channels\Contracts\VerifiesWebhookSubscription;
 use App\Modules\Communication\Channels\CredentialResolver;
+use App\Modules\Communication\Channels\Data\ProviderEvent;
 use App\Modules\Communication\Channels\Exceptions\InvalidWebhookSignature;
 use App\Modules\Communication\Channels\ProviderRegistry;
 use App\Modules\Communication\Models\ChannelConnection;
@@ -59,8 +61,52 @@ final class WebhookController
             return response('Invalid signature', 401)->header('Content-Type', 'text/plain');
         }
 
+        // An event that names a provider account must name THIS connection's account: a provider app shared by
+        // several workspaces can never feed one workspace another workspace's events.
+        $settings = $connection->settings ?? [];
+        $events = array_values(array_filter($events, static function (ProviderEvent $event) use ($settings): bool {
+            foreach ($event->accounts as $key => $value) {
+                if (($settings[$key] ?? null) !== $value) {
+                    return false;
+                }
+            }
+
+            return true;
+        }));
+
         $this->processor->process($adapter, $events);
 
         return response('OK', 200)->header('Content-Type', 'text/plain');
+    }
+
+    /**
+     * The subscription handshake some providers perform with a GET before they send events. It answers only
+     * for a connected, enabled connection, with the workspace's own `verify_token`, in constant time.
+     */
+    public function verify(Request $request, string $provider): Response
+    {
+        $adapter = $this->providers->findByKey($provider);
+
+        $connection = $adapter === null ? null : ChannelConnection::query()
+            ->where('provider', $provider)->where('channel', $adapter->channel()->value)->where('is_enabled', true)->first();
+        $token = $connection === null ? null : $this->credentials->attribute($connection->webhook_secret_ref, 'verify_token');
+
+        if (! $adapter instanceof VerifiesWebhookSubscription || $token === null) {
+            return response('Not found', 404)->header('Content-Type', 'text/plain');
+        }
+
+        $query = [];
+
+        foreach ($request->query() as $key => $value) {
+            if (is_string($key) && is_string($value)) {
+                $query[$key] = $value;
+            }
+        }
+
+        $answer = $adapter->answerHandshake($query, $token->secret());
+
+        return $answer === null
+            ? response('Forbidden', 403)->header('Content-Type', 'text/plain')
+            : response($answer, 200)->header('Content-Type', 'text/plain');
     }
 }

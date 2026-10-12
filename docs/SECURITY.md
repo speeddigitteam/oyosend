@@ -377,6 +377,72 @@ Details: `docs/COMMUNICATION.md`.
 - No platform adapter has been run against its live API here; each needs the platform's app review. Instagram,
   YouTube, TikTok and Pinterest are refused with a reason, not simulated.
 
+## 5d.5b. SMS Marketing: consent, opt-out and numbers
+
+- The route group requires tenant resolution, `entitled:sms_marketing` (and so `communication`), authentication, the
+  membership check and the paywall; every route names its permission. Campaigns use `HasRecordOwner` and
+  `RecordAccess`; one outside the viewer's scope is a 404, as are all records of another workspace.
+- The app holds no provider credential and calls no provider; it uses the three core contracts. Consent and
+  suppression are decided at hand-over time by `MarketingAudience` and re-checked by the platform at send time, so no
+  consent record means nothing is sent (the recipient is recorded as `blocked`). A contact is never created, and
+  consent never recorded, by an import or an automation action.
+- Every message carries the workspace's opt-out wording and a hashed, single-purpose one-click link from
+  `UnsubscribeLinks`; if no link can be issued the recipient fails instead of being sent without one.
+- Templates are data: variables come from a fixed allow-list and are looked up in an array of plain strings (control
+  characters stripped, length bounded). Nothing tenant-supplied is evaluated; a one-time-code variable is refused in
+  marketing text and a transactional template cannot be used in a campaign.
+- Sends are bounded: a per-minute rate, a hard daily cap, a segment limit per message, a campaign audience bound, at
+  most three attempts per recipient with permanent failures never retried, and an idempotency key per attempt so a
+  retried step cannot message anyone twice.
+- Sender-id registration is the workspace's own note and is never presented as verified. CSV import is size/row
+  capped, UTF-8 only and column-checked; CSV output neutralises spreadsheet formulas.
+
+## 5d.8. Email Marketing: consent, content and public links
+
+- The route group requires tenant resolution, `entitled:email_marketing`, authentication, the membership check and
+  the paywall; campaigns use `HasRecordOwner` and `RecordAccess` (a campaign outside the scope is a 404). Sending,
+  importing, exporting, managing subscribers and activating sequences are sensitive permissions granted to no role.
+- Nothing in this app reaches a mailer. Every email goes through `ChannelGateway`, which re-checks consent and
+  suppression at send time; the app's own list state can never override the platform's answer. An import, an
+  automation or a manual add without evidence is `pending` and is never sent to; importing never writes consent.
+- Email content is typed blocks, not HTML. All text is escaped on output, every link must be http/https with a host
+  and no credentials (or `mailto:` for a button), variables come from a fixed list and an unknown one is refused, and
+  contact values are substituted after formatting is parsed so a name cannot inject markup. The preview and the web
+  version render the same escaped output; the web version is served with `default-src 'none'`, `nosniff`,
+  `X-Frame-Options: DENY` and `no-store`.
+- Tracking links are HMAC-signed (key derived from the app key) over the tenant, the delivery and the destination, so
+  they cannot be turned into an open redirect or reused across workspaces, and they are stateless callback routes
+  with no session. An invalid token is a bare 404.
+- CSV import is size/row capped, UTF-8 only, column-whitelisted, refuses an address that starts with a formula
+  character and is never evaluated; CSV output is neutralised against spreadsheet formulas.
+- Test sends go only to active members of the workspace and obey the same consent rules; free addresses cannot be
+  typed in. A/B and campaign counters are metered idempotently; the audit trail records ids and counts, never message
+  content or addresses.
+
+## 5d.7. WhatsApp Business: webhooks, window and customer text
+
+- The app has no webhook route of its own. Meta's callbacks arrive on the communication app's stateless route: tenant
+  from the hostname, connected and enabled channel required, signature (`X-Hub-Signature-256`, HMAC-SHA256 of the raw
+  body with the app secret from a credential reference) verified in constant time **before** the body is parsed,
+  body size capped, each provider event id applied once. An event naming another `phone_number_id` (or business
+  account id) than the connection's own is dropped, so a Meta app shared by workspaces cannot cross-feed them. The
+  GET handshake needs the reference's `verify_token`, compares in constant time and echoes only an alphanumeric
+  challenge.
+- The access token and app secret never enter the database, props, logs, exceptions, queue payloads or audit entries
+  (`ChannelCredentials` cannot be serialised, dumped or cast to a string; the adapter strips provider error text to
+  the error code and a short detail). The settings page shows connection state and reference names only.
+- Inbound text is untrusted: valid UTF-8, control characters removed, 4096-character cap, rendered as text (never
+  `v-html`); attachments are metadata only and are never fetched, so no file type or size can be abused. Provider
+  facts in webhooks are stored as scalars with fixed lengths. Notification text never contains message bodies.
+- Free-form replies are refused outside the 24-hour window on the server (and by the adapter at send time); only an
+  approved template can be sent then; a marketing template needs a recorded opt-in and the platform re-checks consent
+  and suppression at send time. A hint to the adapter can only use the channel prefix and cannot override connection
+  settings or the marketing references.
+- Chatbot flows are data from a closed vocabulary; keywords are compared as plain text, placeholders come from an
+  allow-list and nothing a tenant writes is evaluated. Bot replies are rate guarded and stop when a person owns the
+  conversation.
+- Logs never contain message text, names or numbers (listener failures log the exception class and event type only).
+
 ## 5d.6. AI Assistant: provider credential, tools and prompts
 
 Full design in `docs/AI.md`; the security rules:

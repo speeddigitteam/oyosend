@@ -50,6 +50,7 @@ import {
     Image,
     Send,
     Share2,
+    Smartphone,
     Upload,
     LifeBuoy,
     BookOpen,
@@ -59,6 +60,12 @@ import {
     Sparkles,
     Timer,
     Workflow,
+    MailOpen,
+    LayoutTemplate,
+    MessageCircle,
+    Megaphone,
+    FileText,
+    Zap,
 } from 'lucide-vue-next';
 import type { Component } from 'vue';
 
@@ -129,6 +136,13 @@ const REGISTRY: Record<string, Component> = {
     'timer': Timer,
     sparkles: Sparkles,
     gauge: Gauge,
+    'mail-open': MailOpen,
+    'layout-template': LayoutTemplate,
+    smartphone: Smartphone,
+    'message-circle': MessageCircle,
+    'megaphone': Megaphone,
+    'file-text': FileText,
+    'zap': Zap,
 };
 
 defineProps<{ name: string }>();

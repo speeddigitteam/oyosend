@@ -25,6 +25,21 @@ final class CredentialResolver
         return is_string($secret) && $secret !== '' ? new ChannelCredentials($secret) : null;
     }
 
+    /**
+     * A second secret on the same entry (the webhook subscription `verify_token`), under the same workspace
+     * restriction. Only the listed attributes can be read this way.
+     */
+    public function attribute(?string $reference, string $key): ?ChannelCredentials
+    {
+        if (! in_array($key, ['verify_token'], true)) {
+            return null;
+        }
+
+        $value = $this->entry($reference)[$key] ?? null;
+
+        return is_string($value) && $value !== '' ? new ChannelCredentials($value) : null;
+    }
+
     /** Whether the reference names a non-empty secret this workspace may use. */
     public function isAvailable(?string $reference): bool
     {
@@ -51,7 +66,7 @@ final class CredentialResolver
         return $names;
     }
 
-    /** @return array{secret?: mixed, tenants?: mixed}|null */
+    /** @return array{secret?: mixed, tenants?: mixed, verify_token?: mixed}|null */
     private function entry(?string $reference): ?array
     {
         if ($reference === null || preg_match(self::PATTERN, $reference) !== 1) {

@@ -33,6 +33,7 @@ final class WebhookProcessor
         private readonly SuppressionManager $suppressions,
         private readonly ConsentManager $consents,
         private readonly TimelineRecorder $timeline,
+        private readonly ChannelEventRelay $relay,
     ) {}
 
     /**
@@ -49,6 +50,7 @@ final class WebhookProcessor
             }
 
             $applied += $this->apply($provider, $event) ? 1 : 0;
+            $this->relay->forward($provider, $event);
         }
 
         return $applied;
@@ -93,6 +95,8 @@ final class WebhookProcessor
             ProviderEventType::Failed => $this->failed($message, $now, $event),
             ProviderEventType::Bounced => $this->bounced($message, $now),
             ProviderEventType::Complained => $this->complained($message),
+            // Read receipts and template status only reach channel-event listeners.
+            ProviderEventType::Read, ProviderEventType::TemplateStatus => false,
         };
     }
 
