@@ -244,4 +244,7 @@ export interface InvoicingSettings {
     reminderBeforeDays: number;
     reminderOverdueEveryDays: number;
     invoiceAcceptedQuotes: boolean;
+    documentTemplate: 'classic' | 'modern' | 'compact' | 'letterhead';
+    letterheadHeaderUrl: string | null;
+    letterheadFooterUrl: string | null;
 }

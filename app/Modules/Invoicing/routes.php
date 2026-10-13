@@ -74,5 +74,10 @@ Route::middleware(['auth:web', 'auth.session', 'member', 'subscribed'])->prefix(
         Route::put('settings', [SettingsController::class, 'update'])->name('invoicing.settings.update');
         Route::post('settings/tax-rates', [SettingsController::class, 'storeTaxRate'])->name('invoicing.settings.tax-rates.store');
         Route::put('settings/tax-rates/{taxRate}', [SettingsController::class, 'updateTaxRate'])->name('invoicing.settings.tax-rates.update');
+        Route::get('settings/document-preview', [SettingsController::class, 'documentPreview'])->name('invoicing.settings.document-preview');
+        Route::post('settings/letterhead/{slot}', [SettingsController::class, 'uploadLetterhead'])
+            ->where('slot', 'header|footer')->name('invoicing.settings.letterhead.upload');
+        Route::delete('settings/letterhead/{slot}', [SettingsController::class, 'removeLetterhead'])
+            ->where('slot', 'header|footer')->name('invoicing.settings.letterhead.destroy');
     });
 });

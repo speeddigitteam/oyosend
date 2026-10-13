@@ -301,7 +301,7 @@ it('manages tax rates, settings and recurring templates through their pages', fu
         'invoice_prefix' => 'BILL-', 'credit_note_prefix' => 'CR-', 'number_padding' => 6, 'fiscal_year_numbering' => false,
         'fiscal_year_start_month' => 7, 'default_due_days' => 30, 'default_terms' => 'Net 30', 'default_notes' => null,
         'reminders_enabled' => true, 'reminder_before_days' => 2, 'reminder_overdue_every_days' => 5,
-        'invoice_accepted_quotes' => true,
+        'invoice_accepted_quotes' => true, 'document_template' => 'modern',
     ])->assertRedirect();
     $this->put(($this->url)('/settings'), ['invoice_prefix' => '<script>'])->assertSessionHasErrors('invoice_prefix');
 

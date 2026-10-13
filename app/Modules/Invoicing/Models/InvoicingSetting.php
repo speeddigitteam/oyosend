@@ -6,6 +6,7 @@ namespace App\Modules\Invoicing\Models;
 
 use App\Core\Audit\Concerns\Auditable;
 use App\Core\Tenancy\Concerns\BelongsToTenant;
+use App\Modules\Invoicing\Enums\DocumentTemplate;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 
@@ -26,6 +27,9 @@ use Illuminate\Database\Eloquent\Model;
  * @property int $reminder_before_days
  * @property int $reminder_overdue_every_days
  * @property bool $invoice_accepted_quotes
+ * @property DocumentTemplate $document_template
+ * @property string|null $letterhead_header_path
+ * @property string|null $letterhead_footer_path
  */
 class InvoicingSetting extends Model
 {
@@ -39,7 +43,8 @@ class InvoicingSetting extends Model
     protected $fillable = [
         'invoice_prefix', 'credit_note_prefix', 'number_padding', 'fiscal_year_numbering',
         'fiscal_year_start_month', 'default_due_days', 'default_terms', 'default_notes', 'reminders_enabled',
-        'reminder_before_days', 'reminder_overdue_every_days', 'invoice_accepted_quotes',
+        'reminder_before_days', 'reminder_overdue_every_days', 'invoice_accepted_quotes', 'document_template',
+        'letterhead_header_path', 'letterhead_footer_path',
     ];
 
     /** @return array<string, string> */
@@ -54,6 +59,7 @@ class InvoicingSetting extends Model
             'reminder_before_days' => 'integer',
             'reminder_overdue_every_days' => 'integer',
             'invoice_accepted_quotes' => 'boolean',
+            'document_template' => DocumentTemplate::class,
         ];
     }
 

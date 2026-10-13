@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useForm } from '@inertiajs/vue3';
-import { Percent, Pencil, Plus } from 'lucide-vue-next';
+import { Eye, Percent, Pencil, Plus } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Badge from '@/Core/Components/Badge.vue';
@@ -17,6 +17,7 @@ import { useFormat } from '@/Core/composables/useFormat';
 import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
 import { route } from '@/Core/lib/route';
 import InvoicingNav from '../../Components/InvoicingNav.vue';
+import LetterheadBandCard from '../../Components/LetterheadBandCard.vue';
 import TaxRateDialog from '../../Components/TaxRateDialog.vue';
 import type { InvoicingSettings, TaxRate } from '../../Components/types';
 
@@ -44,7 +45,15 @@ const form = useForm({
     reminder_before_days: String(props.settings.reminderBeforeDays),
     reminder_overdue_every_days: String(props.settings.reminderOverdueEveryDays),
     invoice_accepted_quotes: props.settings.invoiceAcceptedQuotes,
+    document_template: props.settings.documentTemplate,
 });
+
+const templateOptions = computed(() => [
+    { value: 'classic', label: t('invoicing.settings.templateClassic') },
+    { value: 'modern', label: t('invoicing.settings.templateModern') },
+    { value: 'compact', label: t('invoicing.settings.templateCompact') },
+    { value: 'letterhead', label: t('invoicing.settings.templateLetterhead') },
+]);
 
 const rateOpen = ref(false);
 const editingRate = ref<TaxRate | null>(null);
@@ -84,6 +93,10 @@ function submit(): void {
 function openRate(rate: TaxRate | null): void {
     editingRate.value = rate;
     rateOpen.value = true;
+}
+
+function previewTemplate(): void {
+    window.open(route('invoicing.settings.document-preview', { template: form.document_template }), '_blank', 'noopener');
 }
 </script>
 
@@ -127,10 +140,29 @@ function openRate(rate: TaxRate | null): void {
             <Checkbox v-model="form.invoice_accepted_quotes" :label="t('invoicing.settings.invoiceQuotes')" :description="t('invoicing.settings.invoiceQuotesHint')" />
         </Card>
 
+        <Card :title="t('invoicing.settings.documentTitle')" :description="t('invoicing.settings.documentHint')">
+            <div class="flex flex-wrap items-end gap-3">
+                <Select v-model="form.document_template" :options="templateOptions" class="sm:max-w-64" :label="t('invoicing.settings.templateLabel')" :error="form.errors.document_template" />
+                <Button type="button" size="sm" variant="secondary" @click="previewTemplate">
+                    <template #icon><Eye class="size-4" aria-hidden="true" /></template>
+                    {{ t('invoicing.settings.templatePreview') }}
+                </Button>
+            </div>
+            <p class="mt-3 text-sm text-ink-muted">{{ t('invoicing.settings.templatePreviewHint') }}</p>
+            <p v-if="form.document_template === 'letterhead'" class="mt-1 text-sm text-ink-muted">{{ t('invoicing.settings.templateLetterheadHint') }}</p>
+        </Card>
+
         <div class="flex justify-end">
             <Button type="submit" variant="primary" :loading="form.processing">{{ t('invoicing.common.save') }}</Button>
         </div>
     </form>
+
+    <Card class="mt-3" :title="t('invoicing.settings.letterhead')" :description="t('invoicing.settings.letterheadHint')">
+        <div class="grid gap-4 sm:grid-cols-2">
+            <LetterheadBandCard band="header" :label="t('invoicing.settings.letterheadHeader')" :image-url="settings.letterheadHeaderUrl" />
+            <LetterheadBandCard band="footer" :label="t('invoicing.settings.letterheadFooter')" :image-url="settings.letterheadFooterUrl" />
+        </div>
+    </Card>
 
     <Card class="mt-3" :title="t('invoicing.settings.taxRates')" :description="t('invoicing.settings.taxRatesHint')" flush>
         <template #actions>

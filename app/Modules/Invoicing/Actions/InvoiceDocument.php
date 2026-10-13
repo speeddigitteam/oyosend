@@ -7,6 +7,7 @@ namespace App\Modules\Invoicing\Actions;
 use App\Core\Billing\Support\Money;
 use App\Core\Tenancy\Storage\TenantStorage;
 use App\Core\Tenancy\TenantContext;
+use App\Modules\Invoicing\Enums\DocumentTemplate;
 use App\Modules\Invoicing\Enums\InvoiceStatus;
 use App\Modules\Invoicing\Models\CreditNote;
 use App\Modules\Invoicing\Models\Invoice;
@@ -22,11 +23,14 @@ final class InvoiceDocument
 {
     private const int MAX_LOGO_BYTES = 1_048_576;
 
+    private const int MAX_LETTERHEAD_BYTES = 2_097_152;
+
     private const array LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
 
     public function __construct(
         private readonly TenantContext $context,
         private readonly TenantStorage $storage,
+        private readonly InvoicingSettings $settings,
     ) {}
 
     public function html(Invoice|CreditNote $document): string
@@ -37,7 +41,73 @@ final class InvoiceDocument
     /** @return array<string, mixed> */
     public function data(Invoice|CreditNote $document): array
     {
-        return $document instanceof CreditNote ? $this->creditNote($document) : $this->invoice($document);
+        $specific = $document instanceof CreditNote ? $this->creditNote($document) : $this->invoice($document);
+        $settings = $this->settings->current();
+        $letterhead = $settings->document_template->usesLetterhead();
+
+        return [
+            ...$specific,
+            'template' => $settings->document_template->value,
+            'letterheadHeader' => $letterhead ? $this->dataUri($settings->letterhead_header_path, self::MAX_LETTERHEAD_BYTES) : null,
+            'letterheadFooter' => $letterhead ? $this->dataUri($settings->letterhead_footer_path, self::MAX_LETTERHEAD_BYTES) : null,
+        ];
+    }
+
+    /**
+     * A sample invoice in the given template, for the settings-page preview. It persists nothing and uses the
+     * workspace's real sender details, logo and (for the letterhead template) uploaded bands.
+     */
+    public function previewHtml(DocumentTemplate $template): string
+    {
+        $tenant = $this->context->require();
+        $settings = $this->settings->current();
+        $currency = $tenant->currency ?? 'BDT';
+        $fmt = fn (int $minor): string => Money::format($minor, $currency);
+        $letterhead = $template->usesLetterhead();
+
+        $seller = [
+            'name' => $tenant->legal_name ?? $tenant->name,
+            'address' => $tenant->address, 'city' => $tenant->city, 'postal_code' => $tenant->postal_code,
+            'country' => $tenant->country, 'tax_id' => $tenant->tax_id,
+            'email' => $tenant->email, 'phone' => $tenant->phone, 'website' => $tenant->website,
+        ];
+
+        $data = [
+            'kind' => 'invoice',
+            'heading' => __('Invoice'),
+            'number' => $settings->invoice_prefix.'0001 ('.__('preview').')',
+            'status' => __('Issued'),
+            'statusKey' => 'issued',
+            'dates' => [
+                ['label' => __('Invoice date'), 'value' => $this->date(Carbon::now())],
+                ['label' => __('Due date'), 'value' => $this->date(Carbon::now()->addDays($settings->default_due_days))],
+            ],
+            'reference' => 'PO-2048',
+            'subject' => __('Sample invoice'),
+            'seller' => $this->party($seller, 'name'),
+            'customer' => ['name' => __('Sample Customer Ltd.'), 'lines' => ['Dhaka, Bangladesh', __('Tax ID').': 1234567890']],
+            'lines' => [
+                ['name' => __('Website design'), 'description' => __('Homepage and inner pages'), 'quantity' => '1', 'unitPrice' => $fmt(5_000_00), 'discount' => null, 'tax' => '15%', 'total' => $fmt(5_000_00)],
+                ['name' => __('Hosting (1 year)'), 'description' => null, 'quantity' => '1', 'unitPrice' => $fmt(1_200_00), 'discount' => null, 'tax' => '15%', 'total' => $fmt(1_200_00)],
+            ],
+            'totals' => [
+                ['label' => __('Subtotal'), 'value' => $fmt(6_200_00)],
+                ['label' => __('Tax'), 'value' => $fmt(930_00)],
+                ['label' => __('Total'), 'value' => $fmt(7_130_00), 'strong' => true],
+                ['label' => __('Balance due'), 'value' => $fmt(7_130_00), 'strong' => true],
+            ],
+            'notes' => $settings->default_notes ?? __('Thank you for your business.'),
+            'terms' => $settings->default_terms,
+            'logo' => $this->logo(),
+            'orgName' => $seller['name'],
+            'locale' => app()->getLocale(),
+            'relatesTo' => null,
+            'template' => $template->value,
+            'letterheadHeader' => $letterhead ? $this->dataUri($settings->letterhead_header_path, self::MAX_LETTERHEAD_BYTES) : null,
+            'letterheadFooter' => $letterhead ? $this->dataUri($settings->letterhead_footer_path, self::MAX_LETTERHEAD_BYTES) : null,
+        ];
+
+        return view('invoicing.document', $data)->render();
     }
 
     /** @return array<string, mixed> */
@@ -246,8 +316,15 @@ final class InvoiceDocument
     /** The workspace logo as a data URI, or null. A missing or unreadable file never blocks the document. */
     private function logo(): ?string
     {
-        $path = $this->context->require()->logo_path;
+        return $this->dataUri($this->context->require()->logo_path, self::MAX_LOGO_BYTES);
+    }
 
+    /**
+     * A tenant image file as a base64 data URI, or null. A missing, oversized or unreadable file never
+     * blocks the document: the layout simply omits the image.
+     */
+    private function dataUri(?string $path, int $maxBytes): ?string
+    {
         if ($path === null) {
             return null;
         }
@@ -255,7 +332,7 @@ final class InvoiceDocument
         try {
             $bytes = $this->storage->get($path);
 
-            if ($bytes === null || $bytes === '' || strlen($bytes) > self::MAX_LOGO_BYTES) {
+            if ($bytes === null || $bytes === '' || strlen($bytes) > $maxBytes) {
                 return null;
             }
 

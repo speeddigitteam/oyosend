@@ -146,6 +146,21 @@ as an attachment.
 locale) with the document attached. There is **no public view link**: the document travels with the message, so no
 unauthenticated route exists.
 
+### Template and letterhead
+
+`invoicing_settings.document_template` (`DocumentTemplate` enum) chooses one of four layouts for the document:
+`classic` (default), `modern` (a calm accent), `compact` (tighter type) and `letterhead`. The template is a
+settings field; changing it never re-renders an issued document's stored data, only how it is drawn.
+
+`letterhead` lays the invoice on the workspace's own "pad": a **header band** and a **footer band**, each an image
+uploaded in Settings (`invoicing_settings.letterhead_header_path` / `letterhead_footer_path`, stored through
+`TenantStorage` in `invoicing/letterhead/`, PNG/JPG/WebP ≤ 2 MB). The bands are embedded as data URIs like the
+logo, and the typed sender block is hidden because the pad already carries it. Bands are inline `<img>`, not a CSS
+page background, so they print reliably through the browser without "background graphics" — which also keeps the
+no-PDF-library decision intact (a full-page background pad would need a server-side renderer, and the usual ones
+are LGPL/GPL). Uploads go through `LetterheadAssets` (`POST`/`DELETE invoicing/settings/letterhead/{header|footer}`,
+`invoicing.settings.manage`), audited as `invoicing.letterhead.updated` / `.removed`.
+
 ## Reminders and overdue
 
 `MaintainReceivables` (job `invoicing.receivables`, hourly) first marks past-due invoices `overdue` (announcing each
@@ -232,6 +247,7 @@ and a `can:` permission. No route is public.
 | `invoicing.reports.index` | GET `/reports` |
 | `invoicing.settings.index` / `.update` | GET/PUT `/settings` |
 | `invoicing.settings.tax-rates.store` / `.update` | POST `/settings/tax-rates`, PUT `/settings/tax-rates/{taxRate}` |
+| `invoicing.settings.letterhead.upload` / `.destroy` | POST/DELETE `/settings/letterhead/{header\|footer}` |
 
 ## Frontend
 

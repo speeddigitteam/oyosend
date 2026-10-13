@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+@php($template = $template ?? 'classic')
 <html lang="{{ str_replace('_', '-', $locale) }}">
 <head>
     <meta charset="utf-8">
@@ -35,12 +36,36 @@
         .block { margin-top: 24px; }
         .block h2 { margin: 0 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #55595f; }
         .block p { margin: 0; white-space: pre-line; }
+        .letterhead { display: none; }
+        .letterhead img { display: block; width: 100%; height: auto; }
+        .letterhead-footer { margin-top: 32px; }
+
+        /* Modern: a calm accent on the heading and the total line. */
+        body[data-template="modern"] h1 { color: #1f5f8b; }
+        body[data-template="modern"] th { border-bottom-color: #1f5f8b; color: #1f5f8b; }
+        body[data-template="modern"] .totals tr.strong td { border-top-color: #1f5f8b; color: #1f5f8b; }
+
+        /* Compact: tighter type and spacing to fit more on a page. */
+        body[data-template="compact"] { font-size: 12.5px; }
+        body[data-template="compact"] .sheet { padding: 12mm 12mm; }
+        body[data-template="compact"] h1 { font-size: 21px; }
+        body[data-template="compact"] .parties { margin: 18px 0 12px; }
+        body[data-template="compact"] td { padding: 5px 8px; }
+        body[data-template="compact"] .block { margin-top: 16px; }
+
+        /* Letterhead: lay the document on the uploaded bands; the seller block lives in the pad. */
+        body[data-template="letterhead"] .letterhead { display: block; }
+        body[data-template="letterhead"] .seller { display: none; }
+        body[data-template="letterhead"] .sheet { padding-top: 0; padding-bottom: 0; }
+        body[data-template="letterhead"] header.top { margin-top: 16mm; }
+
         @page { size: A4; margin: 12mm; }
         @media print {
             body { background: #fff; }
             .toolbar { display: none; }
             .sheet { border: 0; margin: 0; padding: 0; max-width: none; min-height: 0; }
-            tr, .totals { break-inside: avoid; }
+            body[data-template="letterhead"] header.top { margin-top: 8mm; }
+            tr, .totals, .letterhead { break-inside: avoid; }
         }
         @media (max-width: 600px) {
             .sheet { padding: 16px; }
@@ -49,15 +74,19 @@
         }
     </style>
 </head>
-<body>
+<body data-template="{{ $template }}">
 @if (! ($embedded ?? false))
     <div class="toolbar">
         <button type="button" id="print-document">{{ __('Print / Save as PDF') }}</button>
     </div>
 @endif
 <main class="sheet">
+    @if ($template === 'letterhead' && ($letterheadHeader ?? null))
+        <div class="letterhead letterhead-header"><img src="{{ $letterheadHeader }}" alt=""></div>
+    @endif
+
     <header class="top">
-        <div>
+        <div class="seller">
             @if ($logo)
                 <img class="logo" src="{{ $logo }}" alt="{{ $orgName }}">
             @endif
@@ -144,6 +173,10 @@
     @endif
     @if ($terms)
         <section class="block"><h2>{{ __('Terms') }}</h2><p>{{ $terms }}</p></section>
+    @endif
+
+    @if ($template === 'letterhead' && ($letterheadFooter ?? null))
+        <div class="letterhead letterhead-footer"><img src="{{ $letterheadFooter }}" alt=""></div>
     @endif
 </main>
 @if (! ($embedded ?? false))
