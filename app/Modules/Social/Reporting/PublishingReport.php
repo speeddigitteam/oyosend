@@ -10,12 +10,16 @@ use App\Core\Reporting\ReportColumn;
 use App\Core\Reporting\ReportContext;
 use App\Core\Reporting\ReportDefinition;
 use App\Core\Reporting\ReportResult;
+use App\Modules\Social\Actions\AccountAllowList;
 use App\Modules\Social\Actions\SocialAnalytics;
 
 /** Posts published and failed per platform in the period, from this application's own publishing records. */
 final class PublishingReport implements ReportProvider
 {
-    public function __construct(private readonly SocialAnalytics $analytics) {}
+    public function __construct(
+        private readonly SocialAnalytics $analytics,
+        private readonly AccountAllowList $allowList,
+    ) {}
 
     public function definition(): ReportDefinition
     {
@@ -35,7 +39,7 @@ final class PublishingReport implements ReportProvider
 
     public function run(ReportContext $context): ReportResult
     {
-        $overview = $this->analytics->overview($context->fromAt, $context->toAt);
+        $overview = $this->analytics->overview($context->fromAt, $context->toAt, $this->allowList->analyticsScope($context->user));
 
         return new ReportResult(array_map(static fn (array $row): array => [
             'platform' => $row['label'],

@@ -6,6 +6,7 @@ namespace App\Modules\CRM\Actions;
 
 use App\Core\Audit\AuditLogger;
 use App\Modules\CRM\Enums\SalesOrderStatus;
+use App\Modules\CRM\Events\SalesOrderStatusChanged;
 use App\Modules\CRM\Models\SalesOrder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -34,6 +35,7 @@ final class SalesOrderManager
             $locked->canceled_at = $status === SalesOrderStatus::Canceled ? now() : null;
             $locked->save();
             $this->audit->record('crm.sales_order.status_changed', $locked, ['status' => $status->value]);
+            SalesOrderStatusChanged::dispatch($locked);
 
             return $locked;
         });

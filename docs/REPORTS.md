@@ -48,7 +48,7 @@ Rules a provider keeps:
 - Stop at `$context->rowLimit + 1` rows; the runner cuts at the limit and flags `truncated`.
 - A snapshot report sets `usesDateRange: false`.
 
-Communication and AI do not publish providers (24 providers are registered by 12 modules); a module that does
+Communication and AI do not publish providers (26 providers are registered by 12 modules); a module that does
 later follows the same two steps and nothing in the reports app changes.
 
 ## 2. Running a report (`ReportRunner`)
@@ -133,7 +133,9 @@ Pages: `Modules/Reports/Pages/Index` and `Modules/Reports/Pages/Run` (used for b
 | `email_marketing.lists` | `email_marketing.reports.view` (snapshot) |
 | `sms_marketing.campaigns`, `sms_marketing.daily` | `sms_marketing.analytics.view` |
 | `whatsapp_marketing.campaign_delivery`, `whatsapp_marketing.conversation_activity` | `whatsapp_marketing.analytics.view` |
+| `social.comment_volume` | `social.comments.view` (scopable; comments received, answered, average minutes to the first answer, waiting, hidden per account; no answered comment means null) |
 | `social.publishing`, `social.engagement` | `social.analytics.view` (null = platform did not report) |
+| `social.page_insights`, `social.campaign_performance` | `social.analytics.view`; narrowed to the pages the viewer may see analytics for (account allow-list); empty = not reported |
 | `automation.run_outcomes` | `automation.runs.view` (live runs only) |
 
 ## 7. Not built

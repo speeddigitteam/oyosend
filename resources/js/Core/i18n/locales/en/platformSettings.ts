@@ -35,15 +35,39 @@ export default {
         offlineInstructionsHint:
             'Shown on every unpaid invoice: bank details, a mobile banking number, who to call. Leave it empty and nothing is shown.',
     },
+    issuer: {
+        title: 'Invoice issuer',
+        description: 'The prefix on platform invoice numbers and the business details printed on every invoice.',
+        invoicePrefix: 'Invoice number prefix',
+        invoicePrefixHint: 'Leads the number, e.g. “INV” in INV-2026-000042. Letters, numbers, . _ / -.',
+        name: 'Business name',
+        address: 'Address',
+        email: 'Billing email',
+        taxId: 'Tax / VAT number',
+    },
     gateways: {
         title: 'Payment gateways',
         description:
-            'Read-only. A gateway’s credentials live in the server’s environment; they are never stored in the database or shown on a page. To turn a gateway on, set its credentials there and deploy.',
+            'Enter a gateway’s credentials here and they are stored encrypted; they are never shown again or logged. A gateway with no credentials here falls back to the server environment, and one with neither is not offered.',
         configured: 'Configured',
         notConfigured: 'Not configured',
-        // Under a gateway's name.
-        configuredHint: 'Has its credentials',
-        notConfiguredHint: 'No credentials, so it is not offered to workspaces',
+        // Where the gateway's credentials come from.
+        source: {
+            panel: 'Credentials set in this panel',
+            environment: 'Using the server environment',
+            none: 'No credentials, so it is not offered to workspaces',
+        },
+        // Credential field labels.
+        fields: {
+            store_id: 'Store ID',
+            store_password: 'Store password',
+            signature_key: 'Signature key',
+        },
+        secretStored: 'Stored — leave blank to keep',
+        sandbox: 'Sandbox mode (test credentials)',
+        enabled: 'Offer this gateway to workspaces',
+        save: 'Save credentials',
+        clear: 'Clear',
         none: 'No payment gateway in this build',
         noneBody: 'Workspaces pay outside a gateway, and an operator records each payment on its invoice.',
     },

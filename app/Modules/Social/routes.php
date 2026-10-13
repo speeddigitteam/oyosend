@@ -2,14 +2,19 @@
 
 declare(strict_types=1);
 
+use App\Modules\Social\Ai\AiAssistController;
+use App\Modules\Social\Ai\SentimentSummaryController;
+use App\Modules\Social\Http\Controllers\AccountAccessController;
 use App\Modules\Social\Http\Controllers\AccountController;
 use App\Modules\Social\Http\Controllers\AnalyticsController;
 use App\Modules\Social\Http\Controllers\CalendarController;
 use App\Modules\Social\Http\Controllers\CommentController;
 use App\Modules\Social\Http\Controllers\ImportController;
+use App\Modules\Social\Http\Controllers\InsightsDashboard;
 use App\Modules\Social\Http\Controllers\LibraryController;
 use App\Modules\Social\Http\Controllers\MediaController;
 use App\Modules\Social\Http\Controllers\PostController;
+use App\Modules\Social\Http\Controllers\PreflightController;
 use App\Modules\Social\Http\Controllers\SettingsController;
 use Illuminate\Support\Facades\Route;
 
@@ -24,6 +29,17 @@ Route::middleware(['auth:web', 'auth.session', 'member', 'subscribed'])->prefix(
     Route::get('posts/export', [PostController::class, 'export'])
         ->middleware(['can:social.posts.view', 'throttle:10,1'])
         ->name('social.posts.export');
+    // AI suggestions for the composer (text only; permission and per-member limits apply).
+    Route::post('posts/ai/{operation}', AiAssistController::class)
+        ->middleware(['can:social.posts.ai_assist', 'throttle:30,1'])
+        ->where('operation', 'caption|hashtags|rewrite|shorten|translate')
+        ->name('social.posts.ai');
+    Route::get('analytics/sentiment', SentimentSummaryController::class)
+        ->middleware(['can:social.analytics.view', 'throttle:60,1'])
+        ->name('social.analytics.sentiment');
+    Route::post('posts/preflight', PreflightController::class)
+        ->middleware(['can:social.posts.view', 'throttle:120,1'])
+        ->name('social.posts.preflight');
     Route::get('posts/create', [PostController::class, 'create'])->middleware('can:social.posts.create')->name('social.posts.create');
     Route::post('posts', [PostController::class, 'store'])->middleware('can:social.posts.create')->name('social.posts.store');
     Route::get('posts/{post}', [PostController::class, 'show'])->middleware('can:social.posts.view')->name('social.posts.show');
@@ -76,6 +92,10 @@ Route::middleware(['auth:web', 'auth.session', 'member', 'subscribed'])->prefix(
         Route::get('accounts/select/{selection}', [AccountController::class, 'select'])->name('social.accounts.select');
         Route::post('accounts/select/{selection}', [AccountController::class, 'connectSelected'])->name('social.accounts.select.store');
         Route::delete('accounts/{account}', [AccountController::class, 'disconnect'])->name('social.accounts.destroy');
+        Route::put('accounts/{account}/access', [AccountAccessController::class, 'update'])->name('social.accounts.access.update');
+        Route::post('accounts/{account}/access/check', [AccountAccessController::class, 'check'])
+            ->middleware('throttle:6,1')
+            ->name('social.accounts.access.check');
     });
 
     // Campaigns, categories, hashtag sets
@@ -99,6 +119,9 @@ Route::middleware(['auth:web', 'auth.session', 'member', 'subscribed'])->prefix(
         Route::post('imports', [ImportController::class, 'store'])->middleware('throttle:10,1')->name('social.imports.store');
     });
 
+    Route::get('analytics/export', [InsightsDashboard::class, 'download'])
+        ->middleware(['can:social.analytics.view', 'throttle:10,1'])
+        ->name('social.analytics.export');
     Route::get('analytics', [AnalyticsController::class, 'index'])
         ->middleware('can:social.analytics.view')
         ->name('social.analytics.index');

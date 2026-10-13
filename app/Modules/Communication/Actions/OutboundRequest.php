@@ -19,6 +19,7 @@ final readonly class OutboundRequest
      * @param  string|null  $source  Where it came from: `composer`, `automation`, `notification`, a module key.
      * @param  CarbonInterface|null  $sendAt  Not before this moment.
      * @param  array<string, scalar|null>  $meta  Small facts (provider hints), never secrets.
+     * @param  string|null  $senderNumberId  The workspace number (communication_channel_numbers id) to send from.
      */
     public function __construct(
         public Channel $channel,
@@ -35,5 +36,6 @@ final readonly class OutboundRequest
         public ?string $source = null,
         public ?CarbonInterface $sendAt = null,
         public array $meta = [],
+        public ?string $senderNumberId = null,
     ) {}
 }

@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Modules\Social\Actions;
 
 use App\Modules\Social\Enums\AccountStatus;
+use App\Modules\Social\Enums\PostType;
 use App\Modules\Social\Models\Post;
 use App\Modules\Social\Models\PostMedia;
 use App\Modules\Social\Models\PostTarget;
+use App\Modules\Social\Platforms\PostTypeAware;
 use App\Modules\Social\Platforms\SocialPlatforms;
 use Illuminate\Validation\ValidationException;
 
@@ -24,7 +26,7 @@ final class PostContentRules
      * @return list<array{
      *     targetId: string, accountId: string, platform: string, platformLabel: string, accountName: string,
      *     accountStatus: string, text: string, length: int, maxLength: int, mediaCount: int,
-     *     capabilities: array<string, bool|int>, issues: list<string>
+     *     capabilities: array<string, bool|int>, issues: list<string>, warnings: list<string>, postType: string
      * }>
      */
     public function previews(Post $post): array
@@ -34,12 +36,15 @@ final class PostContentRules
         $videos = $media->filter(fn ($item): bool => $item->kind->value === 'video')->count();
         $images = $media->count() - $videos;
         $hasText = trim($post->composedBody()) !== '' || $post->targets->contains(fn (PostTarget $t): bool => trim((string) $t->body_override) !== '');
+        $type = $post->post_type ?? PostType::Post;
+        $infos = $media->map(fn ($item) => $item->info())->values()->all();
         $previews = [];
 
         foreach ($post->targets as $target) {
             $account = $target->account;
             $platform = $this->platforms->find($account->platform);
             $issues = [];
+            $warnings = [];
             $text = $post->composedBody($target->body_override);
             $capabilities = $platform?->capabilities();
             $length = $platform?->textLength($text) ?? mb_strlen($text);
@@ -63,7 +68,20 @@ final class PostContentRules
                     ]);
                 }
 
-                if ($media->count() > $capabilities->maxMedia) {
+                if ($platform instanceof PostTypeAware) {
+                    // The adapter judges the media for the chosen post type (photos / video / Reel).
+                    foreach ($platform->checkPost($type, $infos) as $item) {
+                        if ($item['blocking']) {
+                            $issues[] = $item['message'];
+                        } else {
+                            $warnings[] = $item['message'];
+                        }
+                    }
+                } elseif ($type === PostType::Reel) {
+                    $issues[] = __('This platform does not publish Reels.');
+                } elseif ($type === PostType::Video && ! $capabilities->video) {
+                    $issues[] = __('This platform cannot publish video yet.');
+                } elseif ($media->count() > $capabilities->maxMedia) {
                     $issues[] = $capabilities->maxMedia === 0
                         ? __('This platform cannot publish media yet. Remove the media or deselect the account.')
                         : __('This platform accepts at most :max media items.', ['max' => $capabilities->maxMedia]);
@@ -93,6 +111,8 @@ final class PostContentRules
                 'mediaCount' => $media->count(),
                 'capabilities' => $capabilities?->toArray() ?? [],
                 'issues' => $issues,
+                'warnings' => $warnings,
+                'postType' => $type->value,
             ];
         }
 

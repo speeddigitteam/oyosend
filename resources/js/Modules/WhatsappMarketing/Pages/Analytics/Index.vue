@@ -53,6 +53,7 @@ const props = defineProps<{
         delivery: { sent: number; delivered: number; read: number; failed: number; blocked: number; deliveredBps: number | null; readBps: number | null };
         providerReported: { billable: number; notBillable: number; notReported: number; byCategory: Record<string, number> };
         cost: null;
+        feedback?: { requested: number; answered: number; averageX100: number | null; byRating: Record<string, number> };
         campaigns: CampaignFigures[];
     };
     daily: DailyRow[];
@@ -83,6 +84,13 @@ const windowsUsed = computed(() => {
     return limit === null ? t('whatsapp.analytics.windowsUnlimited', { used: format.number(used) }) : t('whatsapp.analytics.windowsOf', { used: format.number(used), limit: format.number(limit) });
 });
 const categories = computed(() => Object.entries(props.overview.providerReported.byCategory));
+const feedback = computed(() => props.overview.feedback ?? null);
+const averageRating = computed(() => {
+    const average = feedback.value?.averageX100 ?? null;
+
+    return average === null ? t('whatsapp.common.none') : t('whatsapp.analytics.feedbackAverageValue', { value: format.number(average / 100, { maximumFractionDigits: 2 }), max: format.number(5) });
+});
+const ratings = computed(() => [5, 4, 3, 2, 1].map((rating) => ({ rating, count: feedback.value?.byRating[String(rating)] ?? 0 })));
 
 function categoryLabel(code: string): string {
     return te(`whatsapp.templateCategory.${code}`) ? t(`whatsapp.templateCategory.${code}`) : code;
@@ -136,6 +144,33 @@ const hasActivity = computed(() => props.daily.some((row) => row.inbound + row.o
             <StatTile :label="t('whatsapp.analytics.failed')" :value="format.number(overview.delivery.failed + overview.delivery.blocked)" :hint="t('whatsapp.analytics.failedHint', { blocked: format.number(overview.delivery.blocked) })" />
         </div>
     </section>
+
+    <Card v-if="feedback" class="mb-4" :title="t('whatsapp.analytics.feedback')" :description="t('whatsapp.analytics.feedbackDescription')" data-testid="feedback-figures">
+        <p v-if="feedback.requested === 0" class="text-sm text-ink-subtle">{{ t('whatsapp.analytics.feedbackNone') }} {{ t('whatsapp.analytics.feedbackOff') }}</p>
+        <template v-else>
+            <dl class="grid grid-cols-2 gap-x-5 gap-y-4 text-sm lg:grid-cols-3">
+                <div>
+                    <dt class="eyebrow">{{ t('whatsapp.analytics.feedbackRequested') }}</dt>
+                    <dd class="figure mt-2 text-2xl text-ink">{{ format.number(feedback.requested) }}</dd>
+                </div>
+                <div>
+                    <dt class="eyebrow">{{ t('whatsapp.analytics.feedbackAnswered') }}</dt>
+                    <dd class="figure mt-2 text-2xl text-ink">{{ format.number(feedback.answered) }}</dd>
+                </div>
+                <div>
+                    <dt class="eyebrow">{{ t('whatsapp.analytics.feedbackAverage') }}</dt>
+                    <dd class="figure mt-2 text-2xl text-ink" data-testid="feedback-average">{{ averageRating }}</dd>
+                </div>
+            </dl>
+            <ul class="mt-4 flex flex-wrap gap-2" :aria-label="t('whatsapp.analytics.feedback')">
+                <li v-for="row in ratings" :key="row.rating">
+                    <Badge :tone="row.rating >= 4 ? 'ok' : row.rating === 3 ? 'neutral' : 'warn'">
+                        {{ t('whatsapp.analytics.feedbackRating', { rating: format.number(row.rating), max: format.number(5) }) }}: {{ format.number(row.count) }}
+                    </Badge>
+                </li>
+            </ul>
+        </template>
+    </Card>
 
     <Card class="mb-4" :title="t('whatsapp.analytics.providerTitle')" :description="t('whatsapp.analytics.providerDescription')">
         <dl class="grid grid-cols-2 gap-x-5 gap-y-4 text-sm lg:grid-cols-4">

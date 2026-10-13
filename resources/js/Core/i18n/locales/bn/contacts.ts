@@ -14,6 +14,18 @@ const contacts: MessageSchema['contacts'] = {
         people: 'ব্যক্তি',
         companies: 'প্রতিষ্ঠান',
     },
+    // Customer 360: what every app holds about one contact (ADR 0020).
+    customer360: {
+        title: 'গ্রাহকের সারসংক্ষেপ',
+        description: '{name} সম্পর্কে আপনার অ্যাপগুলোতে যা আছে, সব এক জায়গায়।',
+        loading: 'গ্রাহকের রেকর্ড লোড হচ্ছে…',
+        loadError: 'গ্রাহকের সারসংক্ষেপ লোড করা যায়নি।',
+        retry: 'আবার চেষ্টা করুন',
+        empty: 'এই গ্রাহক সম্পর্কে এখনো কোনো অ্যাপে রেকর্ড নেই।',
+        sectionEmpty: 'এখনো কিছু নেই।',
+        shown: '{total}টির মধ্যে {shown}টি',
+        viewAll: 'সব দেখুন',
+    },
     // One label per field, shared by the columns, the forms and the details of both lists.
     fields: {
         name: 'নাম',

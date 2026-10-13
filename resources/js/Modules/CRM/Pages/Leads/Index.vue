@@ -17,13 +17,14 @@ import { route } from '@/Core/lib/route';
 import CrmStatusBadge from '../../Components/CrmStatusBadge.vue';
 import LeadFormDialog from '../../Components/LeadFormDialog.vue';
 import type { LeadListProps, LeadStatus } from '../../Components/types';
+import { usePrefillCreate } from '../../Components/usePrefillCreate';
 
 defineOptions({ layout: TenantLayout });
 const props = defineProps<LeadListProps>();
 const { t } = useI18n();
 const format = useFormat();
 const loading = ref(false);
-const formOpen = ref(false);
+const { open: formOpen, initialContactId } = usePrefillCreate(props.prefillContact, props.canCreate);
 const search = ref(props.filters.search);
 const status = ref(props.filters.status ?? '');
 const source = ref(props.filters.source ?? '');
@@ -105,5 +106,5 @@ function clear(): void {
         <template v-if="!canCreate" #footer><p class="text-[0.8125rem] text-ink-subtle">{{ t('crm.common.viewOnly') }}</p></template>
     </Card>
 
-    <LeadFormDialog v-if="canCreate" v-model:open="formOpen" :sources="sources" :contacts="contacts" :companies="companies" :owners="owners" />
+    <LeadFormDialog v-if="canCreate" v-model:open="formOpen" :sources="sources" :contacts="contacts" :companies="companies" :owners="owners" :initial-contact-id="initialContactId" />
 </template>

@@ -89,6 +89,12 @@ import hrm from './hrm';
 import talent from './talent';
 import payroll from './payroll';
 import social from './social';
+import metaAds from './metaAds';
+import socialInsights from './socialInsights';
+import socialAi from './socialAi';
+import leadAds from './leadAds';
+import socialComments from './socialComments';
+import socialPublishing from './socialPublishing';
 import emailMarketing from './emailMarketing';
 import smsMarketing from './smsMarketing';
 import automation from './automation';
@@ -97,10 +103,12 @@ import whatsapp from './whatsapp';
 import ai from './ai';
 import communication from './communication';
 import reports from './reports';
+import notes from './notes';
 import organization from './organization';
 import platformAudit from './platformAudit';
 import platformBilling from './platformBilling';
 import platformMessaging from './platformMessaging';
+import platformIntegrations from './platformIntegrations';
 import platformPlans from './platformPlans';
 import platformSettings from './platformSettings';
 import platformAi from './platformAi';
@@ -142,6 +150,12 @@ const bn: MessageSchema = {
     talent,
     payroll,
     social,
+    metaAds,
+    socialInsights,
+    socialAi,
+    leadAds,
+    socialComments,
+    socialPublishing,
     emailMarketing,
     smsMarketing,
     automation,
@@ -150,6 +164,7 @@ const bn: MessageSchema = {
     ai,
     communication,
     reports,
+    notes,
     workspace,
     billing,
     appStore,
@@ -161,6 +176,7 @@ const bn: MessageSchema = {
     platformSettings,
     platformAi,
     platformMessaging,
+    platformIntegrations,
 };
 
 export default bn;

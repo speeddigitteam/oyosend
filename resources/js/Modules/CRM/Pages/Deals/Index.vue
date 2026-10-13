@@ -19,12 +19,13 @@ import CrmStatusBadge from '../../Components/CrmStatusBadge.vue';
 import DealBoard from '../../Components/DealBoard.vue';
 import DealFormDialog from '../../Components/DealFormDialog.vue';
 import type { DealListProps, DealStatus } from '../../Components/types';
+import { usePrefillCreate } from '../../Components/usePrefillCreate';
 
 defineOptions({ layout: TenantLayout });
 const props = defineProps<DealListProps>();
 const { t } = useI18n();
 const format = useFormat();
-const loading = ref(false); const formOpen = ref(false);
+const loading = ref(false); const { open: formOpen, initialContactId } = usePrefillCreate(props.prefillContact, props.canCreate);
 const search = ref(props.filters.search); const status = ref(props.filters.status ?? ''); const pipeline = ref(props.filters.pipeline ?? ''); const stage = ref(props.filters.stage ?? ''); const segment = ref(props.filters.segment ?? '');
 const view = ref<'list' | 'board'>(props.filters.view ?? 'list');
 const viewOptions = computed(() => [
@@ -86,5 +87,5 @@ function switchView(next: 'list' | 'board'): void { view.value = next; navigate(
         </Card>
     </template>
 
-    <DealFormDialog v-if="canCreate" v-model:open="formOpen" :pipelines="pipelines" :leads="leads" :contacts="contacts" :companies="companies" :owners="owners" />
+    <DealFormDialog v-if="canCreate" v-model:open="formOpen" :pipelines="pipelines" :leads="leads" :contacts="contacts" :companies="companies" :owners="owners" :initial-contact-id="initialContactId" />
 </template>

@@ -335,15 +335,24 @@ final class AccountManager
     {
         $targets = PostTarget::query()
             ->where('account_id', $account->id)
-            ->whereIn('status', [TargetStatus::Pending->value])
+            ->whereIn('status', [TargetStatus::Pending->value, TargetStatus::Processing->value])
             ->get();
 
         foreach ($targets as $target) {
+            // Media already with the platform may still go live: a person has to look.
+            $inFlight = $target->status === TargetStatus::Processing;
             $target->fill([
                 'status' => TargetStatus::Failed,
                 'next_attempt_at' => null,
                 'last_error' => $message,
                 'last_error_code' => $code,
+                'needs_manual_check' => $inFlight,
+                'external_id' => null,
+                'remote_id' => null,
+                'remote_state' => null,
+                'upload_offset' => 0,
+                'remote_meta' => null,
+                'remote_started_at' => null,
             ])->save();
 
             PublishAttempt::query()->create([

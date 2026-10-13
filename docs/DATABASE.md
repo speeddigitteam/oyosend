@@ -60,6 +60,8 @@ enforces it among the rows that are not deleted.
 | `impersonations` | Central, keyed by `tenant_id` | `Impersonation` | Platform's record of support sessions; read by the panel and by the redeeming workspace |
 | `communication_provider_accounts` | Central, **no `tenant_id`** | `ProviderAccount` | `UsesCentralConnection`; operator-owned messaging accounts, `tenant_ids` is an allow-list (section 3i, ADR 0013) |
 | `communication_account_claims` | Central, **no `tenant_id`** | `AccountClaim` | `connection_id` points at a tenant-owned connection; platform-wide uniqueness (section 3i, ADR 0016) |
+| `social_lead_ad_page_claims` | Central, **no `tenant_id`** | `LeadPageClaim` | `lead_page_id` points at a tenant-owned `social_lead_ad_pages` row; platform-wide `UNIQUE(page_id)` (section 3g2, ADR 0026) |
+| `social_comment_page_claims` | Central, **no `tenant_id` scope** (the column exists only to route a central webhook) | `PageClaim` | `account_id` points at a tenant-owned `social_accounts` row; platform-wide `UNIQUE(platform, external_id)` and `UNIQUE(account_id)`, so a Page feeds comments to one workspace only (section 3g2, ADR 0025) |
 | `ai_provider_accounts` | Central, **no `tenant_id`** | `AiProviderAccount` | Operator-owned AI provider accounts; never read for a workspace (section 3h.0) |
 | `audit_logs` | Tenant-scoped on read; `tenant_id` null for platform events; default connection | `AuditLog` | `ScopedToTenant` |
 | `cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs` | Framework | — | — |
@@ -504,10 +506,15 @@ tables carry an indexed `tenant_id` and every unique index starts with it.
 | Group | Tables | Notes |
 |---|---|---|
 | Accounts | `social_accounts` | `UNIQUE(tenant_id, platform, external_id)`; `access_token` / `refresh_token` are `text` holding Laravel `encrypted` values, never read back to a browser |
-| Content | `social_posts`, `social_post_targets`, `social_post_media`, `social_comments` | posts carry owner/department/branch; `UNIQUE(tenant_id, post_id, account_id)` and `UNIQUE(tenant_id, idempotency_key)` on targets; instants in UTC |
+| Content | `social_posts`, `social_post_targets`, `social_post_media`, `social_comments` | posts carry owner/department/branch and a `post_type` (`post`, `photos`, `video`, `reel`); `UNIQUE(tenant_id, post_id, account_id)` and `UNIQUE(tenant_id, idempotency_key)` on targets; targets also hold the remote upload/processing session (`remote_id`, `remote_state`, `upload_offset`, `remote_meta`, `remote_started_at`; no secrets, cleared when the target settles); instants in UTC |
 | Publishing history | `social_publish_attempts`, `social_post_metrics` | metric figure columns are nullable: null means the platform did not return it |
-| Library | `social_media`, `social_campaigns`, `social_categories`, `social_hashtag_sets`, `social_imports` | `UNIQUE(tenant_id, sha256)` on media; `UNIQUE(tenant_id, file_sha256)` on imports |
+| Page insights | `social_page_insights` (unique `tenant_id, account_id, metric_date`), `social_account_diagnostics`, `social_account_access` | figure columns nullable (not reported is never zero); no token stored; the allow-list has no entries for an open account |
+| Library | `social_media`, `social_campaigns`, `social_categories`, `social_hashtag_sets`, `social_imports` | `UNIQUE(tenant_id, sha256)` on media (videos also keep `duration_ms` and `probe_status` read from the container header); `UNIQUE(tenant_id, file_sha256)` on imports |
 | Operations | `social_settings`, `social_automation_action_receipts` | `UNIQUE(tenant_id)` on settings; `UNIQUE(tenant_id, action, idempotency_key)` |
+| Meta Ads | `meta_ads_connections` (token `encrypted`, hidden), `meta_ads_accounts`, `meta_ads_objects`, `meta_ads_insights`, `meta_ads_changes`, `meta_ads_settings` | every unique index leads with `tenant_id`; money is unsigned `BIGINT` minor units next to `currency`, null means Meta did not report it; `UNIQUE(tenant_id, request_id)` on changes makes a confirmation idempotent (ADR 0027) |
+| AI | `social_comment_sentiments` (+ `social_posts.ai_assisted`, `social_settings.ai_daily_cap`) | `UNIQUE(tenant_id, account_id, external_comment_id)`; label, signed basis-point score, language, prompt version, SHA-256 of the text (never the text) |
+| Audience comments | `social_audience_comments`, `social_comment_notes`, `social_comment_rules`, `social_comment_rule_runs`, `social_comment_sources`, `social_comment_settings`, `social_comment_page_claims` | comments: `UNIQUE(tenant_id, account_id, external_id)` (the dedupe key), owner / department / branch for record scope, untrusted `message` text; rules: `UNIQUE(tenant_id, name)`, keywords and actions as JSON; runs: `UNIQUE(tenant_id, rule_id, comment_id, action)` (one action of one rule per comment; also the audit and the cap counters); sources: `UNIQUE(tenant_id, account_id)`; settings: `UNIQUE(tenant_id)`; the claim table is the platform-wide exception above. Migration `2026_11_03_000100` |
+| Lead ads | `social_lead_ad_pages`, `social_lead_forms`, `social_lead_ad_leads`, `social_lead_ad_logs`, `social_lead_ad_page_claims` | `UNIQUE(tenant_id, account_id)` on pages, `UNIQUE(tenant_id, account_id, external_id)` on forms (questions and the person's mapping as JSON), `UNIQUE(tenant_id, leadgen_id)` on leads (status, attempts, `next_attempt_at`, reason code, CRM contact/lead ids as opaque text, `payload` = fetched answers, **encrypted**, hidden, removed once the CRM has them); logs are tenant-owned and cascade with their lead. **`social_lead_ad_page_claims` has no `tenant_id`** (exception to the tenant-first rule, ADR 0026): `UNIQUE(page_id)` stops two workspaces from receiving one Page's leads; it is owned through `lead_page_id` (cascade) and is read only by an incoming delivery's Page id or by `lead_page_id`, never listed |
 
 See `docs/SOCIAL.md`.
 
@@ -663,6 +670,27 @@ workspace"); the connection's old claims are replaced on every save and removed 
 deleted through `connection_id`, never listed across tenants. It is an intentional exception to "unique indexes lead
 with `tenant_id`"; `TenantIndexesTest` does not see it because the table has no `tenant_id` column.
 
+ADR 0022 (`2026_10_30_000100`): the table gains a nullable `number_id` (FK to `communication_channel_numbers`,
+`cascadeOnDelete`). A claim with a `number_id` belongs to a registered number and is managed by `ChannelNumbers`;
+`ChannelConnections::save()` only replaces the claims with no `number_id`. Still no `tenant_id`, still one owner (the
+connection), still the same unique index.
+
+### communication_channel_numbers, communication_media, communication_media_uploads - ADR 0022
+
+Tenant-owned (ULID, `tenant_id` FK, `BelongsToTenant`). Migrations `2026_10_30_000100` and `2026_10_30_000200`, additive
+and guarded (`Schema::hasTable/hasColumn`); the first also backfills a default number for every existing WhatsApp
+connection.
+
+| Table | Columns and keys |
+|---|---|
+| `communication_channel_numbers` | `connection_id` FK (cascade), `channel`, `phone_number_id` (provider account id), `display_number?`, `label`, `is_active`, `is_default`, `default_key?` (1 for the default, NULL otherwise). Unique `(tenant_id, phone_number_id)`, `(tenant_id, label)`, `(tenant_id, connection_id, default_key)` = at most one default per connection; index `(tenant_id, connection_id)` |
+| `communication_media` | `direction` (`outbound`/`inbound`), `type`, `mime` (sniffed), `size_bytes`, `sha256`, `filename?`, `storage_path` (tenant-relative, hidden, never returned), `provider_media_id?`, `number_id?` (set null). Unique `(tenant_id, direction, provider_media_id)` (inbound idempotency; outbound rows leave it NULL) |
+| `communication_media_uploads` | `media_id` and `number_id` FKs (cascade), `provider_media_id`, `expires_at`. Unique `(tenant_id, media_id, number_id)` |
+
+`communication_messages` also gains `sender_number_id` (nullable FK to `communication_channel_numbers`, set null) with
+index `(tenant_id, sender_number_id)`. The legacy connection setting `phone_number_id` always equals the default number's
+`phone_number_id`.
+
 ## 3j. Phase 10 Workflow Automation tables
 
 Migration `app/Modules/Automation/Database/Migrations/2026_10_20_000100_create_automation_tables.php`. All tables are
@@ -706,8 +734,21 @@ communication app), and none stores money (cost is "not reported").
 | Campaigns | `whatsapp_campaigns`, `whatsapp_campaign_recipients` | campaign has owner/department/branch and snapshots of template name, language, category, body and list name; `UNIQUE(tenant_id, campaign_id, contact_id)`; recipient `state` and `reason` mirror the communication platform's answer |
 | Conversations | `whatsapp_conversations`, `whatsapp_messages`, `whatsapp_windows` | `UNIQUE(tenant_id, phone)` (E.164); owner/department/branch of the assignee; `UNIQUE(tenant_id, provider_message_id)` is the inbound de-duplication key; message `billable` and `pricing_category` are nullable (null = not reported); `attachments` JSON is metadata only; windows are the metered unit |
 | Operations | `whatsapp_automation_receipts` | `UNIQUE(tenant_id, action, idempotency_key)` |
+| Engagement (1.1, migration `2026_10_29_000100`) | `whatsapp_conversation_notes`, `whatsapp_feedback`; columns `whatsapp_messages.interactive`, `whatsapp_settings.feedback_enabled` | notes: conversation, author membership, text, index `(tenant_id, conversation_id, created_at)`; feedback: conversation, contact, owner, request message, `status` pending/answered/expired, `rating` 1 to 5, requested/expires/answered times, indexes by conversation+status, requested time and owner+answered time; `interactive` JSON holds the offered labels only |
+| CRM bridge (1.2, migration `2026_10_30_000100`) | `whatsapp_lead_capture_settings`, `whatsapp_captured_leads` | settings: `UNIQUE(tenant_id)`, `enabled` bool (off by default), `keywords` JSON; captures: conversation, this app's `message_id`, the shared `contact_id` and the CRM `lead_id` as opaque strings (no CRM content), `source`, `status`, `UNIQUE(tenant_id, message_id)`, indexes `(tenant_id, conversation_id)` and `(tenant_id, contact_id)` |
 
 See `docs/WHATSAPP.md`.
+
+## 3k3. Notes tables
+
+Migration `app/Modules/Notes/Database/Migrations/2026_10_13_000100_create_notes_tables.php`, loaded by
+`NotesServiceProvider`.
+
+| Table | Notes |
+|---|---|
+| `notes` | One note. `tenant_id` FK; optional `contact_id` -> `contacts` and `company_id` -> `companies` (both `nullOnDelete`); nullable `title` and `body` (a note needs at least one, enforced in the controller), `is_pinned`, nullable `color` (one of the contrast-safe tokens `brand`/`accent`/`ok`/`warn`/`danger`/`info`, null = default); record-owner columns `owner_id` -> `tenant_memberships`, `department_id` -> `departments`, `branch_id` -> `branches` (all `nullOnDelete`). Indexes lead with `tenant_id` (`is_pinned`+`created_at`, the contact/company links and each owner column). No unique index |
+
+See `docs/NOTES.md`.
 
 ## 4. Later tables (outline only)
 

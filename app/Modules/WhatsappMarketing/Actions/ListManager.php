@@ -12,6 +12,7 @@ use App\Core\Identity\Models\User;
 use App\Core\Tenancy\TenantContext;
 use App\Modules\WhatsappMarketing\Models\ContactList;
 use App\Modules\WhatsappMarketing\Models\ListMember;
+use App\Modules\WhatsappMarketing\Support\ContactRules;
 use App\Modules\WhatsappMarketing\Support\Text;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -80,6 +81,32 @@ final class ListManager
 
                 return $this->count($list) < $this->cap();
             });
+
+        return $added;
+    }
+
+    /**
+     * Add every contact the actor may see, with a phone number, that matches the rules ({@see ContactRules}), up
+     * to the list's cap. A one-time fill: contacts that match later are not added by themselves.
+     *
+     * @param  list<array{field: string, operator: string, value: string|null}>  $rules  Normalised.
+     * @return int How many were added.
+     */
+    public function addByRules(ContactList $list, array $rules, string $match, User $actor, ?TenantMembership $membership): int
+    {
+        $added = 0;
+        $query = $this->records->constrain(Contact::query(), $actor, ContactController::VIEW)->whereNotNull('phone');
+        ContactRules::apply($query, $rules, $match);
+
+        $query->select('id')->chunkById(500, function ($contacts) use ($list, $membership, &$added): bool {
+            if ($this->count($list) >= $this->cap()) {
+                return false;
+            }
+
+            $added += $this->insert($list, $contacts->pluck('id')->all(), $membership?->id);
+
+            return $this->count($list) < $this->cap();
+        });
 
         return $added;
     }

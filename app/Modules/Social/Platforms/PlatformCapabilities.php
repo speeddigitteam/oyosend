@@ -20,6 +20,7 @@ final readonly class PlatformCapabilities
      * @param  bool  $video  Can publish video media.
      * @param  int  $maxText  Longest text the platform accepts, in characters.
      * @param  int  $maxMedia  Most media items per post.
+     * @param  bool  $insights  Can read Page-level (account) insights through a {@see PageInsightsProvider}.
      */
     public function __construct(
         public bool $publish = false,
@@ -30,6 +31,7 @@ final readonly class PlatformCapabilities
         public bool $video = false,
         public int $maxText = 0,
         public int $maxMedia = 0,
+        public bool $insights = false,
     ) {}
 
     /** @return array<string, bool|int> */
@@ -44,6 +46,7 @@ final readonly class PlatformCapabilities
             'video' => $this->video,
             'maxText' => $this->maxText,
             'maxMedia' => $this->maxMedia,
+            'insights' => $this->insights,
         ];
     }
 }

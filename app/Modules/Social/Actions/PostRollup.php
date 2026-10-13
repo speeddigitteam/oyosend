@@ -31,7 +31,7 @@ final class PostRollup
 
             $targets = $post->targets()->get();
 
-            if ($targets->contains(fn ($target): bool => $target->status === TargetStatus::Publishing)) {
+            if ($targets->contains(fn ($target): bool => in_array($target->status, [TargetStatus::Publishing, TargetStatus::Processing], true))) {
                 $post->update(['status' => PostStatus::Publishing]);
 
                 return;

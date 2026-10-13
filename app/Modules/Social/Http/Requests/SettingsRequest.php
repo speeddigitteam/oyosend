@@ -21,6 +21,7 @@ final class SettingsRequest extends FormRequest
         return [
             'require_approval' => ['required', 'boolean'],
             'account_hourly_limit' => ['required', 'integer', 'between:1,100'],
+            'ai_daily_cap' => ['sometimes', 'integer', 'between:0,5000'],
         ];
     }
 }

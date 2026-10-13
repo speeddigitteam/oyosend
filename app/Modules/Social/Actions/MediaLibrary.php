@@ -9,6 +9,7 @@ use App\Core\Tenancy\Storage\TenantStorage;
 use App\Modules\Social\Enums\MediaKind;
 use App\Modules\Social\Models\Media;
 use App\Modules\Social\Models\PostMedia;
+use App\Modules\Social\Support\Mp4Probe;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -45,7 +46,7 @@ final class MediaLibrary
             throw ValidationException::withMessages(['file' => __('The file must be smaller than :size MB.', ['size' => round($maxKb / 1024, 1)])]);
         }
 
-        $width = $height = null;
+        $width = $height = $durationMs = $probeStatus = null;
 
         if ($kind === MediaKind::Image) {
             $info = @getimagesize($file->getRealPath());
@@ -55,6 +56,16 @@ final class MediaLibrary
             }
 
             [$width, $height] = [$info[0], $info[1]];
+        }
+
+        if ($kind === MediaKind::Video) {
+            // Length and picture size come from the container header (no ffmpeg). An unreadable file is
+            // kept, marked unknown, and publishing rules then warn instead of guessing.
+            $probe = Mp4Probe::probe($file->getRealPath());
+            $probeStatus = $probe === null ? 'unknown' : 'read';
+            $width = $probe['width'] ?? null;
+            $height = $probe['height'] ?? null;
+            $durationMs = $probe['durationMs'] ?? null;
         }
 
         $hash = hash_file('sha256', $file->getRealPath());
@@ -80,6 +91,8 @@ final class MediaLibrary
                 'size_bytes' => $sizeBytes,
                 'width' => $width,
                 'height' => $height,
+                'duration_ms' => $durationMs,
+                'probe_status' => $probeStatus,
                 'sha256' => $hash,
                 'uploaded_by' => $by?->id,
             ]));

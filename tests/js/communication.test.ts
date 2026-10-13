@@ -283,14 +283,14 @@ describe('communication locale', () => {
         const nav = (en.shell as unknown as { nav: Record<string, string> }).nav;
         const bnNav = (bn.shell as unknown as { nav: Record<string, string> }).nav;
 
-        for (const key of ['communicationNotifications', 'communicationMessages', 'communicationTemplates', 'communicationAudience', 'communicationSettings']) {
+        for (const key of ['communicationNotifications', 'communicationMessages', 'communicationTemplates', 'communicationAudience', 'communicationSettings', 'communicationInbox']) {
             expect(nav[key], key).toBeTruthy();
             expect(bnNav[key], key).toBeTruthy();
         }
 
         for (const source of [en.catalogue, bn.catalogue] as unknown as { modules: Record<string, string>; permissions: Record<string, unknown>; limits: Record<string, unknown> }[]) {
             expect(source.modules.communication).toBeTruthy();
-            expect(Object.keys(source.permissions).filter((key) => key.startsWith('communication.'))).toHaveLength(12);
+            expect(Object.keys(source.permissions).filter((key) => key.startsWith('communication.'))).toHaveLength(13);
             expect(source.limits['communication.messages']).toBeTruthy();
         }
     });

@@ -10,8 +10,8 @@ import Textarea from '@/Core/Components/Textarea.vue';
 import { route } from '@/Core/lib/route';
 import type { Activity, ActivityPriority, ActivityType, Option } from './types';
 
-const props = withDefaults(defineProps<{ activity?: Activity | null; leads?: Option[]; deals?: Option[]; contacts?: Option[]; companies?: Option[]; owners?: Option[] }>(), {
-    activity: null, leads: () => [], deals: () => [], contacts: () => [], companies: () => [], owners: () => [],
+const props = withDefaults(defineProps<{ activity?: Activity | null; leads?: Option[]; deals?: Option[]; contacts?: Option[]; companies?: Option[]; owners?: Option[]; initialContactId?: string | null }>(), {
+    activity: null, leads: () => [], deals: () => [], contacts: () => [], companies: () => [], owners: () => [], initialContactId: null,
 });
 const open = defineModel<boolean>('open', { default: false });
 const { t } = useI18n();
@@ -20,7 +20,7 @@ const types = computed(() => (['task', 'meeting', 'call', 'follow_up'] as Activi
 const priorities = computed(() => (['low', 'normal', 'high', 'urgent'] as ActivityPriority[]).map((value) => ({ value, label: t(`crm.status.${value}`) })));
 const options = (items: Option[]) => [{ value: '', label: t('crm.common.notSet') }, ...items.map((item) => ({ value: item.id, label: item.name }))];
 const localDate = (value: string | null) => value ? value.slice(0, 16) : '';
-watch(open, (shown) => { if (!shown) return; const activity = props.activity; form.clearErrors(); form.type = activity?.type ?? 'task'; form.priority = activity?.priority ?? 'normal'; form.subject = activity?.subject ?? ''; form.description = activity?.description ?? ''; form.starts_at = localDate(activity?.startsAt ?? null); form.due_at = localDate(activity?.dueAt ?? null); form.remind_at = localDate(activity?.remindAt ?? null); form.lead_id = activity?.lead?.id ?? ''; form.deal_id = activity?.deal?.id ?? ''; form.contact_id = activity?.contact?.id ?? ''; form.company_id = activity?.company?.id ?? ''; form.owner_id = activity?.owner?.id ?? ''; });
+watch(open, (shown) => { if (!shown) return; const activity = props.activity; form.clearErrors(); form.type = activity?.type ?? 'task'; form.priority = activity?.priority ?? 'normal'; form.subject = activity?.subject ?? ''; form.description = activity?.description ?? ''; form.starts_at = localDate(activity?.startsAt ?? null); form.due_at = localDate(activity?.dueAt ?? null); form.remind_at = localDate(activity?.remindAt ?? null); form.lead_id = activity?.lead?.id ?? ''; form.deal_id = activity?.deal?.id ?? ''; form.contact_id = activity ? (activity.contact?.id ?? '') : (props.initialContactId ?? ''); form.company_id = activity?.company?.id ?? ''; form.owner_id = activity?.owner?.id ?? ''; });
 function submit(): void { const settings = { preserveScroll: true, onSuccess: () => { open.value = false; form.reset(); } }; if (props.activity) form.put(route('crm.activities.update', { activity: props.activity.id }), settings); else form.post(route('crm.activities.store'), settings); }
 </script>
 

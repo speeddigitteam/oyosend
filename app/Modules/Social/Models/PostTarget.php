@@ -33,6 +33,11 @@ use Illuminate\Support\Carbon;
  * @property bool $needs_manual_check
  * @property string $idempotency_key
  * @property Carbon|null $metrics_synced_at
+ * @property string|null $remote_id
+ * @property string|null $remote_state
+ * @property int $upload_offset
+ * @property array<string, mixed>|null $remote_meta
+ * @property Carbon|null $remote_started_at
  * @property-read Post $post
  * @property-read SocialAccount $account
  */
@@ -47,7 +52,7 @@ class PostTarget extends Model
     protected $fillable = [
         'post_id', 'account_id', 'body_override', 'status', 'attempts', 'next_attempt_at', 'claimed_at', 'published_at',
         'external_id', 'external_url', 'last_error', 'last_error_code', 'needs_manual_check', 'idempotency_key',
-        'metrics_synced_at',
+        'metrics_synced_at', 'remote_id', 'remote_state', 'upload_offset', 'remote_meta', 'remote_started_at',
     ];
 
     /** @return array<string, string> */
@@ -61,6 +66,9 @@ class PostTarget extends Model
             'published_at' => 'datetime',
             'needs_manual_check' => 'boolean',
             'metrics_synced_at' => 'datetime',
+            'upload_offset' => 'integer',
+            'remote_meta' => 'array',
+            'remote_started_at' => 'datetime',
         ];
     }
 

@@ -103,7 +103,7 @@ Permissions: `ai.assistant.use`, `ai.drafts.generate`, `ai.proposals.confirm` (s
 | `ai.settings.index` / `ai.settings.update` | GET / PUT `/ai/settings` | `ai.settings.manage` |
 
 Drafting request fields: `kind` (`summarize_record`, `draft_reply`, `rewrite`), `record_type` (`contact`,
-`company`) and `record_id` (required unless `rewrite`), `instruction` (<= 1000), `tone` (`neutral`, `friendly`,
+`company`, `whatsapp_conversation`) and `record_id` (required unless `rewrite`), `instruction` (<= 1000), `tone` (`neutral`, `friendly`,
 `formal`), `text` (required for `rewrite`). Response: `{text, ai_generated, label, prompt_version, usage}`; the
 record is loaded through the same tool layer as the member, 404 when not visible. Nothing is saved or sent.
 
@@ -116,6 +116,16 @@ Built in (all in the shared contacts directory, `core.contacts.*` permissions, r
 | `contacts_search`, `contacts_get` | read | `contacts` | `core.contacts.view` |
 | `companies_search`, `companies_get` | read | `companies` | `core.contacts.view` |
 | `contacts_propose_create`, `contacts_propose_update` | proposal | `contacts` | `core.contacts.manage` |
+
+From other apps:
+
+| Tool | App | Kind | Data scope | Permission |
+|---|---|---|---|---|
+| `whatsapp_conversation_get` | WhatsApp Business (`ConversationReadTool`) | read | `whatsapp_conversations` | `whatsapp_marketing.conversations.view` (conversation scope applied) |
+
+`whatsapp_conversation_get` returns the customer name, status, tags and the last 20 messages (no internal notes). It
+backs the inbox's "Draft with AI": `draft_reply` with record type `whatsapp_conversation` asks for the next reply to
+the customer's latest message in their language; the agent reviews and sends it. Nothing is sent by the AI.
 
 ### Adding a tool
 
@@ -175,3 +185,52 @@ responses (`Http::fake`, `tests/Feature/Ai/ProviderAccountsTest.php`); they have
 Anthropic, OpenAI, Azure, OpenRouter or Ollama endpoint. Servers differ (for example in token parameter names such
 as `max_tokens` vs `max_completion_tokens`, or in tool-call support), so run "test connection" and a real assistant
 turn before relying on an account.
+
+## 10. Text assistant contract (for other apps)
+
+Design record: ADR 0024. Other apps get captions, hashtags, reply suggestions, sentiment, summaries and
+translations through `App\Core\Ai\Contracts\TextAssistant` without importing this module. It returns text only;
+it never sends, saves or changes anything.
+
+```php
+use App\Core\Ai\Contracts\TextAssistant;
+use App\Core\Ai\Text\{TextTask, TextKind, TextTone, ContextBlock, TextState};
+
+$result = app(TextAssistant::class)->generate(new TextTask(
+    kind: TextKind::ReplySuggestion,
+    input: $customerMessage,                 // bounded to 4000 chars (cut, `truncated`)
+    purpose: 'whatsapp:reply:'.$messageId,   // metering / idempotency key, [A-Za-z0-9:._-]{1,100}
+    locale: 'bn',                            // output language; null = language of the input; required for translate
+    tone: TextTone::Friendly,
+    maxLength: 600,                          // text kinds; maxItems (1..30) for hashtags
+    platform: 'whatsapp',
+    context: [new ContextBlock('product', $productDescription)],   // quoted data, max 5 blocks / 6000 chars
+    actorMembershipId: $membership->id,      // rate limit only; null for system jobs
+));
+
+if ($result->ok()) {
+    // $result->text; hashtags: $result->hashtags (no '#'); sentiment: ->sentiment, ->scoreBasisPoints, ->language
+    // Show with an "AI-generated" label; a person decides what happens next.
+} else {
+    // $result->state: not_configured | disabled | limit_reached | refused | failed
+    // $result->message is safe to show; $result->retryable says whether trying later may work.
+}
+```
+
+| Kind | Result fields |
+|---|---|
+| `caption`, `reply_suggestion`, `summary`, `translate` | `text` (plain, tags stripped, cut to `maxLength`) |
+| `hashtags` | `hashtags` (lowercase, de-duplicated, only tokens that start with `#`), `text` as `#a #b` |
+| `sentiment` | `sentiment` (`positive`, `neutral`, `negative`, `mixed`, `unknown`), `scoreBasisPoints` (-10000..10000 or null), `language` (ISO 639 or null) |
+
+Behaviour: the workspace must be entitled to `ai` and have AI and the `drafting` switch on (otherwise `disabled`);
+the call goes through `AiGateway` (breaker, `ai.tokens` plan limit, per-workspace and per-member rate limits,
+redaction, idempotent usage record). The same purpose with the same task is metered once and replayed from the
+tenant cache for an hour. Tenant text is sent only as encoded data blocks; model JSON is never trusted (sentiment
+falls back to `unknown`). A caller must check its own permission first: the contract authorizes nothing.
+
+Testing a consumer (`tests/Support`): `InteractsWithTextAssistant::fakeTextAssistant()` binds the scripted
+`FakeTextAssistant` (queue `FakeTextAssistant::ok()`, `hashtags()`, `sentiment()`, `refused()`; read `->tasks`).
+`realTextAssistant($tenant)` entitles the workspace and switches to the scripted provider so the real
+gateway-backed assistant runs. In tests the array cache is rebuilt on each tenant-context entry: keep the calls of
+one scenario inside one `inTenant()` block when asserting replay or rate limits.

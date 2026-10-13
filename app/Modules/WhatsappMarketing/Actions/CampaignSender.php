@@ -8,6 +8,8 @@ use App\Core\Audit\AuditLogger;
 use App\Core\Communication\Contracts\MarketingAudience;
 use App\Core\Communication\Data\DeliveryState;
 use App\Core\Communication\Data\MarketingChannel;
+use App\Core\Communication\Data\Whatsapp\MediaReference;
+use App\Core\Communication\Data\Whatsapp\WhatsappMediaType;
 use App\Core\Contacts\Models\Contact;
 use App\Core\Tenancy\TenantContext;
 use App\Modules\WhatsappMarketing\Enums\CampaignStatus;
@@ -99,6 +101,12 @@ final class CampaignSender
         $contacts = Contact::query()->with('company:id,name')->whereIn('id', $pending->pluck('contact_id')->all())->get()->keyBy('id');
         $workspace = $this->settings->current()->business_name ?? $this->context->require()->name;
 
+        // ADR 0022: one fixed media header and fixed button values for every recipient of this campaign.
+        $header = $campaign->header_media_type !== null && $campaign->header_media_id !== null && WhatsappMediaType::tryFrom($campaign->header_media_type) !== null
+            ? new MediaReference(WhatsappMediaType::from($campaign->header_media_type), mediaId: $campaign->header_media_id)
+            : null;
+        $buttons = $campaign->button_params ?? [];
+
         foreach ($pending as $recipient) {
             // Cancelled while this chunk ran.
             if ($this->cancelled($campaign)) {
@@ -128,7 +136,7 @@ final class CampaignSender
             );
 
             try {
-                $outcome = $this->messenger->sendTemplate($conversation, $template, $parameters, null, SenderType::Campaign, $campaign, $recipient);
+                $outcome = $this->messenger->sendTemplate($conversation, $template, $parameters, null, SenderType::Campaign, $campaign, $recipient, headerMedia: $header, buttonParams: $buttons, senderNumberId: $campaign->sender_number_id);
             } catch (ValidationException) {
                 // The plan's conversation limit, or a contact whose number no longer matches.
                 $this->progress->recipient($recipient, RecipientState::Failed, 'send_refused', $at);

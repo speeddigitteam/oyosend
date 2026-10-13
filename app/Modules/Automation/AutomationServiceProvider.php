@@ -78,7 +78,7 @@ final class AutomationServiceProvider extends ModuleServiceProvider
                 new NavigationItem('automationWorkflows', 'automation.workflows.index', 'workflow', 'automation.workflows.view', 'apps', 10, 'automation.workflows.*'),
                 new NavigationItem('automationRuns', 'automation.runs.index', 'clock', 'automation.runs.view', 'apps', 11, 'automation.runs.*'),
                 new NavigationItem('automationApprovals', 'automation.approvals.index', 'badge-check', 'automation.approvals.decide', 'apps', 12, 'automation.approvals.*'),
-                new NavigationItem('automationWebhooks', 'automation.webhooks.index', 'network', 'automation.webhooks.manage', 'manage', 41, 'automation.webhooks.*'),
+                new NavigationItem('automationWebhooks', 'automation.webhooks.index', 'network', 'automation.webhooks.manage', 'apps', 900, 'automation.webhooks.*'),
             ],
             triggers: [ManualTrigger::class, WebhookTrigger::class, ScheduleTrigger::class],
             morphMap: [

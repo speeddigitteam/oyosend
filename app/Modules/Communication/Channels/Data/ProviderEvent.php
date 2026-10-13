@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Communication\Channels\Data;
 
+use App\Core\Communication\Data\InboundContent;
 use App\Modules\Communication\Enums\ProviderEventType;
 
 /**
@@ -21,6 +22,7 @@ final readonly class ProviderEvent
      *                                           connection's own settings, so a shared provider app can never
      *                                           feed one workspace another workspace's events.
      * @param  array<string, scalar|null>  $meta  Provider facts for listeners (message type, profile name, pricing).
+     * @param  InboundContent|null  $content  Typed content of an inbound message beyond its text.
      */
     public function __construct(
         public string $eventId,
@@ -31,5 +33,6 @@ final readonly class ProviderEvent
         public ?string $reason = null,
         public array $accounts = [],
         public array $meta = [],
+        public ?InboundContent $content = null,
     ) {}
 }

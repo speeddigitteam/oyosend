@@ -145,7 +145,7 @@ final class PostWorkflow
             $this->assertStatus($locked, [PostStatus::Scheduled], __('Only a scheduled post can be moved.'));
             $when = $this->assertTime($at);
 
-            if ($locked->targets()->where('status', TargetStatus::Publishing)->exists()) {
+            if ($locked->targets()->whereIn('status', [TargetStatus::Publishing, TargetStatus::Processing])->exists()) {
                 throw ValidationException::withMessages(['post' => __('This post is being published and cannot be moved.')]);
             }
 
@@ -183,7 +183,7 @@ final class PostWorkflow
             }
 
             // A target already claimed by the publisher is mid-flight; stopping now would race it.
-            if ($locked->targets()->where('status', TargetStatus::Publishing)->exists()) {
+            if ($locked->targets()->whereIn('status', [TargetStatus::Publishing, TargetStatus::Processing])->exists()) {
                 throw ValidationException::withMessages(['post' => __('This post is being published and cannot be stopped.')]);
             }
 

@@ -5,7 +5,7 @@ import Button from '@/Core/Components/Button.vue';
 import { useAccess } from '@/Core/composables/useAccess';
 import { route } from '@/Core/lib/route';
 
-defineProps<{ current: 'inbox' | 'campaigns' | 'templates' | 'lists' | 'quickReplies' | 'analytics' | 'flows' | 'settings' }>();
+defineProps<{ current: 'inbox' | 'campaigns' | 'templates' | 'lists' | 'quickReplies' | 'analytics' | 'crm' | 'flows' | 'settings' }>();
 
 const { t } = useI18n();
 const { can } = useAccess();

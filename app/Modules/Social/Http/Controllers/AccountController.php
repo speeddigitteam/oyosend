@@ -40,6 +40,7 @@ final class AccountController
         private readonly UsageLimits $limits,
         private readonly OAuthBroker $broker,
         private readonly TenantContext $tenants,
+        private readonly AccountAccessPanel $accessPanel,
     ) {}
 
     public function index(Request $request): Response
@@ -56,6 +57,10 @@ final class AccountController
                 'used' => $this->limits->used(AccountManager::LIMIT),
             ],
             'canManage' => $actor->can('social.accounts.manage'),
+            'accessPanel' => $this->accessPanel->props(
+                SocialAccount::query()->where('status', '!=', AccountStatus::Disconnected->value)->get(),
+                $actor->can('social.accounts.manage'),
+            ),
             'redirectUris' => collect($this->support->platforms()->all())
                 ->map(fn ($platform): array => ['platform' => $platform->key(), 'uri' => $this->redirectUri($platform->key())])
                 ->values()->all(),

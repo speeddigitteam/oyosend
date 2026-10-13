@@ -128,7 +128,7 @@ Warnings only: `no_end` (a step with nothing after it simply ends the workflow),
 
 | Kind | Key | How it starts |
 |---|---|---|
-| Domain event | the module's trigger key | `TriggerBridge` listens to the trigger's `event()` class (also triggers registered later). It looks only inside the event's own tenant, only at `active` workflows whose `trigger_key` matches, filters on the trigger config (`minimum_x` means `payload.x >= value`, any other key must equal the payload value) and starts a run per match |
+| Domain event | the module's trigger key | `TriggerBridge` listens to the trigger's `event()` class (also triggers registered later). It looks only inside the event's own tenant, only at `active` workflows whose `trigger_key` matches, filters on the trigger config (`minimum_x` means `payload.x >= value`, `maximum_x` means `payload.x <= value`, any other key must equal the payload value) and starts a run per match |
 | Manual | `automation.trigger.manual` | `POST workflows/{w}/run` (`automation.runs.start`) with a JSON payload |
 | Webhook | `automation.trigger.webhook` | `POST automation/hooks/{token}` on the workspace host (section 7) |
 | Schedule | `automation.trigger.schedule` | `config.cron`, evaluated in the workspace timezone; fired by the sweeper (section 6.4) |

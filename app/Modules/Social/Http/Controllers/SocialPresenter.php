@@ -11,6 +11,7 @@ use App\Modules\Social\Actions\PostContentRules;
 use App\Modules\Social\Actions\SocialSettings;
 use App\Modules\Social\Enums\AccountStatus;
 use App\Modules\Social\Enums\PostStatus;
+use App\Modules\Social\Enums\PostType;
 use App\Modules\Social\Enums\TargetStatus;
 use App\Modules\Social\Models\Comment;
 use App\Modules\Social\Models\Media;
@@ -18,6 +19,7 @@ use App\Modules\Social\Models\Post;
 use App\Modules\Social\Models\PostMedia;
 use App\Modules\Social\Models\PostTarget;
 use App\Modules\Social\Models\SocialAccount;
+use App\Modules\Social\Platforms\PostTypeAware;
 use App\Modules\Social\Platforms\SocialPlatforms;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -95,7 +97,74 @@ final class SocialPresenter
             'status' => $full['status'],
             'usable' => $account->isUsable() && $full['platformAvailable'] && ($full['capabilities']['publish'] ?? false),
             'capabilities' => $full['capabilities'],
+            'postTypes' => $this->postTypes($account->platform),
         ];
+    }
+
+    /**
+     * The post types an account's platform really publishes. An adapter that is not type-aware publishes
+     * a plain post, several photos when it takes several media, and video only when its capability says so.
+     *
+     * @return list<string>
+     */
+    private function postTypes(string $platformKey): array
+    {
+        $platform = $this->platforms->find($platformKey);
+
+        if ($platform === null) {
+            return [];
+        }
+
+        if ($platform instanceof PostTypeAware) {
+            return array_map(static fn (PostType $type): string => $type->value, $platform->postTypes());
+        }
+
+        $caps = $platform->capabilities();
+        $types = ['post'];
+
+        if ($caps->images && $caps->maxMedia > 1) {
+            $types[] = 'photos';
+        }
+
+        if ($caps->video) {
+            $types[] = 'video';
+        }
+
+        return $types;
+    }
+
+    /**
+     * Per-platform compatibility facts of one library file, for the media tile and the composer.
+     *
+     * @return list<array{platform: string, platformLabel: string, code: string, tone: string}>
+     */
+    private function compatibility(Media $media): array
+    {
+        $info = $media->info();
+        $out = [];
+
+        foreach ($this->platforms->all() as $platform) {
+            $caps = $platform->capabilities();
+
+            if (! $caps->publish) {
+                continue;
+            }
+
+            if ($platform instanceof PostTypeAware) {
+                $badges = $platform->mediaBadges($info);
+            } else {
+                $supported = $info->isVideo ? $caps->video : $caps->images;
+                $badges = [$supported
+                    ? ['code' => $info->isVideo ? 'video_ok' : 'photo_ok', 'tone' => 'ok']
+                    : ['code' => 'unsupported', 'tone' => 'muted']];
+            }
+
+            foreach ($badges as $badge) {
+                $out[] = ['platform' => $platform->key(), 'platformLabel' => $platform->label(), ...$badge];
+            }
+        }
+
+        return $out;
     }
 
     /** @return array<string, mixed> */
@@ -109,6 +178,9 @@ final class SocialPresenter
             'sizeBytes' => $media->size_bytes,
             'width' => $media->width,
             'height' => $media->height,
+            'durationMs' => $media->duration_ms,
+            'probe' => $media->probe_status,
+            'compat' => $this->compatibility($media),
             'altText' => $media->alt_text,
             'url' => route('social.media.file', ['media' => $media->id]),
             'createdAt' => $media->created_at?->toIso8601String(),
@@ -126,6 +198,8 @@ final class SocialPresenter
             'title' => $post->title,
             'excerpt' => Str::limit(trim((string) $post->body), 160),
             'status' => $post->status->value,
+            'postType' => ($post->post_type ?? PostType::Post)->value,
+            'aiAssisted' => (bool) $post->ai_assisted,
             'scheduledFor' => $post->scheduled_for?->toIso8601String(),
             'publishedAt' => $post->published_at?->toIso8601String(),
             'at' => $at?->toIso8601String(),
@@ -156,7 +230,7 @@ final class SocialPresenter
         $requiresApproval = $this->settings->current()->require_approval;
         $status = $post->status;
         $can = fn (string $permission): bool => $this->records->allows($actor, $permission, $post);
-        $hasPublishing = $post->targets->contains(fn (PostTarget $t): bool => $t->status === TargetStatus::Publishing);
+        $hasPublishing = $post->targets->contains(fn (PostTarget $t): bool => in_array($t->status, [TargetStatus::Publishing, TargetStatus::Processing], true));
         $membershipId = $this->access->membership($actor)?->id;
 
         return [
@@ -182,6 +256,8 @@ final class SocialPresenter
                 'bodyOverride' => $target->body_override,
                 'status' => $target->status->value,
                 'attempts' => $target->attempts,
+                'remoteState' => $target->remote_state,
+                'processingSince' => $target->remote_started_at?->toIso8601String(),
                 'nextAttemptAt' => $target->next_attempt_at?->toIso8601String(),
                 'publishedAt' => $target->published_at?->toIso8601String(),
                 'externalUrl' => $target->external_url,

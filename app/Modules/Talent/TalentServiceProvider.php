@@ -150,7 +150,7 @@ final class TalentServiceProvider extends ModuleServiceProvider
                 new NavigationItem('talentCourses', 'talent.courses.index', 'graduation-cap', 'talent.courses.view', 'apps', 51, 'talent.courses.*'),
                 new NavigationItem('talentEnrolments', 'talent.enrolments.index', 'book-open-check', 'talent.enrolments.view', 'apps', 52, 'talent.enrolments.*'),
                 new NavigationItem('talentAnalytics', 'talent.analytics.index', 'chart-no-axes-combined', 'talent.analytics.view', 'apps', 53, 'talent.analytics.*'),
-                new NavigationItem('talentSettings', 'talent.settings.index', 'settings', 'talent.settings.manage', 'manage', 39, 'talent.settings.*'),
+                new NavigationItem('talentSettings', 'talent.settings.index', 'settings', 'talent.settings.manage', 'apps', 900, 'talent.settings.*'),
             ],
             widgets: [
                 new WidgetDefinition('talent.self', 'TalentSelfWidget', TalentSelfWidget::class, 'talent.self.view', span: 4, order: 17),

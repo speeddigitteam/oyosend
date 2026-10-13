@@ -87,7 +87,7 @@ final class SmsMarketingServiceProvider extends ModuleServiceProvider
                 new NavigationItem('smsTemplates', 'sms_marketing.templates.index', 'message-square-text', 'sms_marketing.templates.view', 'apps', 122, 'sms_marketing.templates.*'),
                 new NavigationItem('smsSenders', 'sms_marketing.senders.index', 'badge-check', 'sms_marketing.senders.view', 'apps', 123, 'sms_marketing.senders.*'),
                 new NavigationItem('smsAnalytics', 'sms_marketing.analytics.index', 'chart-no-axes-combined', 'sms_marketing.analytics.view', 'apps', 124, 'sms_marketing.analytics.*'),
-                new NavigationItem('smsSettings', 'sms_marketing.settings.index', 'settings', 'sms_marketing.settings.manage', 'manage', 39, 'sms_marketing.settings.*'),
+                new NavigationItem('smsSettings', 'sms_marketing.settings.index', 'settings', 'sms_marketing.settings.manage', 'apps', 900, 'sms_marketing.settings.*'),
             ],
             widgets: [
                 new WidgetDefinition('sms_marketing.overview', 'SmsMarketingOverviewWidget', SmsMarketingOverviewWidget::class, 'sms_marketing.campaigns.view', span: 4, order: 20),

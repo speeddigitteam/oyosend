@@ -22,6 +22,7 @@ final class SocialAnalytics
     public function __construct(private readonly SocialPlatforms $platforms) {}
 
     /**
+     * @param  list<string>|null  $accountIds  Only these accounts (the allow-list); null means every account.
      * @return array{
      *     from: string, to: string,
      *     publishing: array{published: int, failed: int, pending: int, byPlatform: list<array{platform: string, label: string, published: int, failed: int}>},
@@ -29,7 +30,7 @@ final class SocialAnalytics
      *     platformsWithAnalytics: list<string>
      * }
      */
-    public function overview(CarbonImmutable $from, CarbonImmutable $to): array
+    public function overview(CarbonImmutable $from, CarbonImmutable $to, ?array $accountIds = null): array
     {
         $targets = PostTarget::query()
             ->with(['account:id,platform,name', 'post:id,title,body,published_at'])
@@ -37,6 +38,7 @@ final class SocialAnalytics
                 $query->whereBetween('published_at', [$from, $to])
                     ->orWhere(fn ($failed) => $failed->where('status', TargetStatus::Failed->value)->whereBetween('updated_at', [$from, $to]));
             })
+            ->when($accountIds !== null, fn ($query) => $query->whereIn('account_id', $accountIds ?? []))
             ->limit(5000)
             ->get();
 

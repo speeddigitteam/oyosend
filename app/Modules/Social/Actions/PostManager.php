@@ -8,6 +8,7 @@ use App\Core\Audit\AuditLogger;
 use App\Core\Identity\Models\TenantMembership;
 use App\Modules\Social\Enums\AccountStatus;
 use App\Modules\Social\Enums\PostStatus;
+use App\Modules\Social\Enums\PostType;
 use App\Modules\Social\Enums\TargetStatus;
 use App\Modules\Social\Models\Campaign;
 use App\Modules\Social\Models\Category;
@@ -17,6 +18,7 @@ use App\Modules\Social\Models\Post;
 use App\Modules\Social\Models\PostMedia;
 use App\Modules\Social\Models\PostTarget;
 use App\Modules\Social\Models\SocialAccount;
+use App\Modules\Social\Support\HashtagNormalizer;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -137,6 +139,23 @@ final class PostManager
         if ($set !== null) {
             $prepared['hashtag_set_id'] = $set->id;
             $prepared['hashtags'] = $set->tags;
+        }
+
+        $extra = array_values(array_filter((array) ($attributes['extra_hashtags'] ?? []), 'is_string'));
+
+        if ($extra !== []) {
+            // AI-suggested tags the person kept: merged into the snapshot, de-duplicated, at most 30.
+            $prepared['hashtags'] = HashtagNormalizer::normalize([...((array) $prepared['hashtags']), ...$extra]);
+        }
+
+        if (! empty($attributes['ai_assisted'])) {
+            // Sticky: editing never clears the marker, so an approver always sees it.
+            $prepared['ai_assisted'] = true;
+        }
+
+        if (isset($attributes['post_type'])) {
+            // Validated by the request; an unknown value falls back to a plain post.
+            $prepared['post_type'] = (PostType::tryFrom((string) $attributes['post_type']) ?? PostType::Post)->value;
         }
 
         if ($prepared['scheduled_for'] instanceof \DateTimeInterface) {

@@ -1,0 +1,66 @@
+export default {
+    eyebrow: 'Notes',
+    title: 'Notes',
+    description: 'Capture short notes and pin the important ones.',
+    search: 'Search notes',
+    count: {
+        one: '{count} note',
+        other: '{count} notes',
+    },
+    empty: {
+        title: 'No notes yet',
+        body: 'Add your first note to keep track of what matters.',
+        viewOnly: 'Notes added by your team will show up here.',
+    },
+    composer: {
+        placeholder: 'Take a note…',
+        title: 'Title',
+        body: 'Take a note…',
+        add: 'Add',
+        close: 'Close',
+    },
+    sections: {
+        pinned: 'Pinned',
+        others: 'Others',
+    },
+    colors: {
+        label: 'Background colour',
+        default: 'Default',
+        brand: 'Green',
+        accent: 'Coral',
+        ok: 'Teal',
+        warn: 'Amber',
+        danger: 'Red',
+        info: 'Blue',
+    },
+    card: {
+        pin: 'Pin note',
+        unpin: 'Unpin note',
+        delete: 'Delete note',
+    },
+    field: {
+        title: 'Title',
+        body: 'Note',
+        contact: 'Contact',
+        company: 'Company',
+        owner: 'Owner',
+        notSet: 'Not set',
+    },
+    edit: {
+        heading: 'Edit note',
+        hint: 'A note can stand on its own or be linked to a contact or company.',
+    },
+    remove: {
+        heading: 'Delete note',
+        body: 'This note will be permanently deleted. This cannot be undone.',
+    },
+    common: {
+        save: 'Save',
+        cancel: 'Cancel',
+        clear: 'Clear search',
+        unassigned: 'Unassigned',
+        viewOnly: 'You can view notes but not change them.',
+        noMatches: 'No notes match',
+        noMatchesBody: 'Try a different search.',
+    },
+};

@@ -1,20 +1,35 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { ArrowLeft, Clock, MessageCircle, RefreshCw } from 'lucide-vue-next';
+import { ArrowLeft, Clock, MessageCircle, RefreshCw, Star } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Badge from '@/Core/Components/Badge.vue';
 import Button from '@/Core/Components/Button.vue';
 import Card from '@/Core/Components/Card.vue';
+import CustomerPanel from '@/Core/Components/Contacts/CustomerPanel.vue';
 import EmptyState from '@/Core/Components/EmptyState.vue';
 import PageHeader from '@/Core/Components/PageHeader.vue';
+import { useAccess } from '@/Core/composables/useAccess';
+import { useFormat } from '@/Core/composables/useFormat';
 import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
 import { route } from '@/Core/lib/route';
 import ChannelBanner from '../../Components/ChannelBanner.vue';
 import ConversationComposer from '../../Components/ConversationComposer.vue';
+import ConversationNotes from '../../Components/ConversationNotes.vue';
 import ConversationSidePanel from '../../Components/ConversationSidePanel.vue';
 import MessageBubble from '../../Components/MessageBubble.vue';
-import type { AgentOption, ChannelInfo, ConversationDetail, MessageRow, QuickReplyRow, SendableTemplate } from '../../Components/types';
+import RichComposerPanel from '../../Components/RichComposerPanel.vue';
+import type {
+    AgentOption,
+    ChannelInfo,
+    ConversationDetail,
+    ConversationFeedback,
+    ConversationNoteRow,
+    MessageRow,
+    NumberPicker,
+    QuickReplyRow,
+    SendableTemplate,
+} from '../../Components/types';
 import { useWhatsappFormat } from '../../Components/useWhatsappFormat';
 import { windowRemaining } from '../../Components/whatsappFormat';
 import WhatsappNav from '../../Components/WhatsappNav.vue';
@@ -24,16 +39,23 @@ defineOptions({ layout: TenantLayout });
 const props = defineProps<{
     conversation: ConversationDetail;
     messages: MessageRow[];
+    notes?: ConversationNoteRow[];
+    feedback?: ConversationFeedback | null;
     templates: SendableTemplate[];
     quickReplies: QuickReplyRow[];
     agents: AgentOption[];
     phoneContacts: { id: string; name: string; phone: string | null }[];
     channel: ChannelInfo;
+    numbers?: NumberPicker;
     can: { reply: boolean; assign: boolean; assignOthers: boolean; manage: boolean; isAgent: boolean; createContact: boolean };
 }>();
 
+const numberPicker = computed<NumberPicker>(() => props.numbers ?? { options: [], defaultId: null });
+
 const { t } = useI18n();
+const access = useAccess();
 const { duration } = useWhatsappFormat();
+const format = useFormat();
 
 const refreshing = ref(false);
 const now = ref(Date.now());
@@ -59,6 +81,19 @@ function refresh(): void {
 
 const remaining = computed(() => windowRemaining(props.conversation.windowExpiresAt, now.value));
 const windowOpen = computed(() => props.conversation.windowOpen && remaining.value.open);
+const feedbackText = computed(() => {
+    const feedback = props.feedback;
+
+    if (!feedback) {
+        return null;
+    }
+
+    if (feedback.status === 'answered' && feedback.rating !== null) {
+        return t('whatsapp.feedback.answered', { rating: format.number(feedback.rating), max: format.number(5) });
+    }
+
+    return t(`whatsapp.feedback.${feedback.status === 'pending' ? 'pending' : 'expired'}`, { when: format.date(feedback.requestedAt, 'datetime') });
+});
 </script>
 
 <template>
@@ -108,9 +143,30 @@ const windowOpen = computed(() => props.conversation.windowOpen && remaining.val
                 :templates="templates"
                 :quick-replies="quickReplies"
                 :channel="channel"
+                :can-draft="access.can('ai.drafts.generate')"
+                :numbers="numberPicker"
             />
+
+            <RichComposerPanel
+                v-if="can.reply && conversation.contact !== null"
+                :conversation-id="conversation.id"
+                :window-open="windowOpen"
+                :connected="channel.state === 'available'"
+                :picker="numberPicker"
+            />
+
+            <ConversationNotes :conversation-id="conversation.id" :notes="notes ?? []" :can-add="can.reply" />
         </div>
 
-        <ConversationSidePanel :conversation="conversation" :agents="agents" :phone-contacts="phoneContacts" :can="can" />
+        <div class="grid min-w-0 content-start gap-3">
+            <ConversationSidePanel :conversation="conversation" :agents="agents" :phone-contacts="phoneContacts" :can="can" />
+            <Card v-if="feedbackText" :title="t('whatsapp.feedback.title')" data-testid="feedback-card">
+                <p class="flex items-center gap-2 text-sm text-ink">
+                    <Star class="size-4 text-warn" aria-hidden="true" />
+                    {{ feedbackText }}
+                </p>
+            </Card>
+            <CustomerPanel v-if="conversation.contact && access.can('core.contacts.view')" :contact-id="conversation.contact.id" :contact-name="conversation.contact.name" />
+        </div>
     </div>
 </template>

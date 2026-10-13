@@ -4,14 +4,24 @@ declare(strict_types=1);
 
 namespace App\Modules\Communication\Channels\Providers;
 
+use App\Core\Communication\Data\Template\ProviderTemplateStatus;
+use App\Core\Communication\Data\Template\TemplateCatalogueResult;
+use App\Core\Communication\Data\Template\TemplateDraft;
+use App\Modules\Communication\Channels\Contracts\HandlesMedia;
+use App\Modules\Communication\Channels\Contracts\ManagesTemplates;
 use App\Modules\Communication\Channels\Contracts\PlatformAccountProvider;
 use App\Modules\Communication\Channels\Contracts\VerifiesWebhookSubscription;
 use App\Modules\Communication\Channels\Contracts\WhatsAppChannel;
 use App\Modules\Communication\Channels\Data\ChannelCredentials;
+use App\Modules\Communication\Channels\Data\MediaTransfer;
 use App\Modules\Communication\Channels\Data\OutboundPayload;
 use App\Modules\Communication\Channels\Data\ProviderEvent;
 use App\Modules\Communication\Channels\Data\SendResult;
 use App\Modules\Communication\Channels\Exceptions\InvalidWebhookSignature;
+use App\Modules\Communication\Channels\Providers\Cloud\CloudInbound;
+use App\Modules\Communication\Channels\Providers\Cloud\CloudMedia;
+use App\Modules\Communication\Channels\Providers\Cloud\CloudMessageMapper;
+use App\Modules\Communication\Channels\Providers\Cloud\CloudTemplates;
 use App\Modules\Communication\Enums\Channel;
 use App\Modules\Communication\Enums\ConfigurationState;
 use App\Modules\Communication\Enums\ProviderEventType;
@@ -33,17 +43,21 @@ use Throwable;
  * What it sends (`OutboundPayload::$meta` hints, set by the WhatsApp Business app through the channel gateway):
  *  - `whatsapp_template` + `whatsapp_language` (+ `whatsapp_params`, a JSON list of body parameter strings):
  *    an approved template message. Allowed any time.
- *  - otherwise a free-form text message, which Meta only accepts inside the 24-hour customer-service window.
+ *  - otherwise a free-form text message, which Meta only accepts inside the 24-hour customer-service window;
+ *    with `whatsapp_interactive` (a JSON object of reply-button or list labels) it is an interactive message
+ *    under the same window rule.
  *    `whatsapp_window_until` (ISO-8601) makes this adapter refuse locally once the window has closed.
  *
  * NOT TESTED AGAINST LIVE META: it is covered by HTTP-faked tests only. Using it for real needs the operator's
  * Meta app, a verified business, a registered phone number, approved templates and app review (docs/WHATSAPP.md).
  */
-final class WhatsAppCloudProvider implements PlatformAccountProvider, VerifiesWebhookSubscription, WhatsAppChannel
+final class WhatsAppCloudProvider implements HandlesMedia, ManagesTemplates, PlatformAccountProvider, VerifiesWebhookSubscription, WhatsAppChannel
 {
     public const string KEY = 'whatsapp_cloud';
 
     public const int MAX_TEXT = 4096;
+
+    public const int MAX_INTERACTIVE_BODY = 1024;
 
     public function key(): string
     {
@@ -113,7 +127,13 @@ final class WhatsAppCloudProvider implements PlatformAccountProvider, VerifiesWe
         }
 
         $settings = $connection->settings ?? [];
-        $phoneNumberId = (string) $settings['phone_number_id'];
+        // The workspace number to send from (ADR 0022); the connection's own setting is the default number.
+        $phoneNumberId = $payload->senderAccountId ?? (string) $settings['phone_number_id'];
+
+        if (preg_match('/^\d{5,32}$/', $phoneNumberId) !== 1) {
+            return SendResult::rejected('sender_number_unavailable', 'The sending number is not valid.');
+        }
+
         $version = is_string($settings['graph_api_version'] ?? null) && preg_match('/^v\d{1,2}\.\d$/', $settings['graph_api_version']) === 1
             ? $settings['graph_api_version']
             : (string) config('communication.whatsapp.api_version', 'v21.0');
@@ -123,9 +143,18 @@ final class WhatsAppCloudProvider implements PlatformAccountProvider, VerifiesWe
             return SendResult::rejected('invalid_recipient', 'The number is not a valid international phone number.');
         }
 
+        // Rich content (ADR 0022): template with media/buttons, interactive, media, product, Flow.
+        $rich = CloudMessageMapper::fromPayload($payload, $to);
+
+        if ($rich instanceof SendResult) {
+            return $rich;
+        }
+
         $template = $payload->meta['whatsapp_template'] ?? null;
 
-        if (is_string($template) && $template !== '') {
+        if ($rich !== null) {
+            $body = $rich;
+        } elseif (is_string($template) && $template !== '') {
             $language = (string) ($payload->meta['whatsapp_language'] ?? '');
 
             if (preg_match('/^[a-z0-9_]{1,512}$/', $template) !== 1 || preg_match('/^[a-z]{2,3}(_[A-Za-z]{2,4})?$/', $language) !== 1) {
@@ -160,13 +189,31 @@ final class WhatsAppCloudProvider implements PlatformAccountProvider, VerifiesWe
                 return SendResult::rejected('empty_message', 'There is nothing to send.');
             }
 
-            $body = [
-                'messaging_product' => 'whatsapp',
-                'recipient_type' => 'individual',
-                'to' => $to,
-                'type' => 'text',
-                'text' => ['preview_url' => false, 'body' => $text],
-            ];
+            $raw = $payload->meta['whatsapp_interactive'] ?? null;
+
+            if (is_string($raw) && $raw !== '') {
+                $interactive = $this->interactive($raw, $payload->body);
+
+                if ($interactive === null) {
+                    return SendResult::rejected('invalid_interactive', 'The buttons or list of this message are not valid.');
+                }
+
+                $body = [
+                    'messaging_product' => 'whatsapp',
+                    'recipient_type' => 'individual',
+                    'to' => $to,
+                    'type' => 'interactive',
+                    'interactive' => $interactive,
+                ];
+            } else {
+                $body = [
+                    'messaging_product' => 'whatsapp',
+                    'recipient_type' => 'individual',
+                    'to' => $to,
+                    'type' => 'text',
+                    'text' => ['preview_url' => false, 'body' => $text],
+                ];
+            }
         }
 
         $base = rtrim((string) config('communication.whatsapp.graph_base_url', 'https://graph.facebook.com'), '/');
@@ -243,6 +290,31 @@ final class WhatsAppCloudProvider implements PlatformAccountProvider, VerifiesWe
         return $events;
     }
 
+    public function uploadMedia(ChannelConnection $connection, ChannelCredentials $credentials, string $accountId, string $bytes, string $mime, string $filename): MediaTransfer
+    {
+        return CloudMedia::upload($connection, $credentials, $accountId, $bytes, $mime, $filename);
+    }
+
+    public function fetchMedia(ChannelConnection $connection, ChannelCredentials $credentials, string $providerMediaId, ?string $accountId, int $maxBytes): MediaTransfer
+    {
+        return CloudMedia::fetch($connection, $credentials, $providerMediaId, $accountId, $maxBytes);
+    }
+
+    public function listTemplates(ChannelConnection $connection, ChannelCredentials $credentials, string $businessAccountId, ?ProviderTemplateStatus $status, ?string $name, int $limit, ?string $after): TemplateCatalogueResult
+    {
+        return CloudTemplates::list($connection, $credentials, $businessAccountId, $status, $name, $limit, $after);
+    }
+
+    public function createTemplate(ChannelConnection $connection, ChannelCredentials $credentials, string $businessAccountId, TemplateDraft $draft): TemplateCatalogueResult
+    {
+        return CloudTemplates::create($connection, $credentials, $businessAccountId, $draft);
+    }
+
+    public function deleteTemplate(ChannelConnection $connection, ChannelCredentials $credentials, string $businessAccountId, string $name, ?string $providerTemplateId): TemplateCatalogueResult
+    {
+        return CloudTemplates::delete($connection, $credentials, $businessAccountId, $name, $providerTemplateId);
+    }
+
     public function answerHandshake(array $query, #[SensitiveParameter] string $verifyToken): ?string
     {
         $token = $query['hub_verify_token'] ?? $query['hub.verify_token'] ?? '';
@@ -316,6 +388,19 @@ final class WhatsAppCloudProvider implements PlatformAccountProvider, VerifiesWe
                 $text = is_string($caption) ? $caption : null;
             }
 
+            // Typed content (ADR 0022): interactive replies, media, location, reaction, order, Flow response.
+            $content = CloudInbound::content($message, $type);
+
+            if ($content?->contextMessageId !== null) {
+                $meta['context_message_id'] = $content->contextMessageId;
+            } elseif (is_array($message['context'] ?? null) && is_string($message['context']['id'] ?? null)) {
+                $meta['context_message_id'] = mb_substr($message['context']['id'], 0, 150);
+            }
+
+            if ($content !== null) {
+                $meta['content_kind'] = $content->kind->value;
+            }
+
             $events[] = new ProviderEvent(
                 eventId: mb_substr($message['id'], 0, 150),
                 type: ProviderEventType::Inbound,
@@ -324,6 +409,7 @@ final class WhatsAppCloudProvider implements PlatformAccountProvider, VerifiesWe
                 text: $text === null ? null : mb_substr($text, 0, self::MAX_TEXT),
                 accounts: $accounts,
                 meta: $meta,
+                content: $content,
             );
         }
 
@@ -365,6 +451,16 @@ final class WhatsAppCloudProvider implements PlatformAccountProvider, VerifiesWe
 
             if (is_string($pricing['category'] ?? null)) {
                 $meta['pricing_category'] = mb_substr($pricing['category'], 0, 30);
+            }
+
+            foreach (['pricing_model' => 'pricing_model', 'type' => 'pricing_type'] as $from => $to) {
+                if (is_string($pricing[$from] ?? null)) {
+                    $meta[$to] = mb_substr($pricing[$from], 0, 30);
+                }
+            }
+
+            if (is_string($conversation['id'] ?? null)) {
+                $meta['conversation_id'] = mb_substr($conversation['id'], 0, 100);
             }
 
             if (is_array($conversation['origin'] ?? null) && is_string($conversation['origin']['type'] ?? null)) {
@@ -418,6 +514,73 @@ final class WhatsAppCloudProvider implements PlatformAccountProvider, VerifiesWe
                 'provider_template_id' => mb_substr($id, 0, 64),
             ],
         );
+    }
+
+    /**
+     * The `interactive` object for reply buttons or a single-section list, from the hint
+     * `{"kind": "buttons"|"list", "button": "...", "options": ["..."]}`. Null when anything is out of Meta's limits:
+     * 1 to 3 buttons of up to 20 characters, or 1 to 10 rows of up to 24 behind a button label of up to 20, and a
+     * body of up to 1024 characters. A choice comes back as an inbound `button_reply`/`list_reply` with its title.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function interactive(string $raw, string $text): ?array
+    {
+        $hint = json_decode($raw, true);
+        $text = trim($text);
+
+        if (! is_array($hint) || ! is_array($hint['options'] ?? null) || $text === '' || mb_strlen($text) > self::MAX_INTERACTIVE_BODY) {
+            return null;
+        }
+
+        $kind = $hint['kind'] ?? null;
+        $limit = $kind === 'list' ? 24 : 20;
+        $titles = [];
+
+        foreach (array_values($hint['options']) as $option) {
+            $title = is_string($option) ? trim($option) : '';
+
+            if ($title === '' || mb_strlen($title) > $limit) {
+                return null;
+            }
+
+            $titles[] = $title;
+        }
+
+        if ($titles === [] || count(array_unique(array_map('mb_strtolower', $titles))) !== count($titles)) {
+            return null;
+        }
+
+        if ($kind === 'buttons' && count($titles) <= 3) {
+            return [
+                'type' => 'button',
+                'body' => ['text' => $text],
+                'action' => ['buttons' => array_map(
+                    static fn (string $title, int $index): array => ['type' => 'reply', 'reply' => ['id' => 'opt_'.($index + 1), 'title' => $title]],
+                    $titles,
+                    array_keys($titles),
+                )],
+            ];
+        }
+
+        $button = is_string($hint['button'] ?? null) ? trim($hint['button']) : '';
+
+        if ($kind === 'list' && count($titles) <= 10 && $button !== '' && mb_strlen($button) <= 20) {
+            return [
+                'type' => 'list',
+                'body' => ['text' => $text],
+                'action' => [
+                    'button' => $button,
+                    'sections' => [['rows' => array_map(
+                        static fn (string $title, int $index): array => ['id' => 'opt_'.($index + 1), 'title' => $title],
+                        $titles,
+                        array_keys($titles),
+                    )]],
+                ],
+            ];
+        }
+
+        return null;
     }
 
     /** @return list<string> */

@@ -21,7 +21,12 @@ final class LeadCreated extends TenantDomainEvent
 
     public readonly int $score;
 
-    public function __construct(Lead $lead)
+    public readonly ?string $sourceId;
+
+    /** The integration's stable source key (`whatsapp`, `facebook_lead_ads`) when the lead came through LeadIntake. */
+    public readonly ?string $sourceKey;
+
+    public function __construct(Lead $lead, ?string $sourceKey = null)
     {
         parent::__construct();
         $this->leadId = $lead->id;
@@ -30,6 +35,8 @@ final class LeadCreated extends TenantDomainEvent
         $this->companyId = $lead->company_id;
         $this->ownerId = $lead->owner_id;
         $this->score = $lead->score;
+        $this->sourceId = $lead->source_id;
+        $this->sourceKey = $sourceKey;
     }
 
     public static function name(): string
@@ -39,6 +46,15 @@ final class LeadCreated extends TenantDomainEvent
 
     public function payload(): array
     {
-        return ['lead_id' => $this->leadId, 'title' => $this->title, 'contact_id' => $this->contactId, 'company_id' => $this->companyId, 'owner_id' => $this->ownerId, 'score' => $this->score];
+        return [
+            'lead_id' => $this->leadId,
+            'title' => $this->title,
+            'contact_id' => $this->contactId,
+            'company_id' => $this->companyId,
+            'owner_id' => $this->ownerId,
+            'score' => $this->score,
+            'source_id' => $this->sourceId,
+            'source_key' => $this->sourceKey,
+        ];
     }
 }

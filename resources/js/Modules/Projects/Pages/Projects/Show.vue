@@ -173,7 +173,7 @@ function confirmPlanningCancellation(): void {
         <ProjectTeamPanel :project-id="project.id" :members="members" :options="memberOptions" :can-manage="canManageMembers" />
         <Card :title="t('projects.attachments.title')"><template #actions><Paperclip class="size-4 text-ink-subtle" aria-hidden="true" /></template><AttachmentsPanel :project-id="project.id" :attachments="projectAttachments" :can-upload="Boolean(project.editable)" /></Card>
     </div>
-    <ClientAccessPanel v-if="canManageMembers" class="mt-3" :project-id="project.id" :accesses="clientAccesses" @share="clientOpen = true" />
+    <div v-if="canManageMembers" class="mt-3"><ClientAccessPanel :project-id="project.id" :accesses="clientAccesses" @share="clientOpen = true" /></div>
 
     <ConfirmDialog :open="planningCancellation !== null" :title="t('projects.transitions.change')" :description="planningCancellation ? t('projects.transitions.confirm', { action: `${t('projects.common.cancel')} ${planningCancellation.name}` }) : undefined" :confirm-label="t('projects.common.cancel')" :loading="planningSaving" @update:open="!$event && !planningSaving && (planningCancellation = null)" @confirm="confirmPlanningCancellation"><p v-if="planningCancellation && (planningCancellation.kind === 'milestone' ? milestoneError : sprintError)" class="text-sm text-danger" role="alert">{{ planningCancellation.kind === 'milestone' ? milestoneError : sprintError }}</p></ConfirmDialog>
 

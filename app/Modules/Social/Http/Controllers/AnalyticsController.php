@@ -17,11 +17,12 @@ final class AnalyticsController
         private readonly SocialAnalytics $analytics,
         private readonly SocialSettings $settings,
         private readonly SocialSupport $support,
+        private readonly InsightsDashboard $insights,
     ) {}
 
     public function index(Request $request): Response
     {
-        $this->support->actor($request);
+        $actor = $this->support->actor($request);
         $input = $request->validate([
             'from' => ['nullable', 'date_format:Y-m-d'],
             'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
@@ -36,8 +37,9 @@ final class AnalyticsController
         }
 
         return Inertia::render('Modules/Social/Pages/Analytics/Index', [
-            'report' => $this->analytics->overview($from->utc(), $to->utc()),
+            'report' => $this->analytics->overview($from->utc(), $to->utc(), $this->insights->allowedAccountIds($actor)),
             'range' => ['from' => $from->toDateString(), 'to' => $to->toDateString(), 'timezone' => $timezone],
+            'insights' => $this->insights->props($request, $actor),
         ]);
     }
 }

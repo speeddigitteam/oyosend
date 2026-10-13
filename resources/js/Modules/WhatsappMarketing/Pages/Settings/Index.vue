@@ -21,7 +21,7 @@ import WhatsappNav from '../../Components/WhatsappNav.vue';
 defineOptions({ layout: TenantLayout });
 
 const props = defineProps<{
-    settings: { businessName: string | null; displayPhone: string | null; autoAssign: boolean; autoCreateContacts: boolean; botsEnabled: boolean };
+    settings: { businessName: string | null; displayPhone: string | null; autoAssign: boolean; autoCreateContacts: boolean; botsEnabled: boolean; feedbackEnabled?: boolean };
     channel: ChannelInfo;
     agents: AgentRow[];
     members: { id: string; name: string }[];
@@ -39,6 +39,7 @@ const form = useForm({
     auto_assign: props.settings.autoAssign,
     auto_create_contacts: props.settings.autoCreateContacts,
     bots_enabled: props.settings.botsEnabled,
+    feedback_enabled: props.settings.feedbackEnabled ?? false,
 });
 
 const connected = computed(() => props.channel.state === 'available');
@@ -98,6 +99,9 @@ function usage(item: { used: number; limit: number | null }): string {
                     <p v-if="communicationHref" class="mt-3">
                         <Link :href="communicationHref" class="text-brand-text hover:underline">{{ t('whatsapp.settings.openCommunication') }}</Link>
                     </p>
+                    <p class="mt-2">
+                        <Link :href="route('whatsapp_marketing.numbers.index')" class="text-brand-text hover:underline" data-testid="manage-numbers-link">{{ t('whatsapp.settings.manageNumbers') }}</Link>
+                    </p>
                 </div>
             </div>
         </Card>
@@ -109,6 +113,7 @@ function usage(item: { used: number; limit: number | null }): string {
                 <Checkbox v-model="form.auto_assign" :label="t('whatsapp.settings.autoAssign')" :description="t('whatsapp.settings.autoAssignHint')" />
                 <Checkbox v-model="form.auto_create_contacts" :label="t('whatsapp.settings.autoCreate')" :description="t('whatsapp.settings.autoCreateHint')" />
                 <Checkbox v-model="form.bots_enabled" :label="t('whatsapp.settings.bots')" :description="t('whatsapp.settings.botsHint')" />
+                <Checkbox v-model="form.feedback_enabled" :label="t('whatsapp.settings.feedback')" :description="t('whatsapp.settings.feedbackHint', { min: format.number(1), max: format.number(5) })" />
                 <div><Button type="submit" variant="primary" :loading="form.processing">{{ t('whatsapp.common.save') }}</Button></div>
             </form>
         </Card>

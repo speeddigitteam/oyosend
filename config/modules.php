@@ -8,6 +8,8 @@ use App\Modules\CRM\CRMServiceProvider;
 use App\Modules\EmailMarketing\EmailMarketingServiceProvider;
 use App\Modules\Hrm\HrmServiceProvider;
 use App\Modules\Invoicing\InvoicingServiceProvider;
+use App\Modules\MetaAds\MetaAdsServiceProvider;
+use App\Modules\Notes\NotesServiceProvider;
 use App\Modules\Payroll\PayrollServiceProvider;
 use App\Modules\Projects\ProjectsServiceProvider;
 use App\Modules\Reports\ReportsServiceProvider;
@@ -46,10 +48,12 @@ return [
         CommunicationServiceProvider::class,
         EmailMarketingServiceProvider::class,
         SocialServiceProvider::class,
+        MetaAdsServiceProvider::class,
         SmsMarketingServiceProvider::class,
         SupportServiceProvider::class,
         WhatsappMarketingServiceProvider::class,
         ReportsServiceProvider::class,
+        NotesServiceProvider::class,
     ],
 
 ];

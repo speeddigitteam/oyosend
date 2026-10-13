@@ -36,7 +36,7 @@ final class CampaignManager
     ) {}
 
     /**
-     * @param  array{name: string, template_id: string, list_id: string, variables?: array<array-key, mixed>}  $input
+     * @param  array{name: string, template_id: string, list_id: string, variables?: array<array-key, mixed>, header_media_type?: string|null, header_media_id?: string|null, buttons?: array<array-key, mixed>, sender_number_id?: string|null}  $input
      */
     public function save(?Campaign $campaign, array $input, ?TenantMembership $owner = null): Campaign
     {
@@ -62,7 +62,17 @@ final class CampaignManager
 
         $map = $this->variables->normalizeMap((array) ($input['variables'] ?? []), $template->variable_count);
 
-        return DB::transaction(function () use ($campaign, $name, $template, $list, $map, $owner): Campaign {
+        // ADR 0022: an optional fixed media header and dynamic button values for the template.
+        $headerType = in_array($input['header_media_type'] ?? null, ['image', 'video', 'document'], true) ? $input['header_media_type'] : null;
+        $headerId = $headerType !== null && is_string($input['header_media_id'] ?? null) && $input['header_media_id'] !== '' ? $input['header_media_id'] : null;
+        $buttons = $this->buttonParams((array) ($input['buttons'] ?? []));
+        $senderNumberId = is_string($input['sender_number_id'] ?? null) && $input['sender_number_id'] !== '' ? $input['sender_number_id'] : null;
+
+        if ($headerType !== null && $headerId === null) {
+            throw ValidationException::withMessages(['header_media_id' => __('Choose a media file for the header.')]);
+        }
+
+        return DB::transaction(function () use ($campaign, $name, $template, $list, $map, $headerType, $headerId, $buttons, $senderNumberId, $owner): Campaign {
             $campaign ??= new Campaign(['status' => CampaignStatus::Draft, 'total_recipients' => 0, 'created_by' => $owner?->id]);
             $campaign->fill([
                 'name' => $name,
@@ -74,6 +84,10 @@ final class CampaignManager
                 'template_body' => $template->body_text,
                 'list_name' => $list->name,
                 'variable_map' => $map,
+                'header_media_type' => $headerType,
+                'header_media_id' => $headerId,
+                'button_params' => $buttons === [] ? null : $buttons,
+                'sender_number_id' => $senderNumberId,
             ]);
 
             if (! $campaign->exists && $owner !== null) {
@@ -189,5 +203,34 @@ final class CampaignManager
     public function listSize(ContactList $list): int
     {
         return $this->lists->count($list);
+    }
+
+    /**
+     * Normalise the form's button variables into the {@see WhatsappContent::template()} button-parameter shape.
+     *
+     * @param  array<array-key, mixed>  $buttons
+     * @return list<array{sub_type: string, index: int, value: string}>
+     */
+    private function buttonParams(array $buttons): array
+    {
+        $params = [];
+
+        foreach ($buttons as $button) {
+            if (! is_array($button)) {
+                continue;
+            }
+
+            $type = $button['type'] ?? null;
+            $index = $button['index'] ?? null;
+            $value = is_string($button['value'] ?? null) ? Text::clean($button['value'], 2000, false) : '';
+
+            if (! in_array($type, ['url', 'quick_reply', 'copy_code'], true) || ! is_int($index) || $value === '') {
+                throw ValidationException::withMessages(['buttons' => __('Each button variable needs a position and a value.')]);
+            }
+
+            $params[] = ['sub_type' => $type, 'index' => $index, 'value' => $value];
+        }
+
+        return $params;
     }
 }

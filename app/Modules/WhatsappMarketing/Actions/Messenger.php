@@ -9,6 +9,8 @@ use App\Core\Communication\Data\DeliveryState;
 use App\Core\Communication\Data\MarketingChannel;
 use App\Core\Communication\Data\MarketingMessage;
 use App\Core\Communication\Data\MessagingPurpose;
+use App\Core\Communication\Data\Whatsapp\MediaReference;
+use App\Core\Communication\Data\Whatsapp\WhatsappContent;
 use App\Core\Contacts\Models\Contact;
 use App\Core\Identity\Models\TenantMembership;
 use App\Core\Tenancy\TenantContext;
@@ -23,6 +25,7 @@ use App\Modules\WhatsappMarketing\Models\Conversation;
 use App\Modules\WhatsappMarketing\Models\Message;
 use App\Modules\WhatsappMarketing\Models\Recipient;
 use App\Modules\WhatsappMarketing\Models\Template;
+use App\Modules\WhatsappMarketing\Support\Interactive;
 use App\Modules\WhatsappMarketing\Support\Phone;
 use App\Modules\WhatsappMarketing\Support\Text;
 use Carbon\CarbonImmutable;
@@ -57,11 +60,12 @@ final class Messenger
     ) {}
 
     /**
-     * A free-form reply to a customer who wrote within the last 24 hours.
+     * A free-form reply to a customer who wrote within the last 24 hours, optionally with reply buttons or a list
+     * ({@see Interactive}): the same window rule applies, and the body is then at most 1024 characters.
      *
      * @throws ValidationException
      */
-    public function reply(Conversation $conversation, string $text, ?TenantMembership $author, SenderType $by = SenderType::Agent): Message
+    public function reply(Conversation $conversation, string $text, ?TenantMembership $author, SenderType $by = SenderType::Agent, ?Interactive $interactive = null, ?string $senderNumberId = null): Message
     {
         $until = $this->windows->serviceWindowUntil($conversation);
 
@@ -78,28 +82,39 @@ final class Messenger
             throw ValidationException::withMessages(['body' => __('Write a message first.')]);
         }
 
+        if ($interactive !== null && mb_strlen($body) > Interactive::MAX_BODY) {
+            throw ValidationException::withMessages(['body' => __('A message with buttons or a list has up to :max characters.', ['max' => Interactive::MAX_BODY])]);
+        }
+
         $outcome = $this->dispatch(
             $conversation,
             $contact,
-            type: MessageType::Text,
+            type: $interactive === null ? MessageType::Text : MessageType::Interactive,
             body: $body,
             sender: $by,
             author: $author,
             purpose: MessagingPurpose::Transactional,
-            hints: ['whatsapp_window_until' => $until->toIso8601String()],
+            hints: [
+                'whatsapp_window_until' => $until->toIso8601String(),
+                ...($interactive === null ? [] : ['whatsapp_interactive' => $interactive->hint()]),
+            ],
             template: null,
             campaign: null,
             recipient: null,
             field: 'body',
+            interactive: $interactive,
+            senderNumberId: $senderNumberId,
         );
 
         return $outcome->message;
     }
 
     /**
-     * An approved template, inside or outside the window.
+     * An approved template, inside or outside the window. A media header and/or button variables (ADR 0022)
+     * send it as rich WhatsappContent; otherwise the older provider-hint path is used.
      *
      * @param  list<string>  $parameters  Values for `{{1}}`, `{{2}}`, ...
+     * @param  list<array{sub_type: string, index: int, value: string}>  $buttonParams
      *
      * @throws ValidationException
      */
@@ -111,6 +126,9 @@ final class Messenger
         SenderType $by = SenderType::Agent,
         ?Campaign $campaign = null,
         ?Recipient $recipient = null,
+        ?MediaReference $headerMedia = null,
+        array $buttonParams = [],
+        ?string $senderNumberId = null,
     ): SendOutcome {
         if ($template->status !== TemplateStatus::Approved) {
             throw ValidationException::withMessages(['template_id' => __('Only approved templates can be sent.')]);
@@ -137,6 +155,26 @@ final class Messenger
             ? MessagingPurpose::Marketing
             : MessagingPurpose::Transactional;
 
+        // A media header or button variables (ADR 0022) are sent as rich WhatsappContent; a plain template keeps
+        // the older provider-hint path untouched. Either way the window hint is added for a transactional send.
+        $window = $purpose === MessagingPurpose::Transactional ? ['whatsapp_window_until' => $until->toIso8601String()] : [];
+        $content = null;
+
+        if ($headerMedia !== null || $buttonParams !== []) {
+            try {
+                $content = WhatsappContent::template($template->name, $template->language, $parameters, headerMedia: $headerMedia, buttons: $buttonParams);
+            } catch (\InvalidArgumentException) {
+                throw ValidationException::withMessages(['template_id' => __('This template cannot be sent with the chosen header or buttons.')]);
+            }
+        }
+
+        $hints = $content !== null ? $window : [
+            'whatsapp_template' => $template->name,
+            'whatsapp_language' => $template->language,
+            'whatsapp_params' => (string) json_encode($parameters, JSON_UNESCAPED_UNICODE),
+            ...$window,
+        ];
+
         return $this->dispatch(
             $conversation,
             $contact,
@@ -145,17 +183,13 @@ final class Messenger
             sender: $by,
             author: $author,
             purpose: $purpose,
-            hints: [
-                'whatsapp_template' => $template->name,
-                'whatsapp_language' => $template->language,
-                'whatsapp_params' => (string) json_encode($parameters, JSON_UNESCAPED_UNICODE),
-                // The platform honours "transactional" only against an open window: it is named here.
-                ...($purpose === MessagingPurpose::Transactional ? ['whatsapp_window_until' => $until->toIso8601String()] : []),
-            ],
+            hints: $hints,
             template: $template,
             campaign: $campaign,
             recipient: $recipient,
             field: 'template_id',
+            senderNumberId: $senderNumberId,
+            whatsapp: $content,
         );
     }
 
@@ -175,6 +209,9 @@ final class Messenger
         ?Campaign $campaign,
         ?Recipient $recipient,
         string $field,
+        ?Interactive $interactive = null,
+        ?string $senderNumberId = null,
+        ?WhatsappContent $whatsapp = null,
     ): SendOutcome {
         $now = CarbonImmutable::now();
 
@@ -192,6 +229,7 @@ final class Messenger
             'type' => $type,
             'body' => $body,
             'template_name' => $template?->name,
+            'interactive' => $interactive?->toArray(),
             'status' => MessageStatus::Queued,
             'occurred_at' => $now,
         ]);
@@ -218,6 +256,8 @@ final class Messenger
             sendAt: null,
             purpose: $purpose,
             providerHints: $hints,
+            senderNumberId: $senderNumberId,
+            whatsapp: $whatsapp,
         ));
 
         if ($receipt->state === DeliveryState::Unavailable) {

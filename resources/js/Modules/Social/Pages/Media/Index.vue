@@ -14,8 +14,10 @@ import Select from '@/Core/Components/Select.vue';
 import { useFormat } from '@/Core/composables/useFormat';
 import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
 import { route } from '@/Core/lib/route';
+import MediaCompatBadges from '../../Components/MediaCompatBadges.vue';
 import MediaEditDialog from '../../Components/MediaEditDialog.vue';
 import MediaUploadDialog from '../../Components/MediaUploadDialog.vue';
+import { clockParts } from '../../Components/preflight';
 import { sizeParts } from '../../Components/socialFormat';
 import type { MediaRow, Paginated } from '../../Components/types';
 
@@ -91,6 +93,12 @@ function sizeText(bytes: number): string {
     return t(`social.units.${unit}`, { count: format.number(value) });
 }
 
+function clock(ms: number): string {
+    const { minutes, seconds } = clockParts(ms);
+
+    return `${format.number(minutes)}:${seconds < 10 ? format.number(0) : ''}${format.number(seconds)}`;
+}
+
 function dimensions(item: MediaRow): string | null {
     return item.width && item.height ? t('social.media.dimensions', { width: format.number(item.width), height: format.number(item.height) }) : null;
 }
@@ -124,6 +132,13 @@ function dimensions(item: MediaRow): string | null {
                 <p class="mt-0.5 text-xs text-ink-subtle">
                     {{ t(`social.status.mediaKind.${item.kind}`) }} · {{ sizeText(item.sizeBytes) }}<template v-if="dimensions(item)"> · {{ dimensions(item) }}</template>
                 </p>
+                <p v-if="item.kind === 'video' && item.durationMs" class="tabular mt-1 text-xs text-ink-subtle">
+                    {{ t('socialPublishing.media.length', { value: clock(item.durationMs) }) }}
+                </p>
+                <p v-else-if="item.kind === 'video' && item.probe === 'unknown'" class="mt-1 text-xs text-warn" data-testid="unreadable">
+                    {{ t('socialPublishing.media.unreadable') }}
+                </p>
+                <MediaCompatBadges v-if="item.compat" class="mt-2" :compat="item.compat" />
                 <p v-if="item.inUse" class="mt-1 text-xs text-ink-muted">{{ t('social.media.inUse') }}</p>
                 <p v-if="item.kind === 'image' && !item.altText" class="mt-1 text-xs text-ink-subtle">{{ t('social.media.noAlt') }}</p>
                 <div v-if="canManage" class="mt-3 flex gap-1.5">

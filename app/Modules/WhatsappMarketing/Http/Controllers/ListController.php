@@ -15,10 +15,12 @@ use App\Modules\WhatsappMarketing\Actions\ListManager;
 use App\Modules\WhatsappMarketing\Http\Presenter;
 use App\Modules\WhatsappMarketing\Models\ContactList;
 use App\Modules\WhatsappMarketing\Models\ListMember;
+use App\Modules\WhatsappMarketing\Support\ContactRules;
 use App\Modules\WhatsappMarketing\Support\Permissions;
 use App\Modules\WhatsappMarketing\Support\Phone;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -148,6 +150,22 @@ final class ListController
     {
         $actor = $this->presenter->actor($request);
         $added = $this->lists->addAllVisible($list, $actor, $this->presenter->membership($actor));
+        Toast::success(trans_choice('{0} Nobody was added.|{1} One contact added.|[2,*] :count contacts added.', $added, ['count' => $added]));
+
+        return back();
+    }
+
+    /** Add the contacts that match declarative rules (city, conversation tag, wrote within N days, ...). */
+    public function addByRules(Request $request, ContactList $list): RedirectResponse
+    {
+        $actor = $this->presenter->actor($request);
+        $input = $request->validate([
+            'match' => ['required', Rule::in(['all', 'any'])],
+            'rules' => ['required', 'array', 'min:1', 'max:'.ContactRules::MAX_RULES],
+        ]);
+        $rules = ContactRules::normalize($input['rules']);
+
+        $added = $this->lists->addByRules($list, $rules, $input['match'], $actor, $this->presenter->membership($actor));
         Toast::success(trans_choice('{0} Nobody was added.|{1} One contact added.|[2,*] :count contacts added.', $added, ['count' => $added]));
 
         return back();

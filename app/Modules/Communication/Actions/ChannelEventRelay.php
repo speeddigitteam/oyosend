@@ -30,6 +30,7 @@ final class ChannelEventRelay
     public function __construct(
         private readonly Container $container,
         private readonly ContactLocator $locator,
+        private readonly ChannelNumbers $numbers,
     ) {}
 
     public function forward(ChannelProvider $provider, ProviderEvent $event): void
@@ -46,6 +47,12 @@ final class ChannelEventRelay
             ->where('provider', $provider->key())
             ->where('provider_message_id', $event->providerMessageId)
             ->first();
+
+        // The workspace number the event belongs to (ADR 0022): the receiving number of an inbound message or
+        // receipt, else the number our own message was sent from.
+        $account = $event->accounts[ChannelNumbers::ACCOUNT_KEY] ?? null;
+        $number = is_string($account) ? $this->numbers->rowForAccount($account) : null;
+        $numberId = $number->id ?? $message?->sender_number_id;
 
         $channelEvent = new ChannelEvent(
             channel: MarketingChannel::from($channel->value),
@@ -64,7 +71,11 @@ final class ChannelEventRelay
             details: [
                 ...$event->meta,
                 ...($event->reason === null ? [] : ['reason' => mb_substr($event->reason, 0, 300)]),
+                ...($number === null ? [] : ['phone_number_id' => $number->phone_number_id]),
             ],
+            numberId: $numberId,
+            content: $event->content,
+            pricingCategory: is_string($event->meta['pricing_category'] ?? null) ? $event->meta['pricing_category'] : null,
         );
 
         $failed = false;

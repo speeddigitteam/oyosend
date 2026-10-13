@@ -9,6 +9,7 @@ use App\Platform\Http\Controllers\Auth\TwoFactorChallengeController;
 use App\Platform\Http\Controllers\Auth\TwoFactorSetupController;
 use App\Platform\Http\Controllers\DashboardController;
 use App\Platform\Http\Controllers\ImpersonationController;
+use App\Platform\Http\Controllers\IntegrationController;
 use App\Platform\Http\Controllers\InvoiceController;
 use App\Platform\Http\Controllers\PlanController;
 use App\Platform\Http\Controllers\SettingsController;
@@ -112,6 +113,17 @@ Route::middleware('auth:platform')->group(function () {
         Route::middleware('can:platform.settings.manage')->group(function () {
             Route::get('settings', [SettingsController::class, 'edit'])->name('settings.edit');
             Route::put('settings', [SettingsController::class, 'update'])->name('settings.update');
+
+            // Payment gateway credentials (write-only, encrypted; falls back to the environment).
+            // docs/adr/0028-operator-managed-integration-credentials.md.
+            Route::put('settings/gateways/{gateway}', [SettingsController::class, 'updateGateway'])->name('settings.gateways.update');
+            Route::delete('settings/gateways/{gateway}', [SettingsController::class, 'clearGateway'])->name('settings.gateways.clear');
+
+            // Social platform apps (Facebook, LinkedIn, X) and the Meta Ads app credentials (write-only,
+            // encrypted; falls back to the environment). docs/adr/0029-social-and-meta-ads-panel-credentials.md.
+            Route::get('settings/integrations', [IntegrationController::class, 'index'])->name('integrations.index');
+            Route::put('settings/integrations/{group}/{name}', [IntegrationController::class, 'update'])->name('integrations.update');
+            Route::delete('settings/integrations/{group}/{name}', [IntegrationController::class, 'clear'])->name('integrations.clear');
 
             // Messaging provider accounts (email, SMS, WhatsApp). The controller belongs to the communication
             // module because the adapters do; secrets are write-only (docs/adr/0013).

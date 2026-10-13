@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { Check, CheckCheck, Clock, FileText, Image as ImageIcon, TriangleAlert } from 'lucide-vue-next';
+import { Check, CheckCheck, Clock, Download, FileText, Image as ImageIcon, TriangleAlert } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useFormat } from '@/Core/composables/useFormat';
+import { route } from '@/Core/lib/route';
 import type { MessageRow } from './types';
 import { useWhatsappFormat } from './useWhatsappFormat';
 
@@ -55,11 +56,36 @@ const status = computed(() => (inbound.value ? null : props.message.status));
                     <ImageIcon v-if="attachment.kind === 'image' || attachment.kind === 'sticker'" class="size-4" aria-hidden="true" />
                     <FileText v-else class="size-4" aria-hidden="true" />
                     <span>{{ t('whatsapp.thread.attachment', { kind: attachmentKind(attachment.kind) }) }}</span>
+                    <a
+                        v-if="attachment.downloadable"
+                        :href="route('whatsapp_marketing.messages.media', { message: message.id })"
+                        class="inline-flex items-center gap-1 text-brand-text hover:underline"
+                        download
+                        data-testid="attachment-download"
+                    >
+                        <Download class="size-3.5" aria-hidden="true" />
+                        {{ t('whatsapp.thread.download') }}
+                    </a>
                 </li>
             </ul>
 
             <p v-if="hasCaption" class="whitespace-pre-wrap wrap-anywhere">{{ message.body }}</p>
             <p v-else-if="message.attachments.length === 0" class="text-ink-subtle">{{ t('whatsapp.thread.unsupported') }}</p>
+
+            <div v-if="message.interactive && message.interactive.options.length" class="mt-2 grid gap-1" data-testid="message-choices">
+                <p class="text-xs text-ink-subtle">
+                    {{ message.interactive.button ? t('whatsapp.thread.listButton', { label: message.interactive.button }) : t('whatsapp.thread.choices') }}
+                </p>
+                <ul class="flex flex-wrap gap-1.5" :aria-label="t('whatsapp.thread.choices')">
+                    <li
+                        v-for="(option, index) in message.interactive.options"
+                        :key="index"
+                        class="rounded-control border border-line bg-control px-2 py-0.5 text-xs text-ink wrap-anywhere"
+                    >
+                        {{ option }}
+                    </li>
+                </ul>
+            </div>
 
             <p class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-ink-subtle">
                 <time class="tabular">{{ when }}</time>

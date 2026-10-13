@@ -108,9 +108,9 @@ final class PayrollServiceProvider extends ModuleServiceProvider
                 new NavigationItem('payrollItems', 'payroll.items.index', 'gift', 'payroll.items.view', 'apps', 44, 'payroll.items.*'),
                 new NavigationItem('payrollLoans', 'payroll.loans.index', 'hand-coins', 'payroll.loans.view', 'apps', 45, 'payroll.loans.*'),
                 new NavigationItem('payrollReports', 'payroll.reports.index', 'chart-no-axes-combined', 'payroll.reports.view', 'apps', 46, 'payroll.reports.*'),
-                new NavigationItem('payrollStructures', 'payroll.structures.index', 'layers', 'payroll.structures.view', 'manage', 40, 'payroll.structures.*'),
-                new NavigationItem('payrollRules', 'payroll.rules.index', 'scale', 'payroll.rules.view', 'manage', 41, 'payroll.rules.*'),
-                new NavigationItem('payrollSettings', 'payroll.settings.index', 'settings', 'payroll.settings.manage', 'manage', 42, 'payroll.settings.*'),
+                new NavigationItem('payrollStructures', 'payroll.structures.index', 'layers', 'payroll.structures.view', 'apps', 900, 'payroll.structures.*'),
+                new NavigationItem('payrollRules', 'payroll.rules.index', 'scale', 'payroll.rules.view', 'apps', 901, 'payroll.rules.*'),
+                new NavigationItem('payrollSettings', 'payroll.settings.index', 'settings', 'payroll.settings.manage', 'apps', 902, 'payroll.settings.*'),
             ],
             widgets: [
                 new WidgetDefinition('payroll.self', 'PayrollSelfWidget', PayrollSelfWidget::class, 'payroll.payslips.view', span: 4, order: 17),

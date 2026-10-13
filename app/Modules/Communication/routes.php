@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Modules\Communication\Http\Controllers\AudienceController;
+use App\Modules\Communication\Http\Controllers\InboxController;
 use App\Modules\Communication\Http\Controllers\MessageController;
 use App\Modules\Communication\Http\Controllers\NotificationController;
 use App\Modules\Communication\Http\Controllers\PreferenceController;
@@ -23,6 +24,11 @@ Route::middleware(['auth:web', 'auth.session', 'member', 'subscribed'])->prefix(
         Route::get('preferences', [PreferenceController::class, 'index'])->name('communication.preferences.index');
         Route::put('preferences', [PreferenceController::class, 'update'])->name('communication.preferences.update');
     });
+
+    // Unified inbox: each source still decides, by its own permission, what the member sees (ADR 0020).
+    Route::get('inbox', [InboxController::class, 'index'])
+        ->middleware('can:communication.inbox.view')
+        ->name('communication.inbox.index');
 
     // Message log and composer. `create` is declared before the `{message}` routes.
     Route::get('messages', [MessageController::class, 'index'])

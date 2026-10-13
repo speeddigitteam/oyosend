@@ -53,6 +53,7 @@ import { setLocale } from '@/Core/i18n';
 import bn from '@/Core/i18n/locales/bn';
 import en from '@/Core/i18n/locales/en';
 import ConversationComposer from '@/Modules/WhatsappMarketing/Components/ConversationComposer.vue';
+import ConversationNotes from '@/Modules/WhatsappMarketing/Components/ConversationNotes.vue';
 import MessageBubble from '@/Modules/WhatsappMarketing/Components/MessageBubble.vue';
 import TemplateStatusBadge from '@/Modules/WhatsappMarketing/Components/TemplateStatusBadge.vue';
 import type { ChannelInfo, FlowRow, MessageRow, QuickReplyRow, SendableTemplate } from '@/Modules/WhatsappMarketing/Components/types';
@@ -65,6 +66,8 @@ import {
     buildFlowPayload,
     buildVariableMap,
     campaignStatusTone,
+    choicesPayload,
+    choicesValid,
     countTemplateVariables,
     emptyFlowForm,
     flowFormValid,
@@ -74,6 +77,8 @@ import {
     newStep,
     recipientStateTone,
     renderTemplateBody,
+    ruleNeedsValue,
+    ruleValueType,
     templateStatusTone,
     variableRows,
     variablesComplete,
@@ -542,7 +547,7 @@ describe('whatsapp catalogue', () => {
             expect(source.events['whatsapp_marketing.conversation.assigned']).toBeTruthy();
             expect(source.events['whatsapp_marketing.flow.updated']).toBeTruthy();
             expect(source.eventFamilies.whatsapp_marketing).toBeTruthy();
-            expect(Object.keys(source.automation.triggers).filter((key) => key.startsWith('whatsapp_marketing.'))).toHaveLength(4);
+            expect(Object.keys(source.automation.triggers).filter((key) => key.startsWith('whatsapp_marketing.'))).toHaveLength(5);
             expect(Object.keys(source.automation.actions).filter((key) => key.startsWith('whatsapp_marketing.'))).toHaveLength(3);
         }
     });
@@ -555,5 +560,132 @@ describe('whatsapp catalogue', () => {
             expect(source.triggers['whatsapp_marketing.message.received']).toBeTruthy();
             expect(source.actions['whatsapp_marketing.template.send']).toBeTruthy();
         }
+    });
+});
+
+describe('whatsapp engagement', () => {
+    it('builds reply buttons and lists only within the limits', () => {
+        expect(choicesPayload({ kind: '', button: '', options: ['A'] })).toBeNull();
+        expect(choicesPayload({ kind: 'buttons', button: 'x', options: [' Yes ', '', 'No'] })).toEqual({ kind: 'buttons', options: ['Yes', 'No'] });
+        expect(choicesPayload({ kind: 'list', button: ' Pick ', options: ['Dhaka'] })).toEqual({ kind: 'list', button: 'Pick', options: ['Dhaka'] });
+
+        expect(choicesValid({ kind: 'buttons', button: '', options: ['A', 'B', 'C'] })).toBe(true);
+        expect(choicesValid({ kind: 'buttons', button: '', options: ['A', 'B', 'C', 'D'] })).toBe(false);
+        expect(choicesValid({ kind: 'buttons', button: '', options: ['A label longer than twenty'] })).toBe(false);
+        expect(choicesValid({ kind: 'buttons', button: '', options: ['Same', 'same'] })).toBe(false);
+        expect(choicesValid({ kind: 'list', button: '', options: ['A'] })).toBe(false);
+        expect(choicesValid({ kind: 'list', button: 'Pick', options: ['A row label of 24 chars'] })).toBe(true);
+        expect(choicesValid({ kind: '', button: '', options: [] })).toBe(true);
+    });
+
+    it('knows which list rules need a value and of what kind', () => {
+        expect(ruleNeedsValue('exists')).toBe(false);
+        expect(ruleNeedsValue('is_true')).toBe(false);
+        expect(ruleNeedsValue('equals')).toBe(true);
+        expect(ruleValueType('on_or_after')).toBe('date');
+        expect(ruleValueType('within')).toBe('number');
+        expect(ruleValueType('contains')).toBe('text');
+    });
+
+    it('sends a reply with buttons only when buttons were chosen', async () => {
+        const wrapper = composer();
+        await wrapper.get('textarea').setValue('Which plan?');
+        await wrapper.get('[data-testid="composer-free-text"]').trigger('submit');
+
+        expect(inertia.submissions.at(-1)?.data).toEqual({ body: 'Which plan?', quick_reply_id: '' });
+
+        await wrapper.get('textarea').setValue('Which plan?');
+        await wrapper.findAll('[role="radio"]').find((radio) => radio.text() === 'Reply buttons')!.trigger('click');
+        const inputs = wrapper.findAll('[data-testid="choice-option"] input');
+        await inputs[0]!.setValue('Basic');
+        await inputs[1]!.setValue('Pro');
+        await wrapper.get('[data-testid="composer-free-text"]').trigger('submit');
+
+        expect(inertia.submissions.at(-1)?.data).toEqual({ body: 'Which plan?', quick_reply_id: '', interactive: { kind: 'buttons', options: ['Basic', 'Pro'] } });
+    });
+
+    it('offers an AI draft only when allowed, fills the box and sends nothing', async () => {
+        expect(composer().find('[data-testid="ai-draft"]').exists()).toBe(false);
+
+        const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response(JSON.stringify({ text: 'Yes, we deliver to Sylhet.' }), { status: 200 }));
+        vi.stubGlobal('fetch', fetchMock);
+        const wrapper = composer({ canDraft: true });
+        await wrapper.get('[data-testid="ai-draft"]').trigger('click');
+        await vi.waitFor(() => expect(wrapper.find('[data-testid="ai-draft-label"]').exists()).toBe(true));
+
+        expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('Yes, we deliver to Sylhet.');
+        expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toEqual({ kind: 'draft_reply', record_type: 'whatsapp_conversation', record_id: 'c-1' });
+        expect(inertia.submissions).toHaveLength(0);
+
+        fetchMock.mockImplementation(async () => new Response(JSON.stringify({ message: 'x' }), { status: 404 }));
+        await wrapper.get('[data-testid="ai-draft"]').trigger('click');
+        await vi.waitFor(() => expect(wrapper.find('[data-testid="ai-draft-error"]').exists()).toBe(true));
+        expect(wrapper.get('[data-testid="ai-draft-error"]').text()).toContain('AI settings');
+        vi.unstubAllGlobals();
+    });
+
+    it('shows the choices an outbound message offered', () => {
+        const wrapper = track(mount(MessageBubble, {
+            props: { message: message({ direction: 'outbound', senderType: 'bot', type: 'interactive', status: 'sent', body: 'Rate us', interactive: { kind: 'list', button: 'Rate', options: ['5 - Excellent', '1 - Very poor'] } }) },
+        }));
+
+        expect(wrapper.get('[data-testid="message-choices"]').text()).toContain('Behind the button Rate');
+        expect(wrapper.get('[data-testid="message-choices"]').text()).toContain('5 - Excellent');
+    });
+
+    it('lists internal notes as text and removes only the removable ones', async () => {
+        const wrapper = track(mount(ConversationNotes, {
+            props: {
+                conversationId: 'c-1',
+                canAdd: true,
+                notes: [
+                    { id: 'n-1', body: '<b>Call</b> after 5', author: 'Nadia', createdAt: '2026-10-11T04:00:00+00:00', removable: true },
+                    { id: 'n-2', body: 'Old note', author: null, createdAt: '2026-10-11T04:00:00+00:00', removable: false },
+                ],
+            },
+        }));
+        const notes = wrapper.findAll('[data-testid="note"]');
+
+        expect(notes).toHaveLength(2);
+        expect(wrapper.find('b').exists()).toBe(false);
+        expect(notes[0]!.text()).toContain('<b>Call</b> after 5');
+        expect(notes[1]!.text()).toContain('Former member');
+        expect(notes[0]!.findAll('button')).toHaveLength(1);
+        expect(notes[1]!.findAll('button')).toHaveLength(0);
+
+        await notes[0]!.get('button').trigger('click');
+        expect(inertia.router.delete).toHaveBeenCalledWith('/whatsapp_marketing.inbox.notes.destroy?conversation=c-1&note=n-1', expect.anything());
+
+        await wrapper.get('[data-testid="note-form"] textarea').setValue('Prefers Bangla');
+        await wrapper.get('[data-testid="note-form"]').trigger('submit');
+        expect(inertia.submissions.at(-1)).toEqual({ method: 'post', url: '/whatsapp_marketing.inbox.notes.store?conversation=c-1', data: { body: 'Prefers Bangla' } });
+    });
+
+    it('hides the note form from someone who may not add notes', () => {
+        const wrapper = track(mount(ConversationNotes, { props: { conversationId: 'c-1', canAdd: false, notes: [] } }));
+
+        expect(wrapper.find('[data-testid="note-form"]').exists()).toBe(false);
+        expect(wrapper.get('[data-testid="notes-empty"]').text()).toBe('No notes yet.');
+    });
+
+    it('shows the average customer rating', () => {
+        inertia.page.props.auth.permissions = ['whatsapp_marketing.analytics.view'];
+        const wrapper = track(mount(AnalyticsIndex, {
+            props: {
+                days: 30,
+                overview: {
+                    conversations: { new: 0, inbound: 0, outbound: 0, campaign: 0, open: 0, unassigned: 0, firstResponseAverage: null },
+                    windows: { customer: 0, business: 0, used: 0, limit: null },
+                    delivery: { sent: 0, delivered: 0, read: 0, failed: 0, blocked: 0, deliveredBps: null, readBps: null },
+                    providerReported: { billable: 0, notBillable: 0, notReported: 0, byCategory: {} },
+                    cost: null,
+                    feedback: { requested: 3, answered: 2, averageX100: 450, byRating: { '5': 1, '4': 1, '3': 0, '2': 0, '1': 0 } },
+                    campaigns: [],
+                },
+                daily: [],
+            },
+        }));
+
+        expect(wrapper.get('[data-testid="feedback-average"]').text()).toBe('4.5 out of 5');
     });
 });

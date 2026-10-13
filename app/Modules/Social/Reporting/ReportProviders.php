@@ -13,5 +13,7 @@ final class ReportProviders
     public const array ALL = [
         PublishingReport::class,
         EngagementReport::class,
+        PageInsightsReport::class,
+        CampaignPerformanceReport::class,
     ];
 }

@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $tenant_id
  * @property bool $require_approval
  * @property int $account_hourly_limit
+ * @property int $ai_daily_cap
  */
 class SocialSetting extends Model
 {
@@ -24,15 +25,15 @@ class SocialSetting extends Model
     protected $table = 'social_settings';
 
     /** @var list<string> */
-    protected $fillable = ['require_approval', 'account_hourly_limit'];
+    protected $fillable = ['require_approval', 'account_hourly_limit', 'ai_daily_cap'];
 
     /** @var array<string, mixed> */
-    protected $attributes = ['require_approval' => false, 'account_hourly_limit' => 10];
+    protected $attributes = ['require_approval' => false, 'account_hourly_limit' => 10, 'ai_daily_cap' => 200];
 
     /** @return array<string, string> */
     protected function casts(): array
     {
-        return ['require_approval' => 'boolean', 'account_hourly_limit' => 'integer'];
+        return ['require_approval' => 'boolean', 'account_hourly_limit' => 'integer', 'ai_daily_cap' => 'integer'];
     }
 
     public function auditLabel(): string

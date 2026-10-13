@@ -135,6 +135,7 @@ const DECLARED_BY_AUTOMATION = [
 const DECLARED_BY_COMMUNICATION = [
     'communication.audience.view',
     'communication.consent.manage',
+    'communication.inbox.view',
     'communication.messages.send',
     'communication.messages.send_transactional',
     'communication.messages.view',

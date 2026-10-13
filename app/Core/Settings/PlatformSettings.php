@@ -25,6 +25,11 @@ final class PlatformSettings
         'billing.grace_days' => 'platform.billing.grace_days',
         'billing.invoice_lead_days' => 'platform.billing.invoice_lead_days',
         'billing.offline_instructions' => 'platform.billing.offline_instructions',
+        'billing.invoice_prefix' => 'platform.billing.invoice_prefix',
+        'billing.issuer_name' => 'platform.billing.issuer.name',
+        'billing.issuer_address' => 'platform.billing.issuer.address',
+        'billing.issuer_email' => 'platform.billing.issuer.email',
+        'billing.issuer_tax_id' => 'platform.billing.issuer.tax_id',
     ];
 
     private const string CACHE_KEY = 'platform:settings';
@@ -86,6 +91,35 @@ final class PlatformSettings
         $text = trim((string) $this->get('billing.offline_instructions'));
 
         return $text === '' ? null : $text;
+    }
+
+    public function invoicePrefix(): string
+    {
+        $prefix = trim((string) $this->get('billing.invoice_prefix'));
+
+        return $prefix === '' ? 'INV' : $prefix;
+    }
+
+    /**
+     * The business that issues the platform's invoices, printed on them.
+     *
+     * @return array{name: ?string, address: ?string, email: ?string, tax_id: ?string}
+     */
+    public function invoiceIssuer(): array
+    {
+        return [
+            'name' => $this->text('billing.issuer_name'),
+            'address' => $this->text('billing.issuer_address'),
+            'email' => $this->text('billing.issuer_email'),
+            'tax_id' => $this->text('billing.issuer_tax_id'),
+        ];
+    }
+
+    private function text(string $key): ?string
+    {
+        $value = trim((string) $this->get($key));
+
+        return $value === '' ? null : $value;
     }
 
     /**

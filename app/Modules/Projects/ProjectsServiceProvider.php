@@ -94,7 +94,7 @@ final class ProjectsServiceProvider extends ModuleServiceProvider
                 new NavigationItem('projectExpenses', 'projects.expenses.index', 'receipt', 'projects.expenses.view', 'apps', 17, 'projects.expenses.*'),
                 new NavigationItem('projectApprovals', 'projects.approvals.index', 'badge-check', 'projects.approvals.view', 'apps', 18, 'projects.approvals.*', ['projects.approvals.request', 'projects.approvals.decide']),
                 new NavigationItem('projectReports', 'projects.reports.index', 'chart-no-axes-combined', 'projects.reports.view', 'apps', 19, 'projects.reports.*'),
-                new NavigationItem('projectSettings', 'projects.settings.index', 'settings', 'projects.settings.manage', 'manage', 36, 'projects.settings.*'),
+                new NavigationItem('projectSettings', 'projects.settings.index', 'settings', 'projects.settings.manage', 'apps', 900, 'projects.settings.*'),
             ],
             widgets: [
                 new WidgetDefinition('projects.overview', 'ProjectsOverviewWidget', ProjectsOverviewWidget::class, 'projects.projects.view', span: 5, order: 14),

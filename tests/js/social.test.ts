@@ -601,16 +601,16 @@ describe('social messages', () => {
         const groups = new Set([...manifest.matchAll(/new PermissionDefinition\('social\.[\w.]+', '(\w+)'/g)].map((match) => match[1]!));
         const nav = [...manifest.matchAll(/new NavigationItem\('(social\w+)'/g)].map((match) => match[1]!);
 
-        expect(permissions).toHaveLength(16);
-        expect(nav).toHaveLength(8);
+        expect(permissions).toHaveLength(23);
+        expect(nav).toHaveLength(11);
         expect([...groups].sort()).toEqual([
-            'social_accounts', 'social_analytics', 'social_imports', 'social_library', 'social_media', 'social_posts', 'social_settings',
+            'social_accounts', 'social_analytics', 'social_comments', 'social_imports', 'social_leadads', 'social_library', 'social_media', 'social_posts', 'social_settings',
         ]);
 
         for (const messages of [en, bn]) {
             expect(typeof messages.catalogue.modules.social).toBe('string');
             expect(typeof messages.appStore.catalog.social.name).toBe('string');
-            expect(messages.appStore.catalog.social.features).toHaveLength(6);
+            expect(messages.appStore.catalog.social.features).toHaveLength(11);
 
             for (const limit of ['social.scheduled_posts_per_month', 'social.connected_accounts']) {
                 expect((messages.catalogue.limits as Record<string, { label: string }>)[limit]?.label, limit).toBeTruthy();
@@ -631,8 +631,8 @@ describe('social messages', () => {
             }
 
             const automation = messages.catalogue.automation;
-            expect(Object.keys(automation.triggers).filter((key) => key.startsWith('social.'))).toHaveLength(5);
-            expect(Object.keys(automation.actions).filter((key) => key.startsWith('social.'))).toHaveLength(1);
+            expect(Object.keys(automation.triggers).filter((key) => key.startsWith('social.'))).toHaveLength(7);
+            expect(Object.keys(automation.actions).filter((key) => key.startsWith('social.'))).toHaveLength(3);
         }
     });
 

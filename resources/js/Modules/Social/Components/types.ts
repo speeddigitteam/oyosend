@@ -4,7 +4,16 @@ export type { Paginated };
 
 export type PostStatus =
     | 'draft' | 'pending_approval' | 'approved' | 'scheduled' | 'publishing' | 'published' | 'partially_failed' | 'failed';
-export type TargetStatus = 'pending' | 'publishing' | 'published' | 'failed';
+export type TargetStatus = 'pending' | 'publishing' | 'processing' | 'published' | 'failed';
+export type PostType = 'post' | 'photos' | 'video' | 'reel';
+
+/** One platform's verdict on a library file (`code` is worded by the `socialPublishing.compat` messages). */
+export interface CompatBadge {
+    platform: string;
+    platformLabel: string;
+    code: string;
+    tone: 'ok' | 'warn' | 'danger' | 'muted';
+}
 export type AccountStatus = 'connected' | 'needs_reauthorization' | 'disconnected';
 export type AttemptOutcome = 'success' | 'retry' | 'failed' | 'deferred';
 export type CampaignStatus = 'active' | 'archived';
@@ -63,6 +72,7 @@ export interface AccountOption {
     status: AccountStatus;
     usable: boolean;
     capabilities: Capabilities;
+    postTypes?: PostType[];
 }
 
 export interface MediaRow {
@@ -77,6 +87,9 @@ export interface MediaRow {
     url: string;
     createdAt: string | null;
     inUse?: boolean;
+    durationMs?: number | null;
+    probe?: 'read' | 'unknown' | null;
+    compat?: CompatBadge[];
 }
 
 export interface PostTargetSummary {
@@ -92,6 +105,9 @@ export interface PostSummary {
     title: string | null;
     excerpt: string;
     status: PostStatus;
+    postType?: PostType;
+    /** AI suggestions were used on this draft (informational marker for approvers). */
+    aiAssisted?: boolean;
     scheduledFor: string | null;
     publishedAt: string | null;
     at: string | null;
@@ -120,6 +136,8 @@ export interface PostTargetDetail {
     status: TargetStatus;
     attempts: number;
     nextAttemptAt: string | null;
+    remoteState?: string | null;
+    processingSince?: string | null;
     publishedAt: string | null;
     externalUrl: string | null;
     lastError: string | null;
@@ -150,6 +168,8 @@ export interface PostPreview {
     mediaCount: number;
     capabilities: Capabilities;
     issues: string[];
+    warnings?: string[];
+    postType?: PostType;
 }
 
 export interface PostAbilities {

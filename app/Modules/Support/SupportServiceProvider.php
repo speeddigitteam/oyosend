@@ -9,7 +9,9 @@ use App\Core\AppStore\Enums\AppCategory;
 use App\Core\AppStore\Enums\ScheduledJobFrequency;
 use App\Core\AppStore\ScheduledJobDefinition;
 use App\Core\Billing\Enums\LimitKind;
+use App\Core\Communication\Contracts\InboxSource;
 use App\Core\Contacts\Contracts\ContactMergeReference;
+use App\Core\Contacts\Contracts\CustomerRecordProvider;
 use App\Core\Modules\AppOffer;
 use App\Core\Modules\LimitDefinition;
 use App\Core\Modules\ModuleManifest;
@@ -33,6 +35,8 @@ use App\Modules\Support\Automation\Triggers\TicketCustomerRepliedTrigger;
 use App\Modules\Support\Automation\Triggers\TicketResolvedTrigger;
 use App\Modules\Support\Automation\Triggers\TicketSlaBreachedTrigger;
 use App\Modules\Support\Contracts\InboundTicketReceiver;
+use App\Modules\Support\CustomerRecords\TicketsSection;
+use App\Modules\Support\Inbox\TicketInboxSource;
 use App\Modules\Support\Jobs\MonitorSla;
 use App\Modules\Support\Jobs\RunMaintenance;
 use App\Modules\Support\Models\Agent;
@@ -79,6 +83,8 @@ final class SupportServiceProvider extends ModuleServiceProvider
         $this->app->scoped(SurveyManager::class);
         $this->app->bind(InboundTicketReceiver::class, InboundTicketHandler::class);
         $this->app->tag(SupportContactMergeReference::class, ContactMergeReference::class);
+        $this->app->tag(TicketsSection::class, CustomerRecordProvider::TAG);
+        $this->app->tag(TicketInboxSource::class, InboxSource::TAG);
     }
 
     protected function describe(): ModuleManifest
@@ -111,9 +117,9 @@ final class SupportServiceProvider extends ModuleServiceProvider
                 new NavigationItem('supportKb', 'support.kb.index', 'book-open', 'support.kb.view', 'apps', 61, 'support.kb.*'),
                 new NavigationItem('supportCanned', 'support.canned.index', 'message-square-text', 'support.canned.view', 'apps', 62, 'support.canned.*'),
                 new NavigationItem('supportReports', 'support.reports.index', 'chart-no-axes-combined', 'support.reports.view', 'apps', 63, 'support.reports.*'),
-                new NavigationItem('supportQueues', 'support.queues.index', 'inbox', 'support.queues.manage', 'manage', 61, 'support.queues.*'),
-                new NavigationItem('supportSla', 'support.sla.index', 'timer', 'support.sla.manage', 'manage', 62, 'support.sla.*'),
-                new NavigationItem('supportSettings', 'support.settings.index', 'settings', 'support.settings.manage', 'manage', 63, 'support.settings.*'),
+                new NavigationItem('supportQueues', 'support.queues.index', 'inbox', 'support.queues.manage', 'apps', 900, 'support.queues.*'),
+                new NavigationItem('supportSla', 'support.sla.index', 'timer', 'support.sla.manage', 'apps', 901, 'support.sla.*'),
+                new NavigationItem('supportSettings', 'support.settings.index', 'settings', 'support.settings.manage', 'apps', 902, 'support.settings.*'),
             ],
             widgets: [
                 new WidgetDefinition('support.overview', 'SupportOverviewWidget', SupportOverviewWidget::class, 'support.tickets.view', span: 4, order: 19),

@@ -9,6 +9,7 @@ use App\Core\Billing\Models\Invoice;
 use App\Core\Billing\Models\Payment;
 use App\Core\Billing\Models\Plan;
 use App\Core\Billing\Models\Subscription;
+use App\Core\Settings\PlatformSettings;
 
 /**
  * The shapes billing records take on a page. Shared by the workspace's
@@ -112,7 +113,7 @@ final class BillingPresenter
             ...self::invoice($invoice),
             'lines' => array_values($invoice->lines),
             'billedTo' => $invoice->billed_to,
-            'issuer' => config('platform.billing.issuer'),
+            'issuer' => app(PlatformSettings::class)->invoiceIssuer(),
         ];
     }
 

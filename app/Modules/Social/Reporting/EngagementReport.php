@@ -10,6 +10,7 @@ use App\Core\Reporting\ReportColumn;
 use App\Core\Reporting\ReportContext;
 use App\Core\Reporting\ReportDefinition;
 use App\Core\Reporting\ReportResult;
+use App\Modules\Social\Actions\AccountAllowList;
 use App\Modules\Social\Actions\SocialAnalytics;
 
 /**
@@ -20,7 +21,10 @@ final class EngagementReport implements ReportProvider
 {
     private const array FIGURES = ['impressions', 'reach', 'likes', 'comments', 'shares', 'clicks'];
 
-    public function __construct(private readonly SocialAnalytics $analytics) {}
+    public function __construct(
+        private readonly SocialAnalytics $analytics,
+        private readonly AccountAllowList $allowList,
+    ) {}
 
     public function definition(): ReportDefinition
     {
@@ -45,7 +49,7 @@ final class EngagementReport implements ReportProvider
 
     public function run(ReportContext $context): ReportResult
     {
-        $overview = $this->analytics->overview($context->fromAt, $context->toAt);
+        $overview = $this->analytics->overview($context->fromAt, $context->toAt, $this->allowList->analyticsScope($context->user));
         $rows = [];
 
         foreach ($overview['engagement']['byPlatform'] as $platform) {

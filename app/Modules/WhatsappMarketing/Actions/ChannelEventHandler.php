@@ -36,6 +36,7 @@ final class ChannelEventHandler implements ChannelEventListener
         private readonly MessageLocator $locator,
         private readonly StatusProgress $progress,
         private readonly Notifier $notifier,
+        private readonly FeedbackCollector $feedback,
     ) {}
 
     public function handle(ChannelEvent $event): void
@@ -64,6 +65,13 @@ final class ChannelEventHandler implements ChannelEventListener
         $conversation = $result->conversation;
 
         try {
+            // A rating is answered with a thank-you; it starts no flow and wakes nobody.
+            if ($result->feedback !== null) {
+                $this->feedback->thank($conversation);
+
+                return;
+            }
+
             if ($conversation->owner_id === null && $this->settings->current()->auto_assign) {
                 $member = $this->assigner->pick();
 

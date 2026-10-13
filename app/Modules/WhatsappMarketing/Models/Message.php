@@ -35,6 +35,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $provider_message_id
  * @property string|null $communication_message_id
  * @property list<array<string, scalar|null>>|null $attachments
+ * @property array{kind: string, button: string|null, options: list<string>}|null $interactive
  * @property bool|null $billable
  * @property string|null $pricing_category
  * @property CarbonInterface $occurred_at
@@ -54,7 +55,7 @@ class Message extends Model
     protected $table = 'whatsapp_messages';
 
     /** @var list<string> */
-    protected $fillable = ['conversation_id', 'campaign_id', 'template_id', 'direction', 'sender_type', 'author_id', 'type', 'body', 'template_name', 'status', 'failure_code', 'provider_message_id', 'communication_message_id', 'attachments', 'billable', 'pricing_category', 'occurred_at', 'delivered_at', 'read_at'];
+    protected $fillable = ['conversation_id', 'campaign_id', 'template_id', 'direction', 'sender_type', 'author_id', 'type', 'body', 'template_name', 'status', 'failure_code', 'provider_message_id', 'communication_message_id', 'attachments', 'interactive', 'billable', 'pricing_category', 'occurred_at', 'delivered_at', 'read_at'];
 
     /** @return array<string, string> */
     protected function casts(): array
@@ -65,6 +66,7 @@ class Message extends Model
             'type' => MessageType::class,
             'status' => MessageStatus::class,
             'attachments' => 'array',
+            'interactive' => 'array',
             'billable' => 'boolean',
             'occurred_at' => 'datetime',
             'delivered_at' => 'datetime',

@@ -16,6 +16,8 @@ import PayrollSelfWidget from '@/Modules/Payroll/Components/PayrollSelfWidget.vu
 import ProjectsOverviewWidget from '@/Modules/Projects/Components/ProjectsOverviewWidget.vue';
 import NotificationsWidget from '@/Modules/Communication/Components/NotificationsWidget.vue';
 import SocialOverviewWidget from '@/Modules/Social/Components/SocialOverviewWidget.vue';
+import MetaAdsOverviewWidget from '@/Modules/MetaAds/Components/MetaAdsOverviewWidget.vue';
+import SocialCommentsWidget from '@/Modules/Social/Components/comments/SocialCommentsWidget.vue';
 import EmailMarketingOverviewWidget from '@/Modules/EmailMarketing/Components/EmailMarketingOverviewWidget.vue';
 import SmsMarketingOverviewWidget from '@/Modules/SmsMarketing/Components/SmsMarketingOverviewWidget.vue';
 import SupportOverviewWidget from '@/Modules/Support/Components/SupportOverviewWidget.vue';
@@ -60,6 +62,8 @@ const WIDGETS: Record<string, Component> = {
     PayrollSelfWidget,
     PayrollOverviewWidget,
     SocialOverviewWidget,
+    MetaAdsOverviewWidget,
+    SocialCommentsWidget,
     EmailMarketingOverviewWidget,
     SmsMarketingOverviewWidget,
     SupportOverviewWidget,

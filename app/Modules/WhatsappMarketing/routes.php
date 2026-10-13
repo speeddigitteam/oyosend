@@ -2,13 +2,18 @@
 
 declare(strict_types=1);
 
+use App\Modules\WhatsappMarketing\Crm\SegmentCampaignController;
+use App\Modules\WhatsappMarketing\Crm\WhatsappCrmController;
 use App\Modules\WhatsappMarketing\Http\Controllers\AnalyticsController;
 use App\Modules\WhatsappMarketing\Http\Controllers\CampaignController;
 use App\Modules\WhatsappMarketing\Http\Controllers\ConversationController;
 use App\Modules\WhatsappMarketing\Http\Controllers\FlowController;
 use App\Modules\WhatsappMarketing\Http\Controllers\InboxController;
 use App\Modules\WhatsappMarketing\Http\Controllers\ListController;
+use App\Modules\WhatsappMarketing\Http\Controllers\MediaController;
+use App\Modules\WhatsappMarketing\Http\Controllers\NumberController;
 use App\Modules\WhatsappMarketing\Http\Controllers\QuickReplyController;
+use App\Modules\WhatsappMarketing\Http\Controllers\RichMessageController;
 use App\Modules\WhatsappMarketing\Http\Controllers\SettingsController;
 use App\Modules\WhatsappMarketing\Http\Controllers\TemplateController;
 use Illuminate\Support\Facades\Route;
@@ -41,6 +46,20 @@ Route::middleware(['auth:web', 'auth.session', 'member', 'subscribed'])->prefix(
     Route::post('inbox/{conversation}/status', [ConversationController::class, 'status'])->middleware('can:whatsapp_marketing.conversations.manage')->name('whatsapp_marketing.inbox.status');
     Route::post('inbox/{conversation}/tags', [ConversationController::class, 'tags'])->middleware('can:whatsapp_marketing.conversations.manage')->name('whatsapp_marketing.inbox.tags');
     Route::post('inbox/{conversation}/contact', [ConversationController::class, 'contact'])->middleware('can:whatsapp_marketing.conversations.manage')->name('whatsapp_marketing.inbox.contact');
+    Route::post('inbox/{conversation}/notes', [ConversationController::class, 'addNote'])
+        ->middleware(['can:whatsapp_marketing.conversations.reply', 'throttle:30,1'])->name('whatsapp_marketing.inbox.notes.store');
+    Route::delete('inbox/{conversation}/notes/{note}', [ConversationController::class, 'removeNote'])->middleware('can:whatsapp_marketing.conversations.view')->name('whatsapp_marketing.inbox.notes.destroy');
+
+    // Rich outbound (ADR 0022): reply buttons, list, call-to-action URL, media and templates with a media
+    // header or button variables, all built as WhatsappContent and sent through the gateway (window enforced).
+    Route::middleware(['can:whatsapp_marketing.conversations.reply', 'throttle:60,1'])->group(function (): void {
+        Route::post('inbox/{conversation}/interactive', [RichMessageController::class, 'interactive'])->name('whatsapp_marketing.inbox.interactive');
+        Route::post('inbox/{conversation}/cta', [RichMessageController::class, 'cta'])->name('whatsapp_marketing.inbox.cta');
+        Route::post('inbox/{conversation}/media', [RichMessageController::class, 'media'])->name('whatsapp_marketing.inbox.media');
+        Route::post('inbox/{conversation}/rich-template', [RichMessageController::class, 'template'])->name('whatsapp_marketing.inbox.rich-template');
+    });
+    // Serve an inbound media file, downloaded on demand through the platform (tenant-scoped, access-checked).
+    Route::get('messages/{message}/media', [MediaController::class, 'show'])->middleware('can:whatsapp_marketing.conversations.view')->name('whatsapp_marketing.messages.media');
 
     // Templates (mirrors of what Meta approved).
     Route::get('templates', [TemplateController::class, 'index'])->middleware('can:whatsapp_marketing.templates.view')->name('whatsapp_marketing.templates.index');
@@ -68,6 +87,7 @@ Route::middleware(['auth:web', 'auth.session', 'member', 'subscribed'])->prefix(
         Route::delete('lists/{list}', [ListController::class, 'destroy'])->name('whatsapp_marketing.lists.destroy');
         Route::post('lists/{list}/members', [ListController::class, 'addMembers'])->middleware('throttle:30,1')->name('whatsapp_marketing.lists.members.store');
         Route::post('lists/{list}/members/all', [ListController::class, 'addAll'])->middleware('throttle:5,1')->name('whatsapp_marketing.lists.members.all');
+        Route::post('lists/{list}/members/rules', [ListController::class, 'addByRules'])->middleware('throttle:10,1')->name('whatsapp_marketing.lists.members.rules');
         Route::delete('lists/{list}/members/{member}', [ListController::class, 'removeMember'])->name('whatsapp_marketing.lists.members.destroy');
     });
 
@@ -77,6 +97,9 @@ Route::middleware(['auth:web', 'auth.session', 'member', 'subscribed'])->prefix(
     Route::post('campaigns/preview', [CampaignController::class, 'preview'])
         ->middleware(['can:whatsapp_marketing.campaigns.manage', 'throttle:60,1'])->name('whatsapp_marketing.campaigns.preview');
     Route::post('campaigns', [CampaignController::class, 'store'])->middleware('can:whatsapp_marketing.campaigns.manage')->name('whatsapp_marketing.campaigns.store');
+    // Broadcast to a CRM segment: declared before `campaigns/{campaign}` so they are not read as ids.
+    Route::get('campaigns/segments', [SegmentCampaignController::class, 'index'])->middleware('can:whatsapp_marketing.campaigns.manage')->name('whatsapp_marketing.campaigns.segments');
+    Route::post('campaigns/from-segment', [SegmentCampaignController::class, 'store'])->middleware('can:whatsapp_marketing.campaigns.manage')->name('whatsapp_marketing.campaigns.from_segment');
     Route::get('campaigns/{campaign}', [CampaignController::class, 'show'])->middleware('can:whatsapp_marketing.campaigns.view')->name('whatsapp_marketing.campaigns.show');
     Route::get('campaigns/{campaign}/edit', [CampaignController::class, 'edit'])->middleware('can:whatsapp_marketing.campaigns.manage')->name('whatsapp_marketing.campaigns.edit');
     Route::put('campaigns/{campaign}', [CampaignController::class, 'update'])->middleware('can:whatsapp_marketing.campaigns.manage')->name('whatsapp_marketing.campaigns.update');
@@ -96,11 +119,25 @@ Route::middleware(['auth:web', 'auth.session', 'member', 'subscribed'])->prefix(
 
     Route::get('analytics', [AnalyticsController::class, 'index'])->middleware('can:whatsapp_marketing.analytics.view')->name('whatsapp_marketing.analytics.index');
 
+    // CRM bridge: lead-capture settings and a manual sender for the transactional reminder/notification templates.
+    Route::get('crm', [WhatsappCrmController::class, 'index'])->middleware('can:whatsapp_marketing.conversations.view')->name('whatsapp_marketing.crm.index');
+    Route::get('crm/contacts', [WhatsappCrmController::class, 'contacts'])->middleware('can:whatsapp_marketing.conversations.reply')->name('whatsapp_marketing.crm.contacts');
+    Route::post('crm/reminders', [WhatsappCrmController::class, 'sendReminder'])
+        ->middleware(['can:whatsapp_marketing.conversations.reply', 'throttle:30,1'])->name('whatsapp_marketing.crm.reminders');
+    Route::put('crm/lead-capture', [WhatsappCrmController::class, 'updateLeadCapture'])->middleware('can:whatsapp_marketing.settings.manage')->name('whatsapp_marketing.crm.lead_capture');
+
     // Settings, connection status and the agent roster.
     Route::middleware('can:whatsapp_marketing.settings.manage')->group(function (): void {
         Route::get('settings', [SettingsController::class, 'index'])->name('whatsapp_marketing.settings.index');
         Route::put('settings', [SettingsController::class, 'update'])->name('whatsapp_marketing.settings.update');
         Route::post('settings/agents', [SettingsController::class, 'enrol'])->name('whatsapp_marketing.agents.store');
         Route::put('settings/agents/{agent}', [SettingsController::class, 'updateAgent'])->name('whatsapp_marketing.agents.update');
+
+        // Business numbers on the WhatsApp connection (ADR 0022): list, add, label, enable/disable, set default.
+        Route::get('settings/numbers', [NumberController::class, 'index'])->name('whatsapp_marketing.numbers.index');
+        Route::post('settings/numbers', [NumberController::class, 'store'])->name('whatsapp_marketing.numbers.store');
+        Route::put('settings/numbers/{number}', [NumberController::class, 'update'])->name('whatsapp_marketing.numbers.update');
+        Route::post('settings/numbers/{number}/default', [NumberController::class, 'makeDefault'])->name('whatsapp_marketing.numbers.default');
+        Route::delete('settings/numbers/{number}', [NumberController::class, 'destroy'])->name('whatsapp_marketing.numbers.destroy');
     });
 });

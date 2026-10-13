@@ -1,6 +1,6 @@
 # Modules
 
-How to add a first-party module. The contract is in `app/Core/Modules`; the build registers `core` and fifteen
+How to add a first-party module. The contract is in `app/Core/Modules`; the build registers `core` and seventeen
 optional apps (section 0). `hrm` is the reference for a module that other apps build
 on: it publishes read contracts under `App\Core\Workforce` so that dependents never import its models.
 `payroll` (`docs/PAYROLL.md`) is the reference for a dependent app: it declares `hrm` in `dependencies`, reads HR
@@ -59,7 +59,7 @@ vocabulary for tenant-authored bot flows, and a chunked, per-recipient-idempoten
 
 ## 0. Registered modules
 
-The registry (`config/modules.php`) holds **16 modules and 251 declared permissions**. `php artisan permissions:sync`
+The registry (`config/modules.php`) holds **`core` plus 17 optional modules and 268 declared permissions**. `php artisan permissions:sync`
 writes the permissions; `apps:sync` writes the catalogue. Only `ai` is a paid app; every other optional app has one
 free offer (`included` or `free`). Counts below come from the compiled manifests.
 
@@ -74,13 +74,15 @@ free offer (`included` or `free`). Counts below come from the compiled manifests
 | `talent` | Talent & Performance | `core`, `hrm` | 30 | `talent.job_openings`, `talent.candidates` | `talent.reminders`, `talent.retention` (daily) | 9 / 2 | 1 | `TALENT.md` |
 | `automation` | Workflow Automation | `core` | 8 | `automation.runs`, `automation.workflows` | `automation.sweep` (minute) | 3 / 0 | 1 | `WORKFLOWS.md`, `AUTOMATION.md` |
 | `ai` | AI Assistant (paid) | `core` | 5 | `ai.tokens` | `ai.retention` (daily) | 1 / 1 | none | `AI.md` |
-| `communication` | Communication | `core` | 12 | `communication.messages` | `communication.dispatch_due` (minute), `communication.cleanup` (daily) | 4 / 2 | none | `COMMUNICATION.md` |
+| `communication` | Communication | `core` | 13 | `communication.messages` | `communication.dispatch_due` (minute), `communication.cleanup` (daily) | 4 / 2 | none | `COMMUNICATION.md` |
 | `email_marketing` | Email Marketing | `core`, `communication` | 18 | `email_marketing.campaigns_per_month`, `email_marketing.subscribers` | `email_marketing.run` (minute) | 2 / 1 | 2 | `EMAIL_MARKETING.md` |
 | `sms_marketing` | SMS Marketing | `core`, `communication` | 13 | `sms_marketing.segments_per_month`, `sms_marketing.contacts` | `sms_marketing.run_campaigns` (minute), `sms_marketing.reconcile` (hourly) | 2 / 1 | 2 | `SMS_MARKETING.md` |
 | `whatsapp_marketing` | WhatsApp Business | `core`, `communication` | 16 | `whatsapp_marketing.conversations_per_month`, `whatsapp_marketing.agents` | `whatsapp_marketing.campaigns` (minute), `whatsapp_marketing.maintenance` (daily) | 4 / 3 | 2 | `WHATSAPP.md` |
-| `social` | Social Media | `core` | 16 | `social.scheduled_posts_per_month`, `social.connected_accounts` | `social.publish_due` (minute), `social.maintenance` (hourly) | 5 / 1 | 2 | `SOCIAL.md` |
+| `social` | Social Media | `core` | 23 | `social.scheduled_posts_per_month`, `social.connected_accounts` | `social.publish_due` (minute), `social.lead_ads_sweep` (minute), `social.maintenance` (hourly) | 7 / 1 | 2 | `SOCIAL.md` |
+| `meta_ads` | Meta Ads | `core`, `social` | 7 | `meta_ads.ad_accounts` | `meta_ads.sync` (hourly) | 1 / 0 | 2 | `META_ADS.md` |
 | `support` | Customer Support | `core` | 16 | `support.tickets_per_month`, `support.agents` | `support.sla` (minute), `support.maintenance` (daily) | 6 / 3 | 3 | `SUPPORT.md` |
 | `reports` | Reports & Analytics | `core` | 4 | `reports.saved_reports` | none | 0 / 0 | consumes all | `REPORTS.md` |
+| `notes` | Notes | `core` | 2 | none | none | 1 / 0 | 1 | `NOTES.md` |
 
 Cross-module rules this build established (each is enforced by code and tests, not by convention alone):
 
@@ -90,10 +92,16 @@ Cross-module rules this build established (each is enforced by code and tests, n
   `App\Core\Communication` contracts** (`ChannelGateway`, `MarketingAudience`, `UnsubscribeLinks`,
   `ConsentRecorder`, `ChannelEventListener`). They hold no provider credential and import no Communication class;
   see ADR 0014.
+- **Handing an outside enquiry to the CRM, or reading a CRM customer group as an audience, goes through
+  `App\Core\Crm\Contracts\LeadIntake` / `CrmAudience`** (ADR 0023; `docs/CRM.md` "Lead intake and audience
+  contracts"). Core binds null objects (`unavailable` / empty); `CRMServiceProvider` rebinds the real ones. Fake
+  them with `Tests\Support\InteractsWithCrmContracts`.
 - **A module that has reports registers a `ReportProvider`** in its own provider with
   `$this->app->tag(ReportProviders::ALL, ReportProvider::TAG)`; the Reports app discovers it (ADR 0015).
 - **A module that exposes AI access registers an `AiTool` / `ProposalTool`** with `AiTool::TAG`
   (`docs/AI.md` section 6).
+- **A module whose records belong to a contact registers a `CustomerRecordProvider`** with
+  `CustomerRecordProvider::TAG`; its section then appears in the Customer 360 panel (section 5b, ADR 0020).
 - **Stateless public endpoints** (webhooks, tracking links, single-use token pages) use
   `loadTenantCallbackRoutes()`: tenant from the hostname, throttle, no session, plus the module's entitlement
   (the unsubscribe page is deliberately not entitlement-gated, `docs/COMMUNICATION.md` section 6).
@@ -357,6 +365,28 @@ own records and reads the shared ones.
 - Contacts are soft-deleted: keep rows that point at one, and expect `contact` relations to be null.
 - Access is governed by `core.contacts.view` / `.manage` / `.delete`, each scopable. A module that shows a
   customer picker must narrow it with `RecordAccess` for the person looking.
+
+### Customer 360
+
+`App\Core\Contacts\Contracts\CustomerRecordProvider` lets a module show what it holds about one contact, without
+any other module importing its models (ADR 0020).
+
+- **Registering.** Tag the provider in the module's own provider:
+  `$this->app->tag([MySection::class], CustomerRecordProvider::TAG)`.
+- **Gating.** `CustomerRecordRegistry` offers a section only when the workspace is entitled to the provider's module
+  and the member holds its permission. The endpoint `GET /contacts/{contact}/records` first checks that the member
+  may see the contact.
+- **What a provider does.** It reads only its own records, narrows them as its own list does (`RecordAccess` or the
+  module's access class), and returns at most `$query->limit` items. It returns `total` and offers actions only to
+  members who may use them.
+- **Actions.** An action is a link to the module's own screen, never a write from the panel. The CRM create forms
+  accept `?create_for={contact}`.
+- **Labels.** Labels and statuses are English strings translated with `__()`, with their Bengali in `lang/bn.json`.
+
+The six sections that exist today are `crm.leads`, `crm.deals`, `crm.activities`,
+`whatsapp_marketing.conversations`, `support.tickets` and `communication.timeline`. The `CustomerPanel` component
+(`resources/js/Core/Components/Contacts`) renders them. Each new provider needs a scope test and a cross-workspace
+test (`tests/Feature/Contacts/CustomerRecordsTest.php` is the pattern).
 
 ## 5c. Limits and metering
 

@@ -12,7 +12,8 @@ import { useFormat } from '@/Core/composables/useFormat';
 import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
 import { route } from '@/Core/lib/route';
 import { sendJson } from '@/Modules/Automation/lib/http';
-import type { CampaignRow, SendableTemplate } from '../../Components/types';
+import NumberPicker from '../../Components/NumberPicker.vue';
+import type { CampaignRow, NumberPicker as NumberPickerData, SendableTemplate } from '../../Components/types';
 import VariableMappingEditor from '../../Components/VariableMappingEditor.vue';
 import {
     buildVariableMap,
@@ -30,9 +31,54 @@ const props = defineProps<{
     templates: SendableTemplate[];
     lists: { id: string; name: string; memberCount: number }[];
     fields: string[];
+    numbers?: NumberPickerData;
     maxRecipients: number;
     canSend: boolean;
 }>();
+
+const numberPicker = computed<NumberPickerData>(() => props.numbers ?? { options: [], defaultId: null });
+const senderNumberId = ref(props.campaign?.senderNumberId ?? numberPicker.value.defaultId ?? '');
+
+// ADR 0022: an optional fixed media header and dynamic button values for the template.
+const headerType = ref(props.campaign?.headerMediaType ?? '');
+const headerFile = ref<File | null>(null);
+type ButtonVar = { index: number; type: string; value: string };
+const buttonVars = ref<ButtonVar[]>((props.campaign?.buttonParams ?? []).map((button) => ({ index: button.index, type: button.sub_type, value: button.value })));
+
+const mediaTypeOptions = computed(() => [
+    { value: '', label: t('whatsapp.campaigns.headerNone') },
+    ...['image', 'video', 'document'].map((value) => ({ value, label: t(`whatsapp.rich.mediaType.${value}`) })),
+]);
+const buttonTypeOptions = computed(() => ['url', 'quick_reply', 'copy_code'].map((value) => ({ value, label: t(`whatsapp.rich.buttonType.${value}`) })));
+
+function addButtonVar(): void {
+    if (buttonVars.value.length < 10) {
+        buttonVars.value.push({ index: buttonVars.value.length, type: 'url', value: '' });
+    }
+}
+
+function removeButtonVar(index: number): void {
+    buttonVars.value.splice(index, 1);
+}
+
+function onHeaderFile(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    headerFile.value = target.files && target.files.length > 0 ? target.files[0] : null;
+}
+
+// header_type / header_file are not initial form fields, so their errors arrive under a looser key.
+const richErrors = computed(() => form.errors as Record<string, string | undefined>);
+
+/** The rich-template extras shared by every save path. */
+function richExtras(): Record<string, unknown> {
+    return {
+        sender_number_id: senderNumberId.value || null,
+        header_type: headerType.value || null,
+        header_media_id: headerType.value !== '' ? (props.campaign?.headerMediaId ?? null) : null,
+        header_file: headerType.value !== '' ? headerFile.value : null,
+        buttons: buttonVars.value.map((button) => ({ index: button.index, type: button.type, value: button.value })),
+    };
+}
 
 const { t } = useI18n();
 const format = useFormat();
@@ -41,7 +87,51 @@ const form = useForm({
     name: props.campaign?.name ?? '',
     template_id: props.campaign?.templateId ?? '',
     list_id: props.campaign?.listId ?? '',
+    segment_id: '',
 });
+
+// Audience source: a hand-built list, or a CRM segment resolved to the contacts the launcher may see.
+type Segment = { id: string; label: string; kind: string; approximateSize: number };
+const source = ref<'list' | 'segment'>('list');
+const segments = ref<Segment[]>([]);
+const segmentsLoaded = ref(false);
+
+async function loadSegments(): Promise<void> {
+    if (segmentsLoaded.value) {
+        return;
+    }
+
+    try {
+        const response = await fetch(route('whatsapp_marketing.campaigns.segments'), {
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        });
+
+        if (response.ok) {
+            const data = (await response.json()) as { segments?: Segment[] };
+            segments.value = data.segments ?? [];
+        }
+    } catch {
+        segments.value = [];
+    }
+
+    segmentsLoaded.value = true;
+}
+
+watch(source, (value) => {
+    if (value === 'segment') {
+        void loadSegments();
+    }
+});
+
+const sourceOptions = computed(() => [
+    { value: 'list', label: t('whatsapp.campaigns.sourceList') },
+    { value: 'segment', label: t('whatsapp.campaigns.sourceSegment') },
+]);
+const segmentOptions = computed(() =>
+    segments.value.map((item) => ({ value: item.id, label: t('whatsapp.campaigns.segmentOption', { name: item.label, count: format.number(item.approximateSize) }) })),
+);
+const selectedSegment = computed(() => segments.value.find((item) => item.id === form.segment_id) ?? null);
 
 const template = computed(() => props.templates.find((item) => item.id === form.template_id) ?? null);
 const rows = ref<VariableRow[]>(variableRows(template.value?.variableCount ?? 0, props.campaign?.variables ?? null));
@@ -123,13 +213,24 @@ onBeforeUnmount(() => {
 
 const selectedList = computed(() => props.lists.find((item) => item.id === form.list_id) ?? null);
 const overCap = computed(() => selectedList.value !== null && selectedList.value.memberCount > props.maxRecipients);
-const ready = computed(() => form.name.trim() !== '' && template.value !== null && form.list_id !== '' && complete.value);
+const audienceChosen = computed(() => (source.value === 'list' ? form.list_id !== '' : form.segment_id !== ''));
+const ready = computed(() => form.name.trim() !== '' && template.value !== null && audienceChosen.value && complete.value);
 
 function submit(): void {
+    // A CRM segment creates its own backing list on the server; only available when creating a campaign.
+    if (!props.campaign && source.value === 'segment') {
+        form
+            .transform((data) => ({ name: data.name.trim(), template_id: data.template_id, segment_id: data.segment_id, variables: buildVariableMap(rows.value) }))
+            .post(route('whatsapp_marketing.campaigns.from_segment'), { preserveScroll: true });
+
+        return;
+    }
+
     form
-        .transform((data) => ({ name: data.name.trim(), template_id: data.template_id, list_id: data.list_id, variables: buildVariableMap(rows.value) }))
+        .transform((data) => ({ name: data.name.trim(), template_id: data.template_id, list_id: data.list_id, variables: buildVariableMap(rows.value), ...richExtras() }))
         .submit(props.campaign ? 'put' : 'post', props.campaign ? route('whatsapp_marketing.campaigns.update', { campaign: props.campaign.id }) : route('whatsapp_marketing.campaigns.store'), {
             preserveScroll: true,
+            forceFormData: headerFile.value !== null,
         });
 }
 </script>
@@ -163,6 +264,14 @@ function submit(): void {
                         :error="form.errors.template_id"
                     />
                     <Select
+                        v-if="!campaign"
+                        v-model="source"
+                        :options="sourceOptions"
+                        :label="t('whatsapp.campaigns.audience')"
+                        :hint="t('whatsapp.campaigns.audienceHint')"
+                    />
+                    <Select
+                        v-if="source === 'list'"
                         v-model="form.list_id"
                         :options="listOptions"
                         :label="t('whatsapp.campaigns.list')"
@@ -170,6 +279,19 @@ function submit(): void {
                         :hint="lists.length === 0 ? t('whatsapp.campaigns.noLists') : t('whatsapp.campaigns.listHint', { max: format.number(maxRecipients) })"
                         :error="form.errors.list_id"
                     />
+                    <template v-else>
+                        <Select
+                            v-model="form.segment_id"
+                            :options="segmentOptions"
+                            :label="t('whatsapp.campaigns.segment')"
+                            :placeholder="t('whatsapp.campaigns.chooseSegment')"
+                            :hint="segmentsLoaded && segments.length === 0 ? t('whatsapp.campaigns.noSegments') : t('whatsapp.campaigns.segmentScopeNote')"
+                            :error="form.errors.segment_id"
+                        />
+                        <p v-if="selectedSegment" class="text-sm text-ink-subtle" data-testid="segment-size">
+                            {{ t('whatsapp.campaigns.segmentSize', { count: format.number(selectedSegment.approximateSize) }) }}
+                        </p>
+                    </template>
                     <p v-if="overCap" class="text-sm text-warn" data-testid="over-cap">{{ t('whatsapp.campaigns.overCap', { max: format.number(maxRecipients) }) }}</p>
                 </div>
             </Card>
@@ -177,6 +299,34 @@ function submit(): void {
             <Card v-if="template && template.variableCount > 0" :title="t('whatsapp.campaigns.variablesTitle')" :description="t('whatsapp.campaigns.variablesDescription')">
                 <p v-if="generalVariableError" role="alert" class="mb-3 text-sm text-danger">{{ generalVariableError }}</p>
                 <VariableMappingEditor v-model:rows="rows" :fields="fields" :errors="variableErrors" />
+            </Card>
+
+            <Card :title="t('whatsapp.campaigns.advancedTitle')" :description="t('whatsapp.campaigns.advancedDescription')">
+                <div class="grid gap-4">
+                    <NumberPicker v-model="senderNumberId" :picker="numberPicker" :label="t('whatsapp.campaigns.sendFrom')" />
+
+                    <div class="grid gap-2">
+                        <Select v-model="headerType" :options="mediaTypeOptions" :label="t('whatsapp.campaigns.header')" :error="richErrors.header_type" />
+                        <div v-if="headerType !== ''" class="grid gap-1">
+                            <label class="text-sm font-medium text-ink" for="campaign-header-file">{{ t('whatsapp.rich.file') }}</label>
+                            <input id="campaign-header-file" type="file" class="text-sm text-ink" data-testid="campaign-header-file" @change="onHeaderFile" />
+                            <p v-if="campaign?.headerMediaId" class="text-xs text-ink-subtle">{{ t('whatsapp.campaigns.headerKeep') }}</p>
+                            <p v-if="richErrors.header_file" class="text-xs text-danger" role="alert">{{ richErrors.header_file }}</p>
+                        </div>
+                    </div>
+
+                    <div class="grid gap-2">
+                        <p class="eyebrow">{{ t('whatsapp.campaigns.buttonVars') }}</p>
+                        <p class="text-xs text-ink-subtle">{{ t('whatsapp.campaigns.buttonVarsHint') }}</p>
+                        <div v-for="(button, index) in buttonVars" :key="index" class="grid gap-2 rounded-card border border-line bg-hover p-3 sm:grid-cols-[6rem_9rem_minmax(0,1fr)_auto] sm:items-end">
+                            <Input v-model.number="button.index" type="number" min="0" max="9" :label="t('whatsapp.campaigns.buttonIndex')" />
+                            <Select v-model="button.type" :options="buttonTypeOptions" :label="t('whatsapp.campaigns.buttonType')" />
+                            <Input v-model="button.value" :label="t('whatsapp.campaigns.buttonValue')" maxlength="2000" />
+                            <Button variant="ghost" size="sm" type="button" @click="removeButtonVar(index)">{{ t('whatsapp.common.delete') }}</Button>
+                        </div>
+                        <div><Button v-if="buttonVars.length < 10" variant="secondary" size="sm" type="button" @click="addButtonVar">{{ t('whatsapp.campaigns.addButtonVar') }}</Button></div>
+                    </div>
+                </div>
             </Card>
         </div>
 

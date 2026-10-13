@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Ai;
 
 use App\Core\Ai\Contracts\AiTool;
+use App\Core\Ai\Contracts\TextAssistant;
 use App\Core\AppStore\Enums\AppBillingType;
 use App\Core\AppStore\Enums\AppCategory;
 use App\Core\AppStore\Enums\ScheduledJobFrequency;
@@ -17,6 +18,7 @@ use App\Core\Modules\NavigationItem;
 use App\Core\Modules\PermissionDefinition;
 use App\Core\Modules\WidgetDefinition;
 use App\Modules\Ai\Actions\AiGateway;
+use App\Modules\Ai\Actions\GatewayTextAssistant;
 use App\Modules\Ai\Actions\ToolRegistry;
 use App\Modules\Ai\Automation\Actions\GenerateTextAction;
 use App\Modules\Ai\Automation\Triggers\ProposalConfirmedTrigger;
@@ -50,6 +52,9 @@ final class AiServiceProvider extends ModuleServiceProvider
 
         $this->app->scoped(ToolRegistry::class);
 
+        // What other modules call for captions, hashtags, reply suggestions and sentiment (ADR 0024).
+        $this->app->bind(TextAssistant::class, GatewayTextAssistant::class);
+
         // The scripted provider exists only in local development and tests.
         if ($this->app->environment(['local', 'testing'])) {
             $this->app->singleton(FakeAiProvider::class);
@@ -82,7 +87,7 @@ final class AiServiceProvider extends ModuleServiceProvider
             navigation: [
                 new NavigationItem('aiAssistant', 'ai.assistant.index', 'sparkles', 'ai.assistant.use', 'apps', 60, 'ai.assistant.*'),
                 new NavigationItem('aiUsage', 'ai.usage.index', 'gauge', 'ai.usage.view', 'apps', 61, 'ai.usage.*'),
-                new NavigationItem('aiSettings', 'ai.settings.index', 'settings', 'ai.settings.manage', 'manage', 50, 'ai.settings.*'),
+                new NavigationItem('aiSettings', 'ai.settings.index', 'settings', 'ai.settings.manage', 'apps', 900, 'ai.settings.*'),
             ],
             widgets: [
                 new WidgetDefinition('ai.usage', 'AiUsageWidget', AiUsageWidget::class, 'ai.usage.view', span: 4, order: 19),

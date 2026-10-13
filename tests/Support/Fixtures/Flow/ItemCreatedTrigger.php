@@ -35,7 +35,7 @@ final class ItemCreatedTrigger implements TriggerDefinition
 
     public static function inputSchema(): array
     {
-        return ['type' => 'object', 'properties' => ['kind' => ['type' => ['string', 'null']], 'minimum_amount' => ['type' => 'integer', 'minimum' => 0]], 'additionalProperties' => false];
+        return ['type' => 'object', 'properties' => ['kind' => ['type' => ['string', 'null']], 'minimum_amount' => ['type' => 'integer', 'minimum' => 0], 'maximum_amount' => ['type' => 'integer', 'minimum' => 0]], 'additionalProperties' => false];
     }
 
     public static function outputSchema(): array

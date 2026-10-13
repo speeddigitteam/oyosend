@@ -404,8 +404,7 @@ it('lists Support in the sidebar and as a dashboard widget for the entitled work
             $widgets = collect($props['widgets'])->keyBy('key')->all();
         });
 
-    expect($sidebar['apps'])->toContain('supportTickets', 'supportKb', 'supportCanned', 'supportReports')
-        ->and($sidebar['manage'])->toContain('supportQueues', 'supportSla', 'supportSettings')
+    expect($sidebar['apps'])->toContain('supportTickets', 'supportKb', 'supportCanned', 'supportReports', 'supportQueues', 'supportSla', 'supportSettings')
         ->and($widgets)->toHaveKey('support.overview')
         ->and($widgets['support.overview']['data'])->toMatchArray(['open' => 1, 'unassigned' => 1, 'mine' => 0, 'waitingOnCustomer' => 0, 'breached' => 0]);
 

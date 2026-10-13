@@ -8,6 +8,8 @@ use App\Core\Access\AccessChecker;
 use App\Core\Access\Console\SyncPermissionsCommand;
 use App\Core\Access\Models\Role;
 use App\Core\Access\PermissionResolver;
+use App\Core\Ai\Contracts\TextAssistant;
+use App\Core\Ai\NullTextAssistant;
 use App\Core\AppStore\Console\RunModuleSchedulesCommand;
 use App\Core\AppStore\Console\SyncAppsCommand;
 use App\Core\AppStore\Models\AppEntitlement;
@@ -21,6 +23,7 @@ use App\Core\Billing\Console\RunBillingCycleCommand;
 use App\Core\Billing\CurrentSubscription;
 use App\Core\Billing\Enums\LimitKind;
 use App\Core\Billing\Gateways\AamarPayGateway;
+use App\Core\Billing\Gateways\GatewayCredentials;
 use App\Core\Billing\Gateways\GatewayRegistry;
 use App\Core\Billing\Gateways\SslCommerzGateway;
 use App\Core\Billing\Models\Invoice;
@@ -28,21 +31,32 @@ use App\Core\Billing\Models\Payment;
 use App\Core\Billing\Models\Plan;
 use App\Core\Billing\Models\Subscription;
 use App\Core\Communication\Contracts\ChannelGateway;
+use App\Core\Communication\Contracts\ChannelNumberDirectory;
+use App\Core\Communication\Contracts\ChannelNumberRegistry;
 use App\Core\Communication\Contracts\ConsentRecorder;
 use App\Core\Communication\Contracts\InteractionRecorder;
 use App\Core\Communication\Contracts\MarketingAudience;
+use App\Core\Communication\Contracts\MediaGateway;
 use App\Core\Communication\Contracts\Notifier;
+use App\Core\Communication\Contracts\TemplateCatalogue;
 use App\Core\Communication\Contracts\UnsubscribeLinks;
 use App\Core\Communication\NullChannelGateway;
+use App\Core\Communication\NullChannelNumbers;
 use App\Core\Communication\NullConsentRecorder;
 use App\Core\Communication\NullInteractionRecorder;
 use App\Core\Communication\NullMarketingAudience;
+use App\Core\Communication\NullMediaGateway;
 use App\Core\Communication\NullNotifier;
+use App\Core\Communication\NullTemplateCatalogue;
 use App\Core\Communication\NullUnsubscribeLinks;
 use App\Core\Contacts\Automation\CompanyCreatedTrigger;
 use App\Core\Contacts\Automation\ContactCreatedTrigger;
 use App\Core\Contacts\Models\Company;
 use App\Core\Contacts\Models\Contact;
+use App\Core\Crm\Contracts\CrmAudience;
+use App\Core\Crm\Contracts\LeadIntake;
+use App\Core\Crm\NullCrmAudience;
+use App\Core\Crm\NullLeadIntake;
 use App\Core\Dashboard\Widgets\RecentActivityWidget;
 use App\Core\Dashboard\Widgets\SecurityWidget;
 use App\Core\Dashboard\Widgets\TeamWidget;
@@ -62,7 +76,10 @@ use App\Core\Modules\PermissionDefinition;
 use App\Core\Modules\WidgetDefinition;
 use App\Core\Organization\Models\Branch;
 use App\Core\Organization\Models\Department;
+use App\Core\Settings\IntegrationCredentials;
 use App\Core\Settings\PlatformSettings;
+use App\Core\Social\Contracts\ConnectedPages;
+use App\Core\Social\NullConnectedPages;
 use App\Core\Tenancy\Models\Tenant;
 use App\Core\Tenancy\Support\TenantHost;
 use App\Platform\Models\PlatformUser;
@@ -184,6 +201,7 @@ final class CoreServiceProvider extends ModuleServiceProvider
         }
 
         $this->app->scoped(PlatformSettings::class);
+        $this->app->scoped(IntegrationCredentials::class);
 
         // What other modules call to notify members and to append to the interaction timeline. The
         // `communication` module rebinds both; until then (or without it) they honestly record nothing.
@@ -193,6 +211,19 @@ final class CoreServiceProvider extends ModuleServiceProvider
         $this->app->bindIf(UnsubscribeLinks::class, NullUnsubscribeLinks::class);
         $this->app->bindIf(ConsentRecorder::class, NullConsentRecorder::class);
         $this->app->bindIf(ChannelGateway::class, NullChannelGateway::class);
+        // ADR 0022: workspace numbers, WhatsApp media and the provider template catalogue; `communication` rebinds them.
+        $this->app->bindIf(ChannelNumberDirectory::class, NullChannelNumbers::class);
+        $this->app->bindIf(ChannelNumberRegistry::class, NullChannelNumbers::class);
+        $this->app->bindIf(MediaGateway::class, NullMediaGateway::class);
+        $this->app->bindIf(TemplateCatalogue::class, NullTemplateCatalogue::class);
+        // Outside enquiries into the CRM and the CRM's customer groups as a campaign audience (ADR 0023).
+        // The `crm` module rebinds both; without it a capture is honestly `unavailable` and the audience empty.
+        $this->app->bindIf(LeadIntake::class, NullLeadIntake::class);
+        $this->app->bindIf(CrmAudience::class, NullCrmAudience::class);
+        // The Facebook Pages a workspace connected in Social, token-free (ADR 0027); `social` rebinds it.
+        $this->app->bindIf(ConnectedPages::class, NullConnectedPages::class);
+        // The `ai` module rebinds this with the gateway-backed assistant (ADR 0024).
+        $this->app->bindIf(TextAssistant::class, NullTextAssistant::class);
 
         // Schedule idempotency is platform-wide. It must not be affected by
         // the cache prefix of whichever tenant is being dispatched.
@@ -202,19 +233,25 @@ final class CoreServiceProvider extends ModuleServiceProvider
 
         $this->app->singleton(GatewayRegistry::class, static function ($app): GatewayRegistry {
             $registry = new GatewayRegistry;
+            $credentials = $app->make(GatewayCredentials::class);
 
-            // Offered only once its credentials are in the environment.
+            // Credentials come from the Super Admin panel first (encrypted, write-only), then the
+            // environment as the fallback default. A gateway with neither is not configured and is
+            // not offered. See docs/adr/0028-operator-managed-integration-credentials.md.
+            $ssl = $credentials->for('sslcommerz');
             $registry->register(new SslCommerzGateway(
                 $app->make(HttpFactory::class),
-                config('platform.gateways.sslcommerz.store_id'),
-                config('platform.gateways.sslcommerz.store_password'),
-                (bool) config('platform.gateways.sslcommerz.sandbox', true),
+                $ssl['secrets']['store_id'] ?? null,
+                $ssl['secrets']['store_password'] ?? null,
+                $ssl['sandbox'],
             ));
+
+            $aamar = $credentials->for('aamarpay');
             $registry->register(new AamarPayGateway(
                 $app->make(HttpFactory::class),
-                config('platform.gateways.aamarpay.store_id'),
-                config('platform.gateways.aamarpay.signature_key'),
-                (bool) config('platform.gateways.aamarpay.sandbox', true),
+                $aamar['secrets']['store_id'] ?? null,
+                $aamar['secrets']['signature_key'] ?? null,
+                $aamar['sandbox'],
             ));
 
             return $registry;
@@ -226,6 +263,16 @@ final class CoreServiceProvider extends ModuleServiceProvider
         $this->loadTenantRoutes(base_path('routes/tenant.php'));
         $this->loadCallbackRoutes();
         $this->registerGate();
+
+        // Overlay the operator-set Social and Meta Ads credentials onto the live config, so every
+        // existing config() reader transparently gets the panel value; the environment is the
+        // fallback (docs/adr/0029). A failure here must never break boot: config() is read lazily,
+        // and IntegrationCredentials already falls back to the environment on any read error.
+        try {
+            $this->app->make(IntegrationCredentials::class)->apply($this->app->make('config'));
+        } catch (\Throwable) {
+            // Keep the environment defaults; boot must not fail over operator credentials.
+        }
 
         // Reset links open in the workspace the reset was requested from.
         ResetPassword::createUrlUsing(static fn (CanResetPassword $notifiable, string $token): string => route(

@@ -23,7 +23,24 @@ final class LeadManager
     /** @param array<string, mixed> $attributes */
     public function create(array $attributes, ?TenantMembership $owner = null): Lead
     {
-        return DB::transaction(function () use ($attributes, $owner): Lead {
+        return $this->persist($attributes, $owner, false, null);
+    }
+
+    /**
+     * A lead captured by a system integration (ADR 0023): never defaulted to a signed-in member, and the
+     * created event carries the stable source key.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function createFromIntake(array $attributes, string $sourceKey, ?TenantMembership $owner = null): Lead
+    {
+        return $this->persist($attributes, $owner, true, $sourceKey);
+    }
+
+    /** @param array<string, mixed> $attributes */
+    private function persist(array $attributes, ?TenantMembership $owner, bool $unowned, ?string $sourceKey): Lead
+    {
+        return DB::transaction(function () use ($attributes, $owner, $unowned, $sourceKey): Lead {
             if (($attributes['contact_id'] ?? null) === null && ($attributes['company_id'] ?? null) === null) {
                 throw ValidationException::withMessages(['contact_id' => __('Choose a contact or company for the lead.')]);
             }
@@ -31,10 +48,14 @@ final class LeadManager
             $this->guardReferences($attributes);
 
             $lead = new Lead(['status' => LeadStatus::New, 'score' => 0, ...$attributes]);
+            if ($unowned && $owner === null) {
+                $lead->keepUnowned();
+            }
+
             $lead->assignOwner($owner)->save();
             $this->timeline->record('crm.lead.created', __('Lead created.'), $this->links($lead), $owner);
             $this->audit->record('crm.lead.created', $lead, ['status' => $lead->status->value, 'score' => $lead->score]);
-            LeadCreated::dispatch($lead);
+            LeadCreated::dispatch($lead, $sourceKey);
 
             return $lead;
         });

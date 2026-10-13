@@ -7,6 +7,7 @@ namespace App\Modules\Social\Jobs;
 use App\Core\Tenancy\Contracts\RequiresTenantContext;
 use App\Modules\Social\Actions\AccountMaintenance;
 use App\Modules\Social\Actions\MetricsCollector;
+use App\Modules\Social\Actions\PageInsightsCollector;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeEncrypted;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -31,10 +32,18 @@ final class MaintainSocialAccounts implements RequiresTenantContext, ShouldBeEnc
         $this->onQueue('default');
     }
 
-    public function handle(AccountMaintenance $accounts, MetricsCollector $metrics): void
+    public function handle(AccountMaintenance $accounts, MetricsCollector $metrics, PageInsightsCollector $insights): void
     {
         $accounts->run();
         $metrics->run();
+
+        // Page-level insights: bounded per run and failure-tolerant, so a platform outage never
+        // blocks token renewal or post metrics.
+        try {
+            $insights->run(35);
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
     }
 
     /** @return list<string> */

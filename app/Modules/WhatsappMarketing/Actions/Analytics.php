@@ -8,11 +8,13 @@ use App\Core\Billing\UsageLimits;
 use App\Modules\WhatsappMarketing\Enums\CampaignStatus;
 use App\Modules\WhatsappMarketing\Enums\ConversationStatus;
 use App\Modules\WhatsappMarketing\Enums\Direction;
+use App\Modules\WhatsappMarketing\Enums\FeedbackStatus;
 use App\Modules\WhatsappMarketing\Enums\MessageStatus;
 use App\Modules\WhatsappMarketing\Enums\RecipientState;
 use App\Modules\WhatsappMarketing\Enums\SenderType;
 use App\Modules\WhatsappMarketing\Models\Campaign;
 use App\Modules\WhatsappMarketing\Models\Conversation;
+use App\Modules\WhatsappMarketing\Models\Feedback;
 use App\Modules\WhatsappMarketing\Models\Message;
 use App\Modules\WhatsappMarketing\Models\Recipient;
 use App\Modules\WhatsappMarketing\Models\Window;
@@ -34,6 +36,7 @@ final class Analytics
      *   delivery: array{sent: int, delivered: int, read: int, failed: int, blocked: int, deliveredBps: int|null, readBps: int|null},
      *   providerReported: array{billable: int, notBillable: int, notReported: int, byCategory: array<string, int>},
      *   cost: null,
+     *   feedback: array{requested: int, answered: int, averageX100: int|null, byRating: array<int, int>},
      *   campaigns: list<array<string, mixed>>
      * }
      */
@@ -70,6 +73,15 @@ final class Analytics
             ->toBase()->selectRaw('pricing_category, count(*) as total')->groupBy('pricing_category')->pluck('total', 'pricing_category')
             ->map(static fn (mixed $count): int => (int) $count)->all();
 
+        $requests = fn () => Feedback::query()->whereBetween('requested_at', [$from, $to]);
+        $answered = $requests()->where('status', FeedbackStatus::Answered->value);
+
+        /** @var array<int, int> $ratings */
+        $ratings = (clone $answered)->toBase()->selectRaw('rating, count(*) as total')->groupBy('rating')->pluck('total', 'rating')
+            ->mapWithKeys(static fn (mixed $count, mixed $rating): array => [(int) $rating => (int) $count])->all();
+        $answeredCount = array_sum($ratings);
+        $ratingSum = array_sum(array_map(static fn (int $rating, int $count): int => $rating * $count, array_keys($ratings), $ratings));
+
         $windows = Window::query()->whereBetween('opened_at', [$from, $to])
             ->toBase()->selectRaw('origin, count(*) as total')->groupBy('origin')->pluck('total', 'origin');
 
@@ -105,6 +117,13 @@ final class Analytics
                 'byCategory' => $categories,
             ],
             'cost' => null,
+            // The average is in hundredths (432 = 4.32) so the page formats it; null when nobody answered.
+            'feedback' => [
+                'requested' => $requests()->count(),
+                'answered' => $answeredCount,
+                'averageX100' => $answeredCount === 0 ? null : intdiv($ratingSum * 100, $answeredCount),
+                'byRating' => array_replace([5 => 0, 4 => 0, 3 => 0, 2 => 0, 1 => 0], $ratings),
+            ],
             'campaigns' => $this->campaigns($from, $to, 10),
         ];
     }

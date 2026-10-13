@@ -47,7 +47,8 @@ final class LeadController
     public function index(Request $request): Response
     {
         $actor = $this->support->actor($request);
-        $input = $request->validate(['search' => ['nullable', 'string', 'max:100'], 'status' => ['nullable', Rule::enum(LeadStatus::class)], 'source' => ['nullable', 'string', 'size:26'], 'segment' => ['nullable', 'string', 'size:26']]);
+        $input = $request->validate(['search' => ['nullable', 'string', 'max:100'], 'status' => ['nullable', Rule::enum(LeadStatus::class)], 'source' => ['nullable', 'string', 'size:26'], 'segment' => ['nullable', 'string', 'size:26'], 'create_for' => ['nullable', 'string', 'size:26']]);
+        $prefill = $actor->can(self::EDIT) ? $this->support->prefillContact($input['create_for'] ?? null, $actor) : null;
         $search = trim((string) ($input['search'] ?? ''));
         $segment = ($input['segment'] ?? null) === null ? null : Segment::query()
             ->where('entity_type', CrmEntityType::Lead)->where('is_active', true)->findOrFail($input['segment']);
@@ -71,10 +72,11 @@ final class LeadController
             'filters' => ['search' => $search, 'status' => $input['status'] ?? null, 'source' => $input['source'] ?? null, 'segment' => $input['segment'] ?? null],
             'segments' => Segment::query()->where('entity_type', CrmEntityType::Lead)->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'sources' => LeadSource::query()->where('is_active', true)->orderBy('position')->get(['id', 'name']),
-            'contacts' => $this->support->contactOptions($actor),
+            'contacts' => $this->support->contactOptions($actor, $prefill),
             'companies' => $this->support->companyOptions($actor),
             'owners' => $this->support->ownerOptions($actor, self::ASSIGN),
             'canCreate' => $actor->can(self::EDIT),
+            'prefillContact' => $prefill,
         ]);
     }
 

@@ -8,6 +8,7 @@ use App\Core\Access\Concerns\HasRecordOwner;
 use App\Core\Audit\Concerns\Auditable;
 use App\Core\Tenancy\Concerns\BelongsToTenant;
 use App\Modules\Social\Enums\PostStatus;
+use App\Modules\Social\Enums\PostType;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -23,7 +24,9 @@ use Illuminate\Support\Carbon;
  * @property string|null $title
  * @property string|null $body
  * @property string|null $link_url
+ * @property PostType $post_type
  * @property list<string>|null $hashtags
+ * @property bool $ai_assisted AI suggestions were used on this draft (informational marker for approvers)
  * @property PostStatus $status
  * @property Carbon|null $scheduled_for
  * @property Carbon|null $published_at
@@ -52,9 +55,9 @@ class Post extends Model
 
     /** @var list<string> */
     protected $fillable = [
-        'title', 'body', 'link_url', 'hashtags', 'status', 'scheduled_for', 'published_at', 'campaign_id', 'category_id',
+        'title', 'body', 'link_url', 'post_type', 'hashtags', 'status', 'scheduled_for', 'published_at', 'campaign_id', 'category_id',
         'hashtag_set_id', 'import_id', 'submitted_by', 'submitted_at', 'approved_by', 'approved_at', 'rejected_by',
-        'rejected_at', 'rejection_reason',
+        'rejected_at', 'rejection_reason', 'ai_assisted',
     ];
 
     /** @return array<string, string> */
@@ -62,7 +65,9 @@ class Post extends Model
     {
         return [
             'status' => PostStatus::class,
+            'post_type' => PostType::class,
             'hashtags' => 'array',
+            'ai_assisted' => 'boolean',
             'scheduled_for' => 'datetime',
             'published_at' => 'datetime',
             'submitted_at' => 'datetime',

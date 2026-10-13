@@ -12,11 +12,15 @@ use App\Core\Support\Toast;
 use App\Modules\WhatsappMarketing\Actions\AgentManager;
 use App\Modules\WhatsappMarketing\Actions\ConversationAccess;
 use App\Modules\WhatsappMarketing\Actions\ConversationManager;
+use App\Modules\WhatsappMarketing\Actions\FeedbackCollector;
 use App\Modules\WhatsappMarketing\Actions\Messenger;
+use App\Modules\WhatsappMarketing\Actions\NoteManager;
 use App\Modules\WhatsappMarketing\Enums\ConversationStatus;
 use App\Modules\WhatsappMarketing\Http\Presenter;
 use App\Modules\WhatsappMarketing\Models\Conversation;
+use App\Modules\WhatsappMarketing\Models\ConversationNote;
 use App\Modules\WhatsappMarketing\Models\Template;
+use App\Modules\WhatsappMarketing\Support\Interactive;
 use App\Modules\WhatsappMarketing\Support\Permissions;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,6 +37,8 @@ final class ConversationController
         private readonly AgentManager $agents,
         private readonly RecordAccess $records,
         private readonly Presenter $presenter,
+        private readonly NoteManager $notes,
+        private readonly FeedbackCollector $feedback,
     ) {}
 
     public function reply(Request $request, Conversation $conversation): RedirectResponse
@@ -41,9 +47,16 @@ final class ConversationController
         $this->access->authorize($actor, Permissions::CONVERSATIONS_REPLY, $conversation);
         $input = $request->validate([
             'body' => ['required', 'string', 'max:4096'],
+            'sender_number_id' => ['nullable', 'string', 'size:26', 'regex:/^[0-9A-Za-z]{26}$/'],
+            'interactive' => ['nullable', 'array'],
+            'interactive.kind' => ['required_with:interactive', 'string', Rule::in([Interactive::BUTTONS, Interactive::LIST])],
+            'interactive.button' => ['nullable', 'string', 'max:'.Interactive::LIST_BUTTON],
+            'interactive.options' => ['required_with:interactive', 'array', 'min:1', 'max:'.Interactive::MAX_ROWS],
+            'interactive.options.*' => ['required', 'string', 'max:'.Interactive::ROW_TITLE],
         ]);
+        $interactive = isset($input['interactive']) ? Interactive::fromInput($input['interactive']) : null;
 
-        $this->messenger->reply($conversation, $input['body'], $this->presenter->membership($actor));
+        $this->messenger->reply($conversation, $input['body'], $this->presenter->membership($actor), interactive: $interactive, senderNumberId: $input['sender_number_id'] ?? null);
         Toast::success(__('Reply queued.'));
 
         return back();
@@ -57,12 +70,13 @@ final class ConversationController
             'template_id' => ['required', 'string', 'size:26'],
             'variables' => ['nullable', 'array', 'max:20'],
             'variables.*' => ['nullable', 'string', 'max:1024'],
+            'sender_number_id' => ['nullable', 'string', 'size:26', 'regex:/^[0-9A-Za-z]{26}$/'],
         ]);
 
         $template = Template::query()->find($input['template_id']);
         abort_if($template === null, 404);
 
-        $this->messenger->sendTemplate($conversation, $template, array_values(array_map('strval', $input['variables'] ?? [])), $this->presenter->membership($actor));
+        $this->messenger->sendTemplate($conversation, $template, array_values(array_map('strval', $input['variables'] ?? [])), $this->presenter->membership($actor), senderNumberId: $input['sender_number_id'] ?? null);
         Toast::success(__('Template queued.'));
 
         return back();
@@ -112,8 +126,18 @@ final class ConversationController
         $this->access->authorize($actor, Permissions::CONVERSATIONS_MANAGE, $conversation);
         $input = $request->validate(['status' => ['required', Rule::enum(ConversationStatus::class)]]);
 
-        $this->conversations->setStatus($conversation, ConversationStatus::from($input['status']));
-        Toast::success($input['status'] === 'closed' ? __('Conversation closed.') : __('Conversation reopened.'));
+        $status = ConversationStatus::from($input['status']);
+        $changed = $conversation->status !== $status;
+        $this->conversations->setStatus($conversation, $status);
+
+        // A person closed it: the customer may be asked to rate the help (off unless the workspace enabled it).
+        $asked = $changed && $status === ConversationStatus::Closed && $this->feedback->request($conversation);
+
+        Toast::success(match (true) {
+            $asked => __('Conversation closed. The customer was asked to rate the help.'),
+            $status === ConversationStatus::Closed => __('Conversation closed.'),
+            default => __('Conversation reopened.'),
+        });
 
         return back();
     }
@@ -126,6 +150,35 @@ final class ConversationController
 
         $this->conversations->setTags($conversation, $input['tags']);
         Toast::success(__('Tags saved.'));
+
+        return back();
+    }
+
+    /** An internal note for the team; never sent to the customer. */
+    public function addNote(Request $request, Conversation $conversation): RedirectResponse
+    {
+        $actor = $this->presenter->actor($request);
+        $this->access->authorize($actor, Permissions::CONVERSATIONS_REPLY, $conversation);
+        $input = $request->validate(['body' => ['required', 'string', 'max:'.NoteManager::MAX_LENGTH]]);
+
+        $this->notes->add($conversation, $input['body'], $this->presenter->membership($actor));
+        Toast::success(__('Note added.'));
+
+        return back();
+    }
+
+    /** The author removes their own note; someone who manages the conversation may remove any. */
+    public function removeNote(Request $request, Conversation $conversation, ConversationNote $note): RedirectResponse
+    {
+        $actor = $this->presenter->actor($request);
+        $this->access->authorize($actor, Permissions::CONVERSATIONS_VIEW, $conversation);
+        abort_unless($note->conversation_id === $conversation->id, 404);
+
+        $own = $note->author_id !== null && $note->author_id === $this->presenter->membership($actor)->id;
+        abort_unless($own || $this->access->allows($actor, Permissions::CONVERSATIONS_MANAGE, $conversation), 403);
+
+        $this->notes->remove($note);
+        Toast::success(__('Note removed.'));
 
         return back();
     }

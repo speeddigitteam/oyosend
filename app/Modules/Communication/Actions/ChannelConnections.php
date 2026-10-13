@@ -26,6 +26,7 @@ final class ChannelConnections
         private readonly ProviderRegistry $providers,
         private readonly CredentialResolver $credentials,
         private readonly AuditLogger $audit,
+        private readonly ChannelNumbers $numbers,
     ) {}
 
     public function find(Channel $channel): ?ChannelConnection
@@ -131,6 +132,9 @@ final class ChannelConnections
 
             $this->claimAccounts($connection, $provider, $settings);
 
+            // The phone number id names the default number (ADR 0022): keep the numbers table in step.
+            $this->numbers->ensure($connection);
+
             $this->audit->record('communication.channel.saved', $connection, [
                 'channel' => $channel->value,
                 'provider' => $provider->key(),
@@ -156,14 +160,21 @@ final class ChannelConnections
         // DELETE over an empty index range takes a gap lock that two concurrent first saves turn into a deadlock.
         ChannelConnection::query()->whereKey($connection->id)->lockForUpdate()->value('id');
 
-        if (AccountClaim::query()->where('connection_id', $connection->id)->exists()) {
-            AccountClaim::query()->where('connection_id', $connection->id)->delete();
+        // Claims that belong to a registered number (`number_id`) are the numbers' own (ChannelNumbers).
+        if (AccountClaim::query()->where('connection_id', $connection->id)->whereNull('number_id')->exists()) {
+            AccountClaim::query()->where('connection_id', $connection->id)->whereNull('number_id')->delete();
         }
 
         foreach ($provider->fields() as $field) {
             $value = $settings[$field['key']] ?? null;
 
             if (($field['account'] ?? false) !== true || $value === null || $value === '') {
+                continue;
+            }
+
+            // A number of this connection already holds this claim.
+            if (AccountClaim::query()->where('connection_id', $connection->id)->where('provider', $provider->key())
+                ->where('account_key', $field['key'])->where('account_value', (string) $value)->exists()) {
                 continue;
             }
 

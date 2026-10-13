@@ -9,12 +9,17 @@ use App\Core\AppStore\Enums\AppCategory;
 use App\Core\AppStore\Enums\ScheduledJobFrequency;
 use App\Core\AppStore\ScheduledJobDefinition;
 use App\Core\Communication\Contracts\ChannelGateway;
+use App\Core\Communication\Contracts\ChannelNumberDirectory;
+use App\Core\Communication\Contracts\ChannelNumberRegistry;
 use App\Core\Communication\Contracts\ConsentRecorder;
 use App\Core\Communication\Contracts\InteractionRecorder;
 use App\Core\Communication\Contracts\MarketingAudience;
+use App\Core\Communication\Contracts\MediaGateway;
 use App\Core\Communication\Contracts\Notifier;
+use App\Core\Communication\Contracts\TemplateCatalogue;
 use App\Core\Communication\Contracts\UnsubscribeLinks as UnsubscribeLinksContract;
 use App\Core\Contacts\Contracts\ContactMergeReference;
+use App\Core\Contacts\Contracts\CustomerRecordProvider;
 use App\Core\Modules\AppOffer;
 use App\Core\Modules\LimitDefinition;
 use App\Core\Modules\ModuleManifest;
@@ -22,14 +27,17 @@ use App\Core\Modules\ModuleServiceProvider;
 use App\Core\Modules\NavigationItem;
 use App\Core\Modules\PermissionDefinition;
 use App\Core\Modules\WidgetDefinition;
+use App\Modules\Communication\Actions\ChannelNumbers;
 use App\Modules\Communication\Actions\CommunicationContactMergeReference;
 use App\Modules\Communication\Actions\MarketingAudienceResolver;
 use App\Modules\Communication\Actions\MarketingConsentRecorder;
 use App\Modules\Communication\Actions\MarketingGateway;
 use App\Modules\Communication\Actions\MarketingStatusRelay;
 use App\Modules\Communication\Actions\MarketingUnsubscribeLinks;
+use App\Modules\Communication\Actions\MediaLibrary;
 use App\Modules\Communication\Actions\NotificationCenter;
 use App\Modules\Communication\Actions\Outbox;
+use App\Modules\Communication\Actions\ProviderTemplateCatalogue;
 use App\Modules\Communication\Actions\TemplateVariables;
 use App\Modules\Communication\Actions\TimelineRecorder;
 use App\Modules\Communication\Automation\Actions\LogInteractionAction;
@@ -45,6 +53,7 @@ use App\Modules\Communication\Channels\Providers\NullProvider;
 use App\Modules\Communication\Channels\Providers\SmtpProvider;
 use App\Modules\Communication\Channels\Providers\TwilioSmsProvider;
 use App\Modules\Communication\Channels\Providers\WhatsAppCloudProvider;
+use App\Modules\Communication\CustomerRecords\InteractionsSection;
 use App\Modules\Communication\Events\MessageBounced;
 use App\Modules\Communication\Events\MessageDelivered;
 use App\Modules\Communication\Events\MessageFailed;
@@ -53,6 +62,7 @@ use App\Modules\Communication\Jobs\CleanupCommunication;
 use App\Modules\Communication\Jobs\DispatchDueMessages;
 use App\Modules\Communication\Models\AutomationActionReceipt;
 use App\Modules\Communication\Models\ChannelConnection;
+use App\Modules\Communication\Models\ChannelPhoneNumber;
 use App\Modules\Communication\Models\CommunicationSetting;
 use App\Modules\Communication\Models\Consent;
 use App\Modules\Communication\Models\Interaction;
@@ -112,8 +122,14 @@ final class CommunicationServiceProvider extends ModuleServiceProvider
         $this->app->bind(MarketingAudience::class, MarketingAudienceResolver::class);
         $this->app->bind(UnsubscribeLinksContract::class, MarketingUnsubscribeLinks::class);
         $this->app->bind(ChannelGateway::class, MarketingGateway::class);
+        // ADR 0022: workspace numbers, WhatsApp media and the provider template catalogue.
+        $this->app->bind(ChannelNumberDirectory::class, ChannelNumbers::class);
+        $this->app->bind(ChannelNumberRegistry::class, ChannelNumbers::class);
+        $this->app->bind(MediaGateway::class, MediaLibrary::class);
+        $this->app->bind(TemplateCatalogue::class, ProviderTemplateCatalogue::class);
         $this->app->bind(ConsentRecorder::class, MarketingConsentRecorder::class);
         $this->app->tag(CommunicationContactMergeReference::class, ContactMergeReference::class);
+        $this->app->tag(InteractionsSection::class, CustomerRecordProvider::TAG);
     }
 
     protected function describe(): ModuleManifest
@@ -121,9 +137,10 @@ final class CommunicationServiceProvider extends ModuleServiceProvider
         return new ModuleManifest(
             key: 'communication',
             name: 'Communication',
-            version: '1.0.0',
+            version: '1.1.0',
             dependencies: ['core'],
             permissions: [
+                new PermissionDefinition('communication.inbox.view', 'communication_inbox'),
                 new PermissionDefinition('communication.notifications.view', 'communication_notifications'),
                 new PermissionDefinition('communication.messages.view', 'communication_messages', scopable: true),
                 new PermissionDefinition('communication.messages.send', 'communication_messages', scopable: true),
@@ -138,11 +155,12 @@ final class CommunicationServiceProvider extends ModuleServiceProvider
                 new PermissionDefinition('communication.settings.manage', 'communication_settings', sensitive: true),
             ],
             navigation: [
+                new NavigationItem('communicationInbox', 'communication.inbox.index', 'inbox', 'communication.inbox.view', 'apps', 29, 'communication.inbox.*'),
                 new NavigationItem('communicationNotifications', 'communication.notifications.index', 'bell', 'communication.notifications.view', 'apps', 30, 'communication.notifications.*'),
                 new NavigationItem('communicationMessages', 'communication.messages.index', 'mail', 'communication.messages.view', 'apps', 31, 'communication.messages.*'),
                 new NavigationItem('communicationTemplates', 'communication.templates.index', 'file-text', 'communication.templates.view', 'apps', 32, 'communication.templates.*'),
                 new NavigationItem('communicationAudience', 'communication.audience.index', 'shield-check', 'communication.audience.view', 'apps', 33, 'communication.audience.*'),
-                new NavigationItem('communicationSettings', 'communication.settings.index', 'settings', 'communication.settings.manage', 'manage', 39, 'communication.settings.*'),
+                new NavigationItem('communicationSettings', 'communication.settings.index', 'settings', 'communication.settings.manage', 'apps', 900, 'communication.settings.*'),
             ],
             widgets: [
                 new WidgetDefinition('communication.notifications', 'NotificationsWidget', NotificationsWidget::class, 'communication.notifications.view', span: 4, order: 60),
@@ -166,6 +184,7 @@ final class CommunicationServiceProvider extends ModuleServiceProvider
                 'communication_consent' => Consent::class,
                 'communication_unsubscribe_token' => UnsubscribeToken::class,
                 'communication_webhook_event' => WebhookEvent::class,
+                'communication_channel_number' => ChannelPhoneNumber::class,
                 'communication_action_receipt' => AutomationActionReceipt::class,
             ],
             limits: [new LimitDefinition(Outbox::LIMIT)],
@@ -179,8 +198,9 @@ final class CommunicationServiceProvider extends ModuleServiceProvider
                 'Interaction timeline for every customer',
             ],
             offers: [new AppOffer('included', 'Included', AppBillingType::Free)],
-            releaseNotes: 'Initial communication platform release.',
+            releaseNotes: 'Adds the unified inbox for WhatsApp conversations and support tickets.',
             routes: [
+                'communication.inbox.index',
                 'communication.notifications.index',
                 'communication.notifications.summary',
                 'communication.notifications.read-all',

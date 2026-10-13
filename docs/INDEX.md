@@ -9,7 +9,7 @@ and the code disagree, fix the page.
 | Page | Read it for |
 |---|---|
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Areas and hosts, request lifecycle, code layout, shared services, tenancy, authorization, events, queues |
-| [`MODULES.md`](MODULES.md) | The 16 registered modules (permissions, limits, jobs), and how to add a module |
+| [`MODULES.md`](MODULES.md) | The 17 registered optional modules (permissions, limits, jobs), and how to add a module |
 | [`DATABASE.md`](DATABASE.md) | Conventions, central versus tenant-owned tables, every module's tables, dedicated-database strategy |
 | [`SECURITY.md`](SECURITY.md) | Tenant isolation layer by layer, per-module security rules, known limitations |
 | [`TESTING.md`](TESTING.md) | Commands, the test database, helpers, conventions, CI |
@@ -39,8 +39,10 @@ and the code disagree, fix the page.
 | [`SMS_MARKETING.md`](SMS_MARKETING.md) | SMS Marketing (`sms_marketing`) |
 | [`WHATSAPP.md`](WHATSAPP.md) | WhatsApp Business (`whatsapp_marketing`) |
 | [`SOCIAL.md`](SOCIAL.md) | Social Media (`social`) |
+| [`META_ADS.md`](META_ADS.md) | Meta Ads (`meta_ads`) |
 | [`SUPPORT.md`](SUPPORT.md) | Customer Support (`support`) |
 | [`REPORTS.md`](REPORTS.md) | Reports & Analytics (`reports`) |
+| [`NOTES.md`](NOTES.md) | Notes (`notes`) |
 
 ## Decisions (`adr/`)
 
@@ -65,3 +67,13 @@ and the code disagree, fix the page.
 | [0017](adr/0017-workflow-engine-authority-model.md) | Workflows are declarative and run as the member who published them |
 | [0018](adr/0018-ai-proposals-and-provider-abstraction.md) | AI proposals need human confirmation; provider contract and gateway; open decision on AI accounts |
 | [0019](adr/0019-central-health-and-ops-commands.md) | Health probes and `ops:` commands outside tenant context |
+| [0020](adr/0020-customer-360-unified-inbox-and-messenger.md) | Customer 360 and unified inbox as tagged read providers; Messenger as a separate conversational app (four owner decisions open) |
+| [0021](adr/0021-whatsapp-business-feature-gaps.md) | WhatsApp Business 1.1 (interactive messages, notes, ratings, rule lists, AI drafts, lead and order workflows); six larger gaps proposed for owner decision |
+| [0022](adr/0022-whatsapp-numbers-rich-messages-media-and-template-catalogue.md) | Several WhatsApp numbers per workspace, rich WhatsApp payloads, media gateway and the provider template catalogue as core communication contracts |
+| [0023](adr/0023-crm-lead-intake-and-audience-contracts.md) | CRM `LeadIntake` and `CrmAudience` core contracts for lead capture and campaign audiences |
+| [0024](adr/0024-text-assistant-contract.md) | Core `TextAssistant` contract: captions, hashtags, reply suggestions and sentiment for other apps, text only, through `AiGateway` |
+| [0025](adr/0025-social-audience-comments.md) | Social audience comments: signed webhook plus polling, one Page one workspace, keyword rules as data that run as their last editor |
+| [0026](adr/0026-facebook-lead-ads-intake.md) | Facebook Lead Ads: signed workspace webhook, Page claim registry, CRM only through `LeadIntake` |
+| [0027](adr/0027-meta-ads-marketing-api-app.md) | Meta Ads: its own per-workspace encrypted token, a read-only `ConnectedPages` Social contract, safe pause / budget changes under a ceiling |
+| [0028](adr/0028-operator-managed-integration-credentials.md) | Operator-managed integration credentials in the panel: payment gateways and invoice issuer, encrypted and env-fallback |
+| [0029](adr/0029-social-and-meta-ads-panel-credentials.md) | Social and Meta Ads app credentials in the panel: config-override overlay, write-only secrets, shown-back public ids |

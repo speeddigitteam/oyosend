@@ -170,9 +170,14 @@ it('keeps attachments as metadata only and never fetches them', function () {
     $this->inTenant($this->tenant, function (): void {
         $message = Message::query()->firstOrFail();
 
+        // Metadata only (ADR 0022 keeps the provider media id so a controller can download it later on demand);
+        // the webhook never carries or fetches the bytes.
         expect($message->type)->toBe(MessageType::Image)
             ->and($message->body)->toBeNull()
-            ->and($message->attachments)->toBe([['kind' => 'image', 'mime' => 'image/jpeg', 'has_caption' => false]]);
+            ->and($message->attachments)->toHaveCount(1)
+            ->and($message->attachments[0])->toMatchArray(['kind' => 'image', 'mime' => 'image/jpeg', 'has_caption' => false, 'provider_media_id' => 'MEDIA-123', 'downloadable' => true])
+            ->and($message->attachments[0])->not->toHaveKey('url')
+            ->and($message->attachments[0])->not->toHaveKey('bytes');
     });
 
     Http::assertNothingSent();

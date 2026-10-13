@@ -27,7 +27,14 @@ final readonly class ChannelEvent
      * @param  string|null  $campaignId  That module's campaign id, if any.
      * @param  string|null  $recipientId  That module's recipient/row id, if any.
      * @param  array<string, scalar|null>  $details  Provider facts: `message_type`, `profile_name`, `media_mime`,
-     *                                               `pricing_category`, `billable`, template name/language/status.
+     *                                               `pricing_category`, `billable`, template name/language/status,
+     *                                               `phone_number_id` (the provider's id of the receiving number).
+     * @param  string|null  $numberId  The workspace number (ChannelNumber::$id) the event was received on or
+     *                                 belongs to (an inbound message's receiving number, a status's sending number).
+     * @param  InboundContent|null  $content  Typed content of an inbound message (interactive reply, media,
+     *                                        location, reaction, order, Flow response); null for plain text and
+     *                                        for every non-inbound event. `text` stays the human-readable text.
+     * @param  string|null  $pricingCategory  A status event's provider billing category, when reported.
      */
     public function __construct(
         public MarketingChannel $channel,
@@ -44,5 +51,8 @@ final readonly class ChannelEvent
         public ?string $campaignId = null,
         public ?string $recipientId = null,
         public array $details = [],
+        public ?string $numberId = null,
+        public ?InboundContent $content = null,
+        public ?string $pricingCategory = null,
     ) {}
 }

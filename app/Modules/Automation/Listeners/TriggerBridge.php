@@ -108,7 +108,7 @@ final class TriggerBridge
 
     /**
      * Trigger configuration is a plain filter over the event payload: `minimum_x` compares `x` with `>=`,
-     * any other key must equal the payload value. An empty configuration matches every event.
+     * `maximum_x` with `<=`, any other key must equal the payload value. An empty configuration matches every event.
      *
      * @param  array<string, mixed>  $config
      * @param  array<string, mixed>  $payload
@@ -126,6 +126,16 @@ final class TriggerBridge
                 $actual = $payload[substr($key, 8)] ?? null;
 
                 if (! is_numeric($actual) || ! is_numeric($expected) || (0 + $actual) < (0 + $expected)) {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (str_starts_with($key, 'maximum_')) {
+                $actual = $payload[substr($key, 8)] ?? null;
+
+                if (! is_numeric($actual) || ! is_numeric($expected) || (0 + $actual) > (0 + $expected)) {
                     return false;
                 }
 

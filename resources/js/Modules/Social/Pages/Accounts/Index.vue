@@ -12,6 +12,8 @@ import PageHeader from '@/Core/Components/PageHeader.vue';
 import { useFormat } from '@/Core/composables/useFormat';
 import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
 import { route } from '@/Core/lib/route';
+import AccountAccessSection from '../../Components/insights/AccountAccessSection.vue';
+import type { AccessPanelProps } from '../../Components/insights/types';
 import SocialBadge from '../../Components/SocialBadge.vue';
 import { safeUrl } from '../../Components/socialFormat';
 import type { AccountRow, Capabilities, PlatformInfo } from '../../Components/types';
@@ -24,6 +26,7 @@ const props = defineProps<{
     limit: { limit: number | null; used: number };
     canManage: boolean;
     redirectUris: { platform: string; uri: string }[];
+    accessPanel?: AccessPanelProps;
 }>();
 
 const { t } = useI18n();
@@ -176,6 +179,8 @@ function avatar(account: AccountRow): string | null {
             <template #icon><Share2 /></template>
         </EmptyState>
     </Card>
+
+    <AccountAccessSection v-if="accessPanel" :accounts="accounts" :panel="accessPanel" />
 
     <h2 class="mt-6 mb-3 text-base">{{ t('social.accounts.platforms') }}</h2>
     <p v-if="seatsFull && canManage" class="mb-3 text-[0.8125rem] text-warn" role="status" data-testid="seats-full">{{ t('social.accounts.seatsFull') }}</p>

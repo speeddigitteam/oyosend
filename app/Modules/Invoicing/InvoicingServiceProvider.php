@@ -85,7 +85,7 @@ final class InvoicingServiceProvider extends ModuleServiceProvider
                 new NavigationItem('invoicingInvoices', 'invoicing.invoices.index', 'receipt', 'invoicing.invoices.view', 'apps', 20, 'invoicing.invoices.*'),
                 new NavigationItem('invoicingRecurring', 'invoicing.recurring.index', 'clock', 'invoicing.recurring.view', 'apps', 21, 'invoicing.recurring.*'),
                 new NavigationItem('invoicingReports', 'invoicing.reports.index', 'chart-no-axes-combined', 'invoicing.reports.view', 'apps', 22, 'invoicing.reports.*'),
-                new NavigationItem('invoicingSettings', 'invoicing.settings.index', 'settings', 'invoicing.settings.manage', 'manage', 37, 'invoicing.settings.*'),
+                new NavigationItem('invoicingSettings', 'invoicing.settings.index', 'settings', 'invoicing.settings.manage', 'apps', 900, 'invoicing.settings.*'),
             ],
             triggers: [
                 InvoiceIssuedTrigger::class,

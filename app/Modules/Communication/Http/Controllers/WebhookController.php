@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Communication\Http\Controllers;
 
 use App\Modules\Communication\Actions\ChannelEventListenerFailed;
+use App\Modules\Communication\Actions\ChannelNumbers;
 use App\Modules\Communication\Actions\WebhookProcessor;
 use App\Modules\Communication\Channels\Contracts\VerifiesWebhookSubscription;
 use App\Modules\Communication\Channels\CredentialResolver;
@@ -29,6 +30,7 @@ final class WebhookController
         private readonly ProviderRegistry $providers,
         private readonly CredentialResolver $credentials,
         private readonly WebhookProcessor $processor,
+        private readonly ChannelNumbers $numbers,
     ) {}
 
     public function receive(Request $request, string $provider): Response
@@ -64,10 +66,10 @@ final class WebhookController
 
         // An event that names a provider account must name THIS connection's account: a provider app shared by
         // several workspaces can never feed one workspace another workspace's events.
-        $settings = $connection->settings ?? [];
-        $events = array_values(array_filter($events, static function (ProviderEvent $event) use ($settings): bool {
+        // With several numbers (ADR 0022) any number the workspace registered counts for `phone_number_id`.
+        $events = array_values(array_filter($events, function (ProviderEvent $event) use ($connection): bool {
             foreach ($event->accounts as $key => $value) {
-                if (($settings[$key] ?? null) !== $value) {
+                if (! $this->numbers->acceptsAccount($connection, (string) $key, (string) $value)) {
                     return false;
                 }
             }

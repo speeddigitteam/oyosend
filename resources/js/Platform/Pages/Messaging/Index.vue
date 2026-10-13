@@ -133,7 +133,7 @@ function remove(): void {
 </script>
 
 <template>
-    <div class="max-w-4xl">
+    <div>
         <PageHeader
             :eyebrow="t('shell.nav.sections.platform')"
             :title="t('shell.nav.platformMessaging')"
@@ -142,19 +142,19 @@ function remove(): void {
 
         <p class="mb-3 text-[0.8125rem] text-ink-subtle">{{ t('platformMessaging.secretsNote') }}</p>
 
-        <div class="flex flex-col gap-3">
-            <Card
-                v-for="channel in CHANNELS"
-                :key="channel.key"
-                flush
-                :title="t(`platformMessaging.channels.${channel.key}.title`)"
-                :description="t(`platformMessaging.channels.${channel.key}.description`)"
-            >
-                <template #actions>
-                    <Button size="sm" variant="secondary" @click="dialog = { channel: channel.key, account: null }">
-                        <template #icon><Plus class="size-4" aria-hidden="true" /></template>
-                        {{ t('platformMessaging.add') }}
-                    </Button>
+        <!-- One box per channel, side by side from the lg breakpoint; each account is a box of its own inside. -->
+        <div class="grid gap-3 lg:grid-cols-3">
+            <Card v-for="channel in CHANNELS" :key="channel.key" :data-testid="`channel-${channel.key}`">
+                <template #header>
+                    <div class="flex min-w-0 items-start gap-3">
+                        <span class="grid size-9 shrink-0 place-items-center rounded-control bg-brand-soft text-brand-text">
+                            <component :is="channel.icon" class="size-5" aria-hidden="true" />
+                        </span>
+                        <div class="min-w-0">
+                            <h2 class="text-[0.9375rem] font-semibold tracking-tight text-ink">{{ t(`platformMessaging.channels.${channel.key}.title`) }}</h2>
+                            <p class="mt-0.5 text-[0.8125rem] text-ink-subtle">{{ t(`platformMessaging.channels.${channel.key}.description`) }}</p>
+                        </div>
+                    </div>
                 </template>
 
                 <EmptyState
@@ -166,32 +166,37 @@ function remove(): void {
                     <template #icon><component :is="channel.icon" /></template>
                 </EmptyState>
 
-                <ul v-else>
-                    <li
-                        v-for="account in accountsOf(channel.key)"
-                        :key="account.id"
-                        class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-line px-5 py-3"
-                    >
-                        <div class="min-w-0">
-                            <p class="text-sm font-medium wrap-break-word text-ink">{{ account.name }}</p>
-                            <p class="text-[0.8125rem] text-ink-subtle">{{ providerName(account) }} · {{ availability(account) }}</p>
-                        </div>
-                        <div class="flex flex-wrap items-center gap-2">
-                            <Badge :tone="account.enabled ? 'ok' : 'neutral'" dot>
+                <ul v-else class="grid gap-2">
+                    <li v-for="account in accountsOf(channel.key)" :key="account.id" class="glass-well grid gap-3 rounded-control p-3" data-testid="account">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <p class="text-sm font-medium wrap-break-word text-ink">{{ account.name }}</p>
+                                <p class="mt-0.5 text-[0.8125rem] text-ink-subtle">{{ providerName(account) }} · {{ availability(account) }}</p>
+                            </div>
+                            <Badge class="shrink-0" :tone="account.enabled ? 'ok' : 'neutral'" dot>
                                 {{ account.enabled ? t('platformMessaging.enabled') : t('platformMessaging.disabled') }}
                             </Badge>
-                            <Button v-if="account.supportsTest" size="sm" variant="ghost" @click="startTest(account)">
-                                {{ t('platformMessaging.test.action') }}
-                            </Button>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-1.5 border-t border-line pt-2.5">
                             <Button size="sm" variant="secondary" @click="dialog = { channel: channel.key, account }">
                                 {{ t('common.actions.edit') }}
                             </Button>
-                            <Button size="sm" variant="ghost" @click="removing = account">
+                            <Button v-if="account.supportsTest" size="sm" variant="ghost" @click="startTest(account)">
+                                {{ t('platformMessaging.test.action') }}
+                            </Button>
+                            <Button class="ml-auto" size="sm" variant="ghost" @click="removing = account">
                                 {{ t('common.actions.delete') }}
                             </Button>
                         </div>
                     </li>
                 </ul>
+
+                <template #footer>
+                    <Button size="sm" variant="secondary" block @click="dialog = { channel: channel.key, account: null }">
+                        <template #icon><Plus class="size-4" aria-hidden="true" /></template>
+                        {{ t('platformMessaging.add') }}
+                    </Button>
+                </template>
             </Card>
         </div>
 

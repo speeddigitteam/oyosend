@@ -8,6 +8,8 @@ enum TargetStatus: string
 {
     case Pending = 'pending';
     case Publishing = 'publishing';
+    /** The media is uploaded and the platform is still processing or publishing it. */
+    case Processing = 'processing';
     case Published = 'published';
     case Failed = 'failed';
 

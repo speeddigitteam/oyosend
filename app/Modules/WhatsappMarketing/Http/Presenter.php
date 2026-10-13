@@ -13,6 +13,7 @@ use App\Modules\WhatsappMarketing\Actions\WindowTracker;
 use App\Modules\WhatsappMarketing\Models\Agent;
 use App\Modules\WhatsappMarketing\Models\Campaign;
 use App\Modules\WhatsappMarketing\Models\Conversation;
+use App\Modules\WhatsappMarketing\Models\ConversationNote;
 use App\Modules\WhatsappMarketing\Models\Flow;
 use App\Modules\WhatsappMarketing\Models\Message;
 use App\Modules\WhatsappMarketing\Models\QuickReply;
@@ -85,9 +86,21 @@ final class Presenter
             'status' => $message->status->value,
             'failureCode' => $message->failure_code,
             'attachments' => $message->attachments ?? [],
+            'interactive' => $message->interactive,
             'occurredAt' => $message->occurred_at->toIso8601String(),
             'deliveredAt' => $message->delivered_at?->toIso8601String(),
             'readAt' => $message->read_at?->toIso8601String(),
+        ];
+    }
+
+    /** @return array{id: string, body: string, author: string|null, createdAt: string} */
+    public function note(ConversationNote $note): array
+    {
+        return [
+            'id' => $note->id,
+            'body' => $note->body,
+            'author' => $note->author?->user->name,
+            'createdAt' => $note->created_at->toIso8601String(),
         ];
     }
 
@@ -154,6 +167,10 @@ final class Presenter
             'listId' => $campaign->list_id,
             'listName' => $campaign->list_name,
             'variables' => $campaign->variable_map,
+            'headerMediaType' => $campaign->header_media_type,
+            'headerMediaId' => $campaign->header_media_id,
+            'buttonParams' => $campaign->button_params ?? [],
+            'senderNumberId' => $campaign->sender_number_id,
             'scheduledAt' => $campaign->scheduled_at?->toIso8601String(),
             'startedAt' => $campaign->started_at?->toIso8601String(),
             'completedAt' => $campaign->completed_at?->toIso8601String(),

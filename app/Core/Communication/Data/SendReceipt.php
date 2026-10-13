@@ -19,6 +19,8 @@ final readonly class SendReceipt
      *                               `Failed` (`limit_reached`) or `Unavailable`.
      * @param  bool  $replayed  True when the idempotency key was already used and the original message is returned.
      * @param  CarbonImmutable|null  $dueAt  When delivery is due (a future `sendAt` or the end of quiet hours).
+     * @param  string|null  $senderNumberId  The workspace number the message was queued from (`ChannelNumber::$id`),
+     *                                       WhatsApp only; null when the channel has no numbers.
      */
     public function __construct(
         public DeliveryState $state,
@@ -26,6 +28,7 @@ final readonly class SendReceipt
         public ?string $reason = null,
         public bool $replayed = false,
         public ?CarbonImmutable $dueAt = null,
+        public ?string $senderNumberId = null,
     ) {}
 
     public static function unavailable(string $reason): self

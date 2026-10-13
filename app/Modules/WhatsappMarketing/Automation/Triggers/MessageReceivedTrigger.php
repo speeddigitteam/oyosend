@@ -19,6 +19,16 @@ final class MessageReceivedTrigger extends WhatsappTrigger
         return MessageReceived::class;
     }
 
+    /** `new_conversation: true` starts a workflow only for a number's first message (lead capture). */
+    public static function inputSchema(): array
+    {
+        return [
+            'type' => 'object',
+            'properties' => ['new_conversation' => ['type' => 'boolean']],
+            'additionalProperties' => false,
+        ];
+    }
+
     public static function outputSchema(): array
     {
         return [

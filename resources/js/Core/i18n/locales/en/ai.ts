@@ -157,6 +157,7 @@ export default {
         scope: {
             contacts: 'Contacts',
             companies: 'Companies',
+            whatsapp_conversations: 'WhatsApp conversations (for reply drafts)',
         },
         retention: 'Keep conversations for (days)',
         retentionHint: 'Idle conversations and old proposals are deleted after this many days. Between {min} and {max}.',

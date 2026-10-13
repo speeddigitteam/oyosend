@@ -79,19 +79,32 @@ describe('SidebarNav groups', () => {
         wrapper.unmount();
     });
 
-    it('always opens the group that holds the current page', async () => {
-        window.localStorage.setItem('oyosend.nav.collapsed', JSON.stringify(['apps:crm', 'apps:projects']));
+    it('opens the group that holds the current page but still lets it be collapsed', async () => {
+        const wrapper = mount(SidebarNav, { props: { sections: sections('deals') } });
+        const header = wrapper.findAll('button[data-nav-group]')[0]!; // CRM holds the current page.
+
+        // Open by default while it holds the current page, with no active marker on the header.
+        expect(header.attributes('aria-expanded')).toBe('true');
+        expect(header.find('span.bg-accent').exists()).toBe(false);
+
+        await header.trigger('click');
+
+        // It closes like any other group and remembers the choice.
+        expect(header.attributes('aria-expanded')).toBe('false');
+        expect(JSON.parse(window.localStorage.getItem('oyosend.nav.collapsed') ?? '[]')).toEqual(['apps:crm']);
+        // A marker now shows the active page is tucked inside the collapsed group.
+        expect(header.find('span.bg-accent').exists()).toBe(true);
+    });
+
+    it('keeps a collapsed group collapsed even after navigating into it', () => {
+        window.localStorage.setItem('oyosend.nav.collapsed', JSON.stringify(['apps:crm']));
         useNavGroups().reload();
 
         const wrapper = mount(SidebarNav, { props: { sections: sections('deals') } });
-        const headers = wrapper.findAll('button[data-nav-group]');
+        const header = wrapper.findAll('button[data-nav-group]')[0]!;
 
-        expect(headers[0]!.attributes('aria-expanded')).toBe('true');
-        expect(headers[1]!.attributes('aria-expanded')).toBe('false');
-
-        await headers[0]!.trigger('click');
-
-        expect(headers[0]!.attributes('aria-expanded')).toBe('true');
+        expect(header.attributes('aria-expanded')).toBe('false');
+        expect(header.find('span.bg-accent').exists()).toBe(true);
     });
 
     it('still groups a single module and survives unreadable storage', () => {

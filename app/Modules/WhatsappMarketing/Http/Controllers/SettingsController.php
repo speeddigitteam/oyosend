@@ -58,6 +58,7 @@ final class SettingsController
                 'autoAssign' => $setting->auto_assign,
                 'autoCreateContacts' => $setting->auto_create_contacts,
                 'botsEnabled' => $setting->bots_enabled,
+                'feedbackEnabled' => $setting->feedback_enabled,
             ],
             'channel' => $this->channel->describe(),
             'agents' => $enrolled,
@@ -81,6 +82,7 @@ final class SettingsController
             'auto_assign' => ['required', 'boolean'],
             'auto_create_contacts' => ['required', 'boolean'],
             'bots_enabled' => ['required', 'boolean'],
+            'feedback_enabled' => ['sometimes', 'boolean'],
         ]);
 
         $this->settings->update($input);

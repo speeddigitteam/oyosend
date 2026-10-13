@@ -8,11 +8,15 @@ use App\Modules\Social\Platforms\AccountCredentials;
 use App\Modules\Social\Platforms\AuthorizationRequest;
 use App\Modules\Social\Platforms\Exceptions\PublishFailed;
 use App\Modules\Social\Platforms\Exceptions\ReauthorizationRequired;
+use App\Modules\Social\Platforms\Facebook\FacebookGraphErrors;
+use App\Modules\Social\Platforms\Facebook\PublishesFacebookMedia;
 use App\Modules\Social\Platforms\PlatformCapabilities;
 use App\Modules\Social\Platforms\PostMetricsSnapshot;
+use App\Modules\Social\Platforms\PostTypeAware;
 use App\Modules\Social\Platforms\ProfileConnection;
 use App\Modules\Social\Platforms\PublishedPost;
 use App\Modules\Social\Platforms\PublishPayload;
+use App\Modules\Social\Platforms\StepwisePublisher;
 use App\Modules\Social\Platforms\TokenSet;
 use Illuminate\Http\Client\Response;
 
@@ -20,20 +24,18 @@ use Illuminate\Http\Client\Response;
  * Facebook Pages through the Graph API (Facebook Login for Business / Pages API).
  *
  * Documented calls used: `dialog/oauth`, `oauth/access_token` (code and `fb_exchange_token`),
- * `me/accounts`, `{page-id}/feed`, `{page-id}/photos` and a post's `likes` / `comments` / `shares`
- * fields. Page access tokens derived from a long-lived user token have no expiry date, so no
+ * `me/accounts`, `{page-id}/feed`, `{page-id}/photos` (also unpublished + `attached_media` for several photos),
+ * `{page-id}/videos` (resumable `upload_phase` start / transfer / finish), `{page-id}/video_reels`
+ * (start / upload to rupload.facebook.com / finish), `{video-id}?fields=status` and a post's
+ * `likes` / `comments` / `shares` fields. The media flows live in `Platforms/Facebook`. Page access tokens derived from a long-lived user token have no expiry date, so no
  * refresh is possible; a rejected token sends the account to "needs reauthorization".
  *
  * Needs a Meta app with `pages_show_list`, `pages_manage_posts` and `pages_read_engagement`
  * approved through app review. NOT yet exercised against Meta's live API in this repository.
  */
-final class FacebookPagesPlatform extends HttpPlatform
+final class FacebookPagesPlatform extends HttpPlatform implements PostTypeAware, StepwisePublisher
 {
-    private const array SCOPES = ['pages_show_list', 'pages_manage_posts', 'pages_read_engagement'];
-
-    private const array RATE_LIMIT_CODES = [4, 17, 32, 613, 80001, 80002, 80003, 80004, 80005, 80006, 80008, 80009, 80014];
-
-    private const array REAUTH_CODES = [10, 102, 190, 459, 464, 467];
+    use PublishesFacebookMedia;
 
     public function key(): string
     {
@@ -48,8 +50,9 @@ final class FacebookPagesPlatform extends HttpPlatform
     public function capabilities(): PlatformCapabilities
     {
         return new PlatformCapabilities(
-            publish: true, schedule: true, analytics: true, comments: false,
-            images: true, video: false, maxText: 63206, maxMedia: 1,
+            publish: true, schedule: true, analytics: true, comments: (bool) config('social_comments.enabled', true),
+            images: true, video: $this->videoEnabled(), maxText: 63206,
+            maxMedia: max(1, (int) config('social.platforms.facebook.limits.photos_max', 10)), insights: true,
         );
     }
 
@@ -60,7 +63,7 @@ final class FacebookPagesPlatform extends HttpPlatform
             'redirect_uri' => $redirectUri,
             'state' => $state,
             'response_type' => 'code',
-            'scope' => implode(',', self::SCOPES),
+            'scope' => implode(',', $this->scopes()),
         ]));
     }
 
@@ -112,7 +115,7 @@ final class FacebookPagesPlatform extends HttpPlatform
                 handle: null,
                 avatarUrl: is_string($picture) ? $picture : null,
                 type: 'page',
-                tokens: new TokenSet($page['access_token'], scopes: self::SCOPES),
+                tokens: new TokenSet($page['access_token'], scopes: $this->scopes()),
             );
         }
 
@@ -191,22 +194,7 @@ final class FacebookPagesPlatform extends HttpPlatform
 
     private function failure(Response $response): PublishFailed
     {
-        $code = (int) $response->json('error.code', 0);
-        $message = $this->clean($response->json('error.message'), __('Facebook rejected the request.'));
-
-        if (in_array($code, self::REAUTH_CODES, true) || ($code >= 200 && $code <= 299) || $response->status() === 401) {
-            return PublishFailed::reauthorization($message);
-        }
-
-        if (in_array($code, self::RATE_LIMIT_CODES, true) || $response->status() === 429) {
-            return PublishFailed::rateLimited($message, $this->retryAfter($response));
-        }
-
-        if ($response->serverError() || in_array($code, [1, 2], true)) {
-            return PublishFailed::unknownOutcome($message, 'platform_error');
-        }
-
-        return PublishFailed::rejected($message, 'facebook_'.($code > 0 ? $code : $response->status()));
+        return FacebookGraphErrors::failure($response);
     }
 
     private function graph(string $path): string

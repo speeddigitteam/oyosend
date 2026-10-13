@@ -160,6 +160,7 @@ const ai: MessageSchema['ai'] = {
         scope: {
             contacts: 'কন্টাক্ট',
             companies: 'প্রতিষ্ঠান',
+            whatsapp_conversations: 'হোয়াটসঅ্যাপ কথোপকথন (উত্তরের খসড়ার জন্য)',
         },
         retention: 'কথোপকথন কত দিন রাখা হবে (দিন)',
         retentionHint: 'এতদিন নিষ্ক্রিয় থাকা কথোপকথন ও পুরোনো প্রস্তাব মুছে যায়। সর্বনিম্ন {min}, সর্বোচ্চ {max}।',

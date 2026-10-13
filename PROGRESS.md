@@ -565,3 +565,102 @@ edited in place (CLAUDE.md); that ends with the first deploy.
 8. No operator UI to release a communication account claim; `automation.run.failed` and
    `automation.approval.requested` have no listener; the `webhooks` queue is supervised but nothing dispatches to it.
 9. Final app prices (placeholders) and `ANTHROPIC_API_KEY`.
+10. **ADR 0020 (accepted 2026-10-13): Customer 360, unified inbox and Messenger.** Still open, needed before
+    Messenger: a central Messenger webhook route that resolves a Page id to a workspace; storing a workspace's
+    Messenger Page token encrypted in Communication. Also open: whether Support tickets join the unified inbox;
+    whether the inbox lives in the Communication app. **Rollout step 1 built:** an inbound WhatsApp message the
+    platform could not match to a contact now reaches the contact's timeline (`ConversationTimeline`, queued
+    `BackfillConversationTimeline` when a conversation without a contact gets one). Tests:
+    `tests/Feature/WhatsappMarketing/ConversationTimelineTest.php`. Not covered: outbound replies sent while a
+    conversation had no contact.
+    **Rollout step 2 built (Customer 360):** core `CustomerRecordProvider` + `CustomerRecordRegistry`, endpoint
+    `GET /contacts/{contact}/records`, six sections (CRM leads/deals/activities, WhatsApp conversations, Support
+    tickets, Communication timeline), `CustomerPanel` on the CRM customer page and beside a linked WhatsApp
+    conversation, and `?create_for=` prefill on the CRM lead/deal/activity lists. Tests:
+    `tests/Feature/Contacts/CustomerRecordsTest.php`, `tests/js/customer-panel.test.ts`, `tests/js/crm.test.ts`.
+    Not built: company subjects, a core contact page. Not tried in a browser.
+    **Rollout step 3 built (Unified inbox):** owner decided Support joins and the inbox lives in Communication.
+    Core `InboxSource` contract; `UnifiedInbox` merge with one paging position per source; `/communication/inbox`
+    list + board; sources WhatsApp conversations and Support tickets; new permission `communication.inbox.view`
+    (granted to no role; 252 permissions; Communication bumped to 1.1.0 because its manifest changed). Tests:
+    `tests/Feature/Communication/UnifiedInboxTest.php`, `tests/js/unified-inbox.test.ts`. Not built: reply pane,
+    live updates. Not tried in a browser. Step 4 (Messenger) waits on owner decisions 1–2 and Meta app review.
+11. **ADR 0021 (proposed 2026-10-13): WhatsApp Business 1.1 and six larger gaps.** Built (WhatsApp 1.1.0, new
+    migration `2026_10_29_000100_add_whatsapp_engagement_tables`, no migration edited in place): reply buttons and
+    list messages from agents and chatbot menus (`whatsapp_interactive` provider hint, `Support\Interactive`);
+    internal notes; optional customer ratings after a person closes a conversation (`FeedbackCollector`, trigger
+    `whatsapp_marketing.feedback.received`, analytics); lists filled once from contact rules (`ContactRules`);
+    AI reply drafts through the AI app's drafting service and a read-only `whatsapp_conversation_get` tool behind the
+    opt-in data scope `whatsapp_conversations`; CRM action `crm.lead.create` and triggers `crm.quote.accepted`,
+    `crm.sales_order.status_changed` (new `SalesOrderStatusChanged` event); `new_conversation` filter on the WhatsApp
+    message trigger; `maximum_x` trigger filters in the workflow engine. No new permission. Tests:
+    `tests/Feature/WhatsappMarketing/EngagementTest.php`, `AiReplyDraftTest.php`, `tests/Feature/CRM/CrmLeadCaptureTest.php`,
+    a new case in `WorkflowEngineTest`, `tests/js/whatsapp.test.ts` ("whatsapp engagement"); `FlowsAndBotTest`'s menu
+    test now expects buttons. Not tried in a browser or against live Meta / a live AI provider. **Owner decisions
+    (ADR 0021 Part B):** several WhatsApp numbers per workspace; AI replying to customers by itself; templates through
+    Meta's Management API; product catalogue / carts (needs a commerce app); appointment reminders (needs a booking
+    app or a CRM activity-due trigger); Meta WhatsApp Flows.
+
+## Notes app added (2026-10-13)
+
+New first-party optional module `notes` (category Productivity, one free offer, depends on `core` only). It follows
+the standard module shape in `docs/MODULES.md`; no new pattern and no locked decision touched. Doc: `docs/NOTES.md`
+(linked from `docs/INDEX.md`; table row and tables in `docs/MODULES.md` / `docs/DATABASE.md`).
+
+- **What it is.** Short notes a member can pin and optionally link to a shared `Contact` / `Company`. One table
+  `notes` (migration `2026_10_13_000100_create_notes_tables.php`, new file, never run in production). The model uses
+  `BelongsToTenant`, `HasUlids` and `HasRecordOwner`, so reads honour the `own` / `department` / `branch` / `all`
+  scope through `RecordAccess`. Customers stay the shared identity — no notes-owned customer table.
+- **Permissions (2, both scopable):** `notes.notes.view`, `notes.notes.manage`. Routes `notes.index|store|update|
+  destroy` under `['auth:web','auth.session','member','subscribed']` + `entitled:notes`, each with its `can:`.
+  Writes go through `Actions\NoteManager` (audit inside the transaction, `NoteCreated` after commit).
+- **Published to other apps:** automation trigger `notes.note.created` (no action, by design); report provider
+  `notes.by_author`; Customer 360 section `notes.notes` (`NotesSection`). Morph alias `notes_note`.
+- **Frontend:** one page `resources/js/Modules/Notes/Pages/Index.vue` (pinned-first list, create/edit modal, delete
+  confirm). i18n namespace `notes` (en + bn); catalogue/automation/shell labels mirrored in both languages;
+  server strings added to `lang/bn.json`.
+- **Tests:** `tests/Feature/Notes/NotesTest.php` (tenant isolation, cross-workspace 404 on the id routes,
+  not-entitled 404, owner CRUD/pin, viewer-cannot-create, and the registered trigger / report / customer section).
+- **Stale aggregate counts corrected in the same change** (they had already drifted when `meta_ads` was added, not
+  by this work): `ModuleRegistryTest` module-key list (now includes `meta_ads` and `notes`) and permission total
+  (`252` -> `268`); `AppCatalogTest` app/version counts (`16` -> `18`, i.e. 17 optional modules + the `test_crm`
+  fixture); and the module/permission counts in `CLAUDE.md`, `docs/MODULES.md` and `docs/INDEX.md`.
+- **Not done:** no browser pass; no dashboard widget (easy to add later); `apps:sync`/`permissions:sync` must be run
+  on deploy as usual.
+- **Google-Keep-style redesign (same session).** The page is now a Keep board: inline "take a note" composer,
+  pinned section above others, responsive masonry card grid, per-note `color` (contrast-safe `*-soft` tokens only,
+  no raw palette), quick pin/delete on hover, labelled edit modal. This added a nullable `color` column and made
+  `title`/`body` nullable (a note needs at least one). **The `create_notes` migration was edited in place**
+  (pre-release rule); the `notes` table had already run on the local dev DB, so that one DB got the same change by an
+  additive `ALTER TABLE` (demo data kept). The demo `business`/`enterprise` plans now include `notes`, so the Acme
+  demo workspace shows it. Catalogue synced on the dev DB (`permissions:sync`, `apps:sync`).
+
+## Invoice document templates and letterhead (2026-10-13)
+
+Invoicing gained a choice of document layout and an uploadable letterhead ("pad"). No locked decision touched; it
+reuses existing patterns (settings row, `TenantStorage`, browser-print documents). Doc: `docs/INVOICING.md`
+("Template and letterhead").
+
+- **What it is.** `invoicing_settings.document_template` (`Enums\DocumentTemplate`: `classic` default, `modern`,
+  `compact`, `letterhead`) picks one of four layouts for the print document. `letterhead` lays the invoice on the
+  workspace's own header and footer image bands (`letterhead_header_path` / `letterhead_footer_path`), hiding the
+  typed sender block because the pad carries it.
+- **Why inline bands, not a full-page background.** Bands are inline `<img>` embedded as data URIs (like the logo),
+  so they print through the browser without "background graphics" and the no-PDF-library decision stays intact (a
+  true full-page pad would need a server-side renderer; dompdf/mpdf are LGPL/GPL, outside the permitted licences).
+- **Columns / migration.** Three columns added to `invoicing_settings`: `document_template`, `letterhead_header_path`,
+  `letterhead_footer_path`, via a **new additive migration** `2026_10_13_000300_add_document_template_to_invoicing_
+  settings.php` (reversible), so existing dev databases take it with `php artisan migrate` without a `migrate:fresh`.
+  No new permission.
+- **Code.** `Actions\LetterheadAssets` (upload/replace/remove through `TenantStorage` under `invoicing/letterhead/`,
+  PNG/JPG/WebP ≤ 2 MB, ≤ 3000×3000, audited `invoicing.letterhead.updated` / `.removed`); `InvoiceDocument` now
+  reads the template and bands and exposes them to the Blade; `document.blade.php` branches per template; routes
+  `invoicing.settings.letterhead.upload` / `.destroy` (`POST`/`DELETE /settings/letterhead/{header|footer}`, under
+  `invoicing.settings.manage`). Frontend: `Components/LetterheadBandCard.vue` and a template Select on the settings
+  page; i18n en + bn; server toasts in `lang/bn.json`.
+- **Tests.** `tests/Feature/Invoicing/DocumentTemplateTest.php` (template saved + validated, band upload stored and
+  audited, non-image and unknown-slot rejected, remove deletes the file, and the document renders the bands only
+  under the letterhead template). Existing `InvoicingHttpTest` settings-update payload updated for the new required
+  field.
+- **Not done:** no browser pass; per-template visual polish is deliberately light (accent / spacing only); the
+  letterhead has no adjustable content margins yet (bands sit flush, content flows between).

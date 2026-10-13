@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Link, useForm } from '@inertiajs/vue3';
-import { Film } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { CircleAlert, CircleCheck, Film } from 'lucide-vue-next';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Button from '@/Core/Components/Button.vue';
 import Card from '@/Core/Components/Card.vue';
@@ -13,8 +13,14 @@ import Textarea from '@/Core/Components/Textarea.vue';
 import { useFormat } from '@/Core/composables/useFormat';
 import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
 import { route } from '@/Core/lib/route';
+import { mergeTags } from '../../Components/aiAssist';
+import AiAssistPanel from '../../Components/AiAssistPanel.vue';
+import ExtraHashtags from '../../Components/ExtraHashtags.vue';
+import MediaCompatBadges from '../../Components/MediaCompatBadges.vue';
+import PostTypePicker from '../../Components/PostTypePicker.vue';
+import { clockParts, requestPreflight, typeAvailability } from '../../Components/preflight';
 import { displayTag, isLocalDateTime, lengthState } from '../../Components/socialFormat';
-import type { AccountOption, FormOptions, PostDetail } from '../../Components/types';
+import type { AccountOption, FormOptions, PostDetail, PostPreview, PostType } from '../../Components/types';
 
 defineOptions({ layout: TenantLayout });
 
@@ -26,7 +32,16 @@ const format = useFormat();
 const options = computed(() => props.form);
 const editing = computed(() => props.post !== null);
 
+/** Hashtags on the saved post that its hashtag set does not explain: the ones added from AI suggestions. */
+function initialExtraTags(): string[] {
+    const set = props.form.hashtagSets.find((item) => item.id === props.post?.hashtagSetId);
+    const known = new Set((set?.tags ?? []).map((tag) => tag.toLowerCase()));
+
+    return (props.post?.hashtags ?? []).filter((tag) => !known.has(tag.toLowerCase()));
+}
+
 const draft = useForm({
+    post_type: (props.post?.postType ?? 'post') as PostType,
     title: props.post?.title ?? '',
     body: props.post?.body ?? '',
     link_url: props.post?.linkUrl ?? '',
@@ -37,6 +52,8 @@ const draft = useForm({
     account_ids: (props.post?.targets ?? []).map((target) => target.accountId),
     overrides: Object.fromEntries((props.post?.targets ?? []).map((target) => [target.accountId, target.bodyOverride ?? ''])) as Record<string, string>,
     media_ids: (props.post?.media ?? []).map((item) => item.id),
+    extra_hashtags: initialExtraTags(),
+    ai_assisted: props.post?.aiAssisted ?? false,
 });
 
 const campaignOptions = computed(() => [{ value: '', label: t('social.common.none') }, ...options.value.campaigns.map((item) => ({ value: item.id, label: item.name }))]);
@@ -49,14 +66,171 @@ const hashtagOptions = computed(() => [
 const chosenTags = computed<string[]>(() => {
     const set = options.value.hashtagSets.find((item) => item.id === draft.hashtag_set_id);
 
-    return set ? set.tags : (props.post?.hashtags ?? []);
+    return mergeTags(set ? set.tags : [], draft.extra_hashtags);
 });
 
 const mediaById = computed(() => new Map(options.value.media.map((item) => [item.id, item])));
 const chosenMedia = computed(() => draft.media_ids.map((id) => mediaById.value.get(id)).filter((item) => item !== undefined));
-const mediaFull = computed(() => draft.media_ids.length >= options.value.limits.maxMedia);
+const POST_TYPES: PostType[] = ['post', 'photos', 'video', 'reel'];
+const wantsVideo = computed(() => draft.post_type === 'video' || draft.post_type === 'reel');
+/** A video or Reel is exactly one file; photos are limited by the strictest chosen account. */
+const maxMedia = computed(() => {
+    if (wantsVideo.value) {
+        return 1;
+    }
+
+    const caps = chosenAccounts.value.map((account) => account.capabilities.maxMedia ?? 0).filter((value) => value > 0);
+
+    return Math.min(options.value.limits.maxMedia, ...caps);
+});
+const mediaFull = computed(() => draft.media_ids.length >= maxMedia.value);
+const chosenAccounts = computed(() => options.value.accounts.filter((account) => draft.account_ids.includes(account.id)));
+const chosenPlatforms = computed(() => [...new Set(chosenAccounts.value.map((account) => account.platform))]);
 const scheduleInvalid = computed(() => draft.scheduled_for !== '' && !isLocalDateTime(draft.scheduled_for));
 const empty = computed(() => draft.body.trim() === '' && draft.media_ids.length === 0);
+
+/** For each post type: null when every chosen account can publish it, otherwise the reason. */
+const typeReasons = computed<Record<PostType, string | null>>(() => {
+    const pool = chosenAccounts.value.length > 0 ? chosenAccounts.value : options.value.accounts.filter((account) => account.usable);
+    const missing = typeAvailability(pool);
+    const reasons = {} as Record<PostType, string | null>;
+
+    for (const type of POST_TYPES) {
+        if (type === 'post') {
+            reasons[type] = null;
+        } else if (chosenAccounts.value.length > 0) {
+            reasons[type] = missing[type].length === 0 ? null : t('socialPublishing.postType.notFor', { accounts: missing[type].join(', ') });
+        } else {
+            reasons[type] = pool.some((account) => (account.postTypes ?? ['post']).includes(type)) ? null : t('socialPublishing.postType.noAccount');
+        }
+    }
+
+    return reasons;
+});
+
+/** Why a library file cannot be chosen right now, or null. A chosen file can always be removed. */
+function mediaBlocked(item: { id: string; kind: string }): string | null {
+    if (draft.media_ids.includes(item.id)) {
+        return null;
+    }
+
+    if (wantsVideo.value && item.kind !== 'video') {
+        return t('socialPublishing.media.needsVideo');
+    }
+
+    if (draft.post_type === 'photos' && item.kind === 'video') {
+        return t('socialPublishing.media.needsPhoto');
+    }
+
+    return mediaFull.value ? t('socialPublishing.media.full', { max: format.number(maxMedia.value) }) : null;
+}
+
+// Live check: the server runs the same rules as scheduling, without saving anything.
+const previews = ref<PostPreview[] | null>([]);
+const checking = ref(false);
+let timer: ReturnType<typeof setTimeout> | undefined;
+let controller: AbortController | undefined;
+
+async function runPreflight(): Promise<void> {
+    controller?.abort();
+    const current = new AbortController();
+    controller = current;
+
+    if (draft.account_ids.length === 0) {
+        previews.value = [];
+        checking.value = false;
+
+        return;
+    }
+
+    checking.value = true;
+    const result = await requestPreflight(route('social.posts.preflight'), {
+        post_type: draft.post_type,
+        body: draft.body,
+        link_url: draft.link_url.trim(),
+        hashtag_set_id: draft.hashtag_set_id,
+        targets: draft.account_ids.map((accountId) => ({
+            account_id: accountId,
+            body_override: (draft.overrides[accountId] ?? '').trim() === '' ? null : (draft.overrides[accountId] ?? '').trim(),
+        })),
+        media_ids: draft.media_ids,
+    }, current.signal);
+
+    if (current.signal.aborted) {
+        return;
+    }
+
+    previews.value = result;
+    checking.value = false;
+}
+
+watch(
+    () => [draft.post_type, draft.body, draft.link_url, draft.hashtag_set_id, draft.account_ids, draft.overrides, draft.media_ids],
+    () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => void runPreflight(), 350);
+    },
+    { deep: true },
+);
+onMounted(() => void runPreflight());
+onBeforeUnmount(() => {
+    clearTimeout(timer);
+    controller?.abort();
+});
+
+/** `m:ss` with the workspace's numerals. */
+function clock(ms: number): string {
+    const { minutes, seconds } = clockParts(ms);
+
+    return `${format.number(minutes)}:${seconds < 10 ? format.number(0) : ''}${format.number(seconds)}`;
+}
+
+function previewFor(accountId: string): PostPreview | undefined {
+    return previews.value?.find((item) => item.accountId === accountId);
+}
+
+interface CheckItem {
+    key: string;
+    state: 'ok' | 'problem' | 'note';
+    text: string;
+}
+
+/** What stands between this draft and scheduling, in plain words. Mirrors the server's own rules. */
+const checklist = computed<CheckItem[]>(() => {
+    const items: CheckItem[] = [
+        empty.value
+            ? { key: 'content', state: 'problem', text: t('socialPublishing.checklist.noContent') }
+            : { key: 'content', state: 'ok', text: t('socialPublishing.checklist.content') },
+        draft.account_ids.length === 0
+            ? { key: 'accounts', state: 'problem', text: t('socialPublishing.checklist.noAccounts') }
+            : { key: 'accounts', state: 'ok', text: t('socialPublishing.checklist.accounts', { count: format.number(draft.account_ids.length) }) },
+    ];
+
+    if (draft.account_ids.length > 0) {
+        if (previews.value === null) {
+            items.push({ key: 'fit', state: 'note', text: t('socialPublishing.checklist.unavailable') });
+        } else if (checking.value && previews.value.length === 0) {
+            items.push({ key: 'fit', state: 'note', text: t('socialPublishing.checklist.checking') });
+        } else {
+            const blocked = previews.value.filter((item) => item.issues.length > 0).length;
+            const notes = previews.value.reduce((sum, item) => sum + (item.warnings?.length ?? 0), 0);
+            items.push(blocked === 0
+                ? { key: 'fit', state: 'ok', text: t('socialPublishing.checklist.fits') }
+                : { key: 'fit', state: 'problem', text: t('socialPublishing.checklist.blocked', { count: format.number(blocked) }) });
+
+            if (notes > 0) {
+                items.push({ key: 'notes', state: 'note', text: t('socialPublishing.checklist.notes', { count: format.number(notes) }) });
+            }
+        }
+    }
+
+    items.push(draft.scheduled_for === ''
+        ? { key: 'plan', state: 'note', text: t('socialPublishing.checklist.noPlan') }
+        : { key: 'plan', state: 'ok', text: t('socialPublishing.checklist.plan') });
+
+    return items;
+});
+const ready = computed(() => checklist.value.every((item) => item.state !== 'problem'));
 
 /** Why an account cannot be chosen, or null when it can. */
 function unusableReason(account: AccountOption): string | null {
@@ -139,6 +313,7 @@ function mediaWarning(account: AccountOption): string | null {
     return null;
 }
 
+const typeErrors = computed(() => (draft.errors.post_type ? [draft.errors.post_type] : []));
 const targetErrors = computed(() => Object.entries(draft.errors)
     .filter(([key]) => key === 'targets' || key.startsWith('targets.'))
     .map(([, message]) => message));
@@ -148,6 +323,7 @@ const mediaErrors = computed(() => Object.entries(draft.errors)
 
 function submit(): void {
     draft.transform((data) => ({
+        post_type: data.post_type,
         title: data.title.trim(),
         body: data.body,
         link_url: data.link_url.trim(),
@@ -160,6 +336,8 @@ function submit(): void {
             body_override: (data.overrides[accountId] ?? '').trim() === '' ? null : (data.overrides[accountId] ?? '').trim(),
         })),
         media_ids: data.media_ids,
+        extra_hashtags: data.extra_hashtags,
+        ai_assisted: data.ai_assisted,
     }));
 
     if (props.post) {
@@ -187,6 +365,8 @@ const returnsToDraft = computed(() => props.post !== null && ['pending_approval'
     <form class="grid gap-3" novalidate @submit.prevent="submit">
         <Card :title="t('social.form.content')">
             <div class="grid gap-4">
+                <PostTypePicker v-model="draft.post_type" :availability="typeReasons" />
+                <p v-for="message in typeErrors" :key="message" class="text-[0.8125rem] text-danger" role="alert">{{ message }}</p>
                 <Input v-model="draft.title" :label="t('social.fields.title')" :hint="t('social.form.titleHint')" maxlength="160" optional :error="draft.errors.title" />
                 <Textarea
                     v-model="draft.body"
@@ -198,6 +378,15 @@ const returnsToDraft = computed(() => props.post !== null && ['pending_approval'
                 <Input v-model="draft.link_url" type="url" :label="t('social.fields.link')" :hint="t('social.form.linkHint')" maxlength="2048" optional :error="draft.errors.link_url" />
             </div>
         </Card>
+
+        <AiAssistPanel
+            v-model:body="draft.body"
+            v-model:extra-tags="draft.extra_hashtags"
+            v-model:marked="draft.ai_assisted"
+            :title="draft.title"
+            :link-url="draft.link_url"
+            :account-ids="draft.account_ids"
+        />
 
         <Card :title="t('social.form.accounts')" :description="t('social.form.accountsHint')">
             <p v-if="options.accounts.length === 0" class="text-[0.8125rem] text-ink-muted" data-testid="no-accounts">
@@ -228,7 +417,24 @@ const returnsToDraft = computed(() => props.post !== null && ['pending_approval'
                             </template>
                             <template v-else>{{ t('social.form.lengthNoLimit', { count: format.number(lengthOf(account.id)) }) }}</template>
                         </p>
-                        <p v-if="mediaWarning(account)" class="text-xs text-warn" role="status">{{ mediaWarning(account) }}</p>
+                        <div class="rounded-control bg-hover px-3 py-2" data-testid="account-preview">
+                            <p class="eyebrow">{{ t('socialPublishing.preview.title', { type: t(`socialPublishing.postType.${draft.post_type}`) }) }}</p>
+                            <p v-if="composed(account.id) !== ''" class="mt-1 text-[0.8125rem] break-words whitespace-pre-wrap text-ink">{{ composed(account.id) }}</p>
+                            <p v-if="draft.link_url.trim() !== ''" class="mt-1 text-xs break-all text-ink-muted">{{ draft.link_url.trim() }}</p>
+                            <p v-if="chosenMedia.length > 0" class="mt-1 text-xs text-ink-muted">
+                                {{ t('socialPublishing.preview.media', { count: format.number(chosenMedia.length) }) }}
+                            </p>
+                            <p v-if="composed(account.id) === '' && chosenMedia.length === 0" class="mt-1 text-xs text-ink-subtle">{{ t('socialPublishing.preview.empty') }}</p>
+                        </div>
+                        <template v-if="previewFor(account.id)">
+                            <ul v-if="previewFor(account.id)!.issues.length > 0" class="grid gap-1 text-xs text-danger" role="alert" data-testid="account-issues">
+                                <li v-for="issue in previewFor(account.id)!.issues" :key="issue">{{ issue }}</li>
+                            </ul>
+                            <ul v-if="(previewFor(account.id)!.warnings ?? []).length > 0" class="grid gap-1 text-xs text-warn" role="status" data-testid="account-warnings">
+                                <li v-for="warning in previewFor(account.id)!.warnings" :key="warning">{{ warning }}</li>
+                            </ul>
+                        </template>
+                        <p v-else-if="previews === null && mediaWarning(account)" class="text-xs text-warn" role="status">{{ mediaWarning(account) }}</p>
                         <p v-if="!account.usable" class="text-xs text-warn" role="status">{{ unusableReason(account) }}</p>
                     </div>
                 </li>
@@ -237,7 +443,7 @@ const returnsToDraft = computed(() => props.post !== null && ['pending_approval'
             <p v-for="message in targetErrors" :key="message" class="mt-2 text-[0.8125rem] text-danger" role="alert">{{ message }}</p>
         </Card>
 
-        <Card :title="t('social.form.media')" :description="t('social.form.mediaHint', { max: format.number(options.limits.maxMedia) })">
+        <Card :title="t('social.form.media')" :description="t('social.form.mediaHint', { max: format.number(maxMedia) })">
             <p v-if="options.media.length === 0" class="text-[0.8125rem] text-ink-muted" data-testid="no-media">
                 {{ t('social.form.noMedia') }}
                 <Link :href="route('social.media.index')" class="text-brand-text hover:underline">{{ t('social.form.goToMedia') }}</Link>
@@ -250,10 +456,15 @@ const returnsToDraft = computed(() => props.post !== null && ['pending_approval'
                     </div>
                     <Checkbox
                         :model-value="draft.media_ids.includes(item.id)"
-                        :disabled="mediaFull && !draft.media_ids.includes(item.id)"
+                        :disabled="mediaBlocked(item) !== null"
                         :label="item.name"
+                        :description="mediaBlocked(item) ?? undefined"
                         @update:model-value="toggleMedia(item.id, $event)"
                     />
+                    <p v-if="item.kind === 'video' && item.durationMs" class="tabular mt-1 text-xs text-ink-subtle">
+                        {{ t('socialPublishing.media.length', { value: clock(item.durationMs) }) }}
+                    </p>
+                    <MediaCompatBadges v-if="item.compat" class="mt-1.5" :compat="item.compat" :platforms="chosenPlatforms" :max="4" />
                 </li>
             </ul>
             <p v-for="message in mediaErrors" :key="message" class="mt-2 text-[0.8125rem] text-danger" role="alert">{{ message }}</p>
@@ -282,8 +493,19 @@ const returnsToDraft = computed(() => props.post !== null && ['pending_approval'
                     <p v-if="chosenTags.length > 0" class="mt-2 text-xs break-words text-ink-muted" data-testid="chosen-tags">
                         {{ chosenTags.map(displayTag).join(' ') }}
                     </p>
+                    <ExtraHashtags v-model="draft.extra_hashtags" class="mt-2" />
                 </div>
             </div>
+        </Card>
+
+        <Card :title="t('socialPublishing.checklist.title')" :description="ready ? t('socialPublishing.checklist.ready') : t('socialPublishing.checklist.notReady')">
+            <ul class="grid gap-2" aria-live="polite" data-testid="checklist">
+                <li v-for="item in checklist" :key="item.key" class="flex items-start gap-2 text-[0.8125rem]" :data-state="item.state">
+                    <CircleCheck v-if="item.state === 'ok'" class="mt-0.5 size-4 shrink-0 text-ok" aria-hidden="true" />
+                    <CircleAlert v-else :class="['mt-0.5 size-4 shrink-0', item.state === 'problem' ? 'text-danger' : 'text-ink-subtle']" aria-hidden="true" />
+                    <span :class="item.state === 'problem' ? 'text-danger' : 'text-ink-muted'">{{ item.text }}</span>
+                </li>
+            </ul>
         </Card>
 
         <div class="flex flex-wrap items-center justify-end gap-2">

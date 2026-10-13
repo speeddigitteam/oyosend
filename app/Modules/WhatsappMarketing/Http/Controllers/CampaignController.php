@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Modules\WhatsappMarketing\Http\Controllers;
 
 use App\Core\Access\RecordAccess;
+use App\Core\Communication\Contracts\MediaGateway;
+use App\Core\Communication\Data\Whatsapp\WhatsappMediaType;
 use App\Core\Contacts\Http\Controllers\ContactController;
 use App\Core\Contacts\Models\Contact;
 use App\Core\Support\Toast;
@@ -13,6 +15,7 @@ use App\Modules\WhatsappMarketing\Actions\CampaignManager;
 use App\Modules\WhatsappMarketing\Actions\ChannelStatus;
 use App\Modules\WhatsappMarketing\Actions\TemplateParameters;
 use App\Modules\WhatsappMarketing\Actions\VariableResolver;
+use App\Modules\WhatsappMarketing\Actions\WhatsappNumbers;
 use App\Modules\WhatsappMarketing\Enums\CampaignStatus;
 use App\Modules\WhatsappMarketing\Enums\RecipientState;
 use App\Modules\WhatsappMarketing\Enums\TemplateStatus;
@@ -27,6 +30,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -40,6 +44,8 @@ final class CampaignController
         private readonly VariableResolver $variables,
         private readonly Presenter $presenter,
         private readonly TenantContext $context,
+        private readonly MediaGateway $media,
+        private readonly WhatsappNumbers $numbers,
     ) {}
 
     public function index(Request $request): Response
@@ -94,6 +100,49 @@ final class CampaignController
         Toast::success(__('Campaign saved.'));
 
         return redirect()->route('whatsapp_marketing.campaigns.show', $campaign);
+    }
+
+    /**
+     * The optional media header and button variables (ADR 0022): an uploaded header file is stored now and
+     * referenced by its communication media id; an existing id is kept.
+     *
+     * @return array{header_media_type: string|null, header_media_id: string|null, buttons: array<array-key, mixed>, sender_number_id: string|null}
+     *
+     * @throws ValidationException
+     */
+    private function richTemplateInput(Request $request): array
+    {
+        $input = $request->validate([
+            'header_type' => ['nullable', Rule::in(['image', 'video', 'document'])],
+            'header_media_id' => ['nullable', 'string', 'size:26'],
+            'header_file' => ['nullable', 'file', 'max:102400'],
+            'buttons' => ['nullable', 'array', 'max:10'],
+            'buttons.*.index' => ['required_with:buttons', 'integer', 'min:0', 'max:9'],
+            'buttons.*.type' => ['required_with:buttons', Rule::in(['url', 'quick_reply', 'copy_code'])],
+            'buttons.*.value' => ['required_with:buttons', 'string', 'max:2000'],
+            'sender_number_id' => ['nullable', 'string', 'size:26', 'regex:/^[0-9A-Za-z]{26}$/'],
+        ]);
+
+        $type = $input['header_type'] ?? null;
+        $mediaId = is_string($input['header_media_id'] ?? null) && $input['header_media_id'] !== '' ? $input['header_media_id'] : null;
+        $file = $input['header_file'] ?? null;
+
+        if ($type !== null && $file !== null) {
+            $outcome = $this->media->store(WhatsappMediaType::from($type), (string) file_get_contents($file->getRealPath()), $file->getClientOriginalName(), $file->getClientMimeType());
+
+            if (! $outcome->ok || $outcome->media === null) {
+                throw ValidationException::withMessages(['header_file' => __('That header file could not be stored.')]);
+            }
+
+            $mediaId = $outcome->media->id;
+        }
+
+        return [
+            'header_media_type' => $type,
+            'header_media_id' => $mediaId,
+            'buttons' => $input['buttons'] ?? [],
+            'sender_number_id' => is_string($input['sender_number_id'] ?? null) && $input['sender_number_id'] !== '' ? $input['sender_number_id'] : null,
+        ];
     }
 
     public function show(Request $request, Campaign $campaign): Response
@@ -237,16 +286,17 @@ final class CampaignController
             'lists' => ContactList::query()->withCount('members')->orderBy('name')->limit(500)->get()
                 ->map(fn (ContactList $list): array => ['id' => $list->id, 'name' => $list->name, 'memberCount' => (int) $list->getAttribute('members_count')])->all(),
             'fields' => VariableResolver::FIELDS,
+            'numbers' => $this->numbers->picker(),
             'maxRecipients' => max(1, (int) config('whatsapp_marketing.max_recipients', 10000)),
             'canSend' => $actor->can(Permissions::CAMPAIGNS_SEND),
         ]);
     }
 
-    /** @return array{name: string, template_id: string, list_id: string, variables?: array<array-key, mixed>} */
+    /** @return array{name: string, template_id: string, list_id: string, variables?: array<array-key, mixed>, header_media_type: string|null, header_media_id: string|null, buttons: array<array-key, mixed>, sender_number_id: string|null} */
     private function validated(Request $request): array
     {
-        /** @var array{name: string, template_id: string, list_id: string, variables?: array<array-key, mixed>} */
-        return $request->validate([
+        /** @var array{name: string, template_id: string, list_id: string, variables?: array<array-key, mixed>} $base */
+        $base = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'template_id' => ['required', 'string', 'size:26'],
             'list_id' => ['required', 'string', 'size:26'],
@@ -255,5 +305,7 @@ final class CampaignController
             'variables.*.field' => ['nullable', 'string', Rule::in(VariableResolver::FIELDS)],
             'variables.*.value' => ['nullable', 'string', 'max:200'],
         ]);
+
+        return [...$base, ...$this->richTemplateInput($request)];
     }
 }

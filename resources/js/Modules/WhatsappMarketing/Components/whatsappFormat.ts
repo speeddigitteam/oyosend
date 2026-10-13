@@ -382,3 +382,74 @@ export function zonedToIso(local: string, timeZone: string): string | null {
 
     return new Date(instant).toISOString();
 }
+
+/** Meta's limits for reply buttons and list messages (checked again by the server and the provider adapter). */
+export const CHOICE_LIMITS = { buttons: 3, buttonLength: 20, rows: 10, rowLength: 24, listButton: 20, body: 1024 } as const;
+
+export interface ChoicesForm {
+    kind: '' | 'buttons' | 'list';
+    button: string;
+    options: string[];
+}
+
+export function emptyChoices(): ChoicesForm {
+    return { kind: '', button: '', options: ['', ''] };
+}
+
+/** The `interactive` field of a reply, or null for a text-only reply. */
+export function choicesPayload(form: ChoicesForm): { kind: 'buttons' | 'list'; button?: string; options: string[] } | null {
+    if (form.kind === '') {
+        return null;
+    }
+
+    const options = form.options.map((option) => option.trim()).filter((option) => option !== '');
+
+    return form.kind === 'list' ? { kind: 'list', button: form.button.trim(), options } : { kind: 'buttons', options };
+}
+
+/** Whether the choices fit Meta's limits: distinct, non-empty labels, the right count and length, a list button. */
+export function choicesValid(form: ChoicesForm): boolean {
+    const payload = choicesPayload(form);
+
+    if (payload === null) {
+        return true;
+    }
+
+    const max = payload.kind === 'list' ? CHOICE_LIMITS.rows : CHOICE_LIMITS.buttons;
+    const length = payload.kind === 'list' ? CHOICE_LIMITS.rowLength : CHOICE_LIMITS.buttonLength;
+    const distinct = new Set(payload.options.map((option) => option.toLowerCase())).size === payload.options.length;
+    const button = payload.button ?? '';
+
+    return (
+        payload.options.length > 0 &&
+        payload.options.length <= max &&
+        distinct &&
+        payload.options.every((option) => [...option].length <= length) &&
+        (payload.kind === 'buttons' || (button !== '' && [...button].length <= CHOICE_LIMITS.listButton))
+    );
+}
+
+/** The fields and conditions a list rule may use (the server's `ContactRules::FIELDS`). */
+export const RULE_FIELDS: Record<string, string[]> = {
+    city: ['equals', 'not_equals', 'contains', 'exists', 'not_exists'],
+    country: ['equals', 'not_equals', 'contains', 'exists', 'not_exists'],
+    job_title: ['equals', 'not_equals', 'contains', 'exists', 'not_exists'],
+    has_company: ['is_true', 'is_false'],
+    created_after: ['on_or_after'],
+    created_before: ['on_or_before'],
+    conversation_tag: ['equals', 'not_equals'],
+    wrote_within_days: ['within'],
+    has_written: ['is_true', 'is_false'],
+};
+
+export function ruleNeedsValue(operator: string): boolean {
+    return !['exists', 'not_exists', 'is_true', 'is_false'].includes(operator);
+}
+
+export function ruleValueType(operator: string): 'date' | 'number' | 'text' {
+    if (operator === 'on_or_after' || operator === 'on_or_before') {
+        return 'date';
+    }
+
+    return operator === 'within' ? 'number' : 'text';
+}

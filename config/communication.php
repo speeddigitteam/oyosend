@@ -56,6 +56,22 @@ return [
     'whatsapp' => [
         'graph_base_url' => 'https://graph.facebook.com',
         'api_version' => 'v21.0',
+
+        // Media (ADR 0022). Size caps in bytes per type (Meta's own limits are image 5 MB, audio/video 16 MB,
+        // document 100 MB; documents are held lower on purpose). Provider download URLs are only followed on these
+        // host suffixes, over https.
+        'media' => [
+            'max_bytes' => [
+                'image' => 5 * 1024 * 1024,
+                'sticker' => 512 * 1024,
+                'audio' => 16 * 1024 * 1024,
+                'video' => 16 * 1024 * 1024,
+                'document' => 20 * 1024 * 1024,
+            ],
+            // A provider media id is reused for a send for this many days (Meta keeps it about 30).
+            'upload_reuse_days' => 25,
+        ],
+        'media_hosts' => ['fbsbx.com', 'facebook.com', 'fbcdn.net', 'whatsapp.net', 'whatsapp.com'],
     ],
 
     /*

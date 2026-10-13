@@ -1,4 +1,4 @@
-import { mount, type VueWrapper } from '@vue/test-utils';
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, h, reactive } from 'vue';
 
@@ -68,7 +68,7 @@ describe('CRM frontend', () => {
     it('keeps lead mutations hidden from a view-only role', () => {
         const wrapper = track(mount(LeadsIndex, { props: {
             leads: paginated<Lead>([{ id: 'lead-1', title: 'Renewal', status: 'new', score: 10, qualificationNotes: null, qualifiedAt: null, convertedAt: null, contact: null, company: { id: 'company-1', name: 'Acme' }, source: null, owner: null, editable: false, qualifiable: false, assignable: false, createdAt: '2026-10-10T00:00:00Z' }]),
-            filters: { search: '', status: null, source: null, segment: null }, segments: [], sources: [], contacts: [], companies: [], owners: [], canCreate: false,
+            filters: { search: '', status: null, source: null, segment: null }, segments: [], sources: [], contacts: [], companies: [], owners: [], canCreate: false, prefillContact: null,
         } }));
 
         expect(wrapper.text()).toContain('Renewal');
@@ -79,11 +79,27 @@ describe('CRM frontend', () => {
     it('completes a planned activity through the named route', async () => {
         const wrapper = track(mount(ActivityIndex, { props: {
             activities: paginated<Activity>([{ id: 'activity-1', type: 'follow_up', status: 'planned', priority: 'high', subject: 'Call buyer', description: null, startsAt: null, dueAt: '2026-10-11T08:00:00Z', remindAt: null, completedAt: null, lead: null, deal: null, contact: null, company: null, owner: null, editable: true, createdAt: '2026-10-10T00:00:00Z' }]),
-            filters: { search: '', status: null, type: null, overdue: false, segment: null }, segments: [], leads: [], deals: [], contacts: [], companies: [], owners: [], canCreate: true,
+            filters: { search: '', status: null, type: null, overdue: false, segment: null }, segments: [], leads: [], deals: [], contacts: [], companies: [], owners: [], canCreate: true, prefillContact: null,
         } }));
 
         await wrapper.get('button[aria-label="Mark complete"]').trigger('click');
         expect(inertia.visits).toEqual([{ method: 'post', url: '/crm.activities.complete?activity=activity-1', data: {} }]);
+    });
+
+    it('opens the lead form once with the contact a customer view sent, and forgets it afterwards', async () => {
+        window.history.replaceState(null, '', '/crm/leads?create_for=contact-9&status=new');
+        const wrapper = track(mount(LeadsIndex, {
+            props: {
+                leads: paginated<Lead>([]), filters: { search: '', status: null, source: null, segment: null }, segments: [], sources: [],
+                contacts: [{ id: 'contact-9', name: 'Rahim Uddin' }], companies: [], owners: [], canCreate: true, prefillContact: { id: 'contact-9', name: 'Rahim Uddin' },
+            },
+            global: { stubs: { Modal: modalStub } },
+        }));
+        await flushPromises();
+
+        const contactSelect = wrapper.findAll('select').find((select) => select.findAll('option').some((option) => option.text() === 'Rahim Uddin'));
+        expect((contactSelect!.element as HTMLSelectElement).value).toBe('contact-9');
+        expect(window.location.search).toBe('?status=new');
     });
 
     it('renders the dashboard pipeline widget with locale-aware Bengali copy', () => {

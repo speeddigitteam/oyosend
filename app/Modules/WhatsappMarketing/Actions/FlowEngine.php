@@ -14,6 +14,7 @@ use App\Modules\WhatsappMarketing\Enums\SenderType;
 use App\Modules\WhatsappMarketing\Models\Conversation;
 use App\Modules\WhatsappMarketing\Models\Flow;
 use App\Modules\WhatsappMarketing\Models\Message;
+use App\Modules\WhatsappMarketing\Support\Interactive;
 use Carbon\CarbonImmutable;
 use Illuminate\Validation\ValidationException;
 
@@ -160,16 +161,28 @@ final class FlowEngine
         }
     }
 
-    /** @param array<array-key, mixed> $action */
+    /**
+     * The prompt with its options as reply buttons (up to three short labels) or a list (up to ten), and as
+     * numbered text when the labels do not fit either. The customer's choice comes back as the label's text.
+     *
+     * @param  array<array-key, mixed>  $action
+     */
     private function menu(Conversation $conversation, array $action, ?string $flowId): void
     {
-        $lines = [(string) $action['prompt']];
+        $labels = array_map(static fn (mixed $option): string => is_array($option) ? (string) ($option['label'] ?? '') : '', array_values((array) ($action['options'] ?? [])));
+        $interactive = Interactive::forMenu($labels, __('Choose'));
 
-        foreach (array_values((array) ($action['options'] ?? [])) as $index => $option) {
-            $lines[] = ($index + 1).'. '.(string) ($option['label'] ?? '');
+        if ($interactive !== null && mb_strlen((string) $action['prompt']) <= Interactive::MAX_BODY) {
+            $this->messenger->reply($conversation, (string) $action['prompt'], null, SenderType::Bot, $interactive);
+        } else {
+            $lines = [(string) $action['prompt']];
+
+            foreach ($labels as $index => $label) {
+                $lines[] = ($index + 1).'. '.$label;
+            }
+
+            $this->messenger->reply($conversation, implode("\n", $lines), null, SenderType::Bot);
         }
-
-        $this->messenger->reply($conversation, implode("\n", $lines), null, SenderType::Bot);
 
         if ($flowId !== null) {
             $this->awaitAnswer($conversation, $flowId);

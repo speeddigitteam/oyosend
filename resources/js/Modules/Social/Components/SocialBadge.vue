@@ -20,7 +20,7 @@ const TONES: Record<BadgeKind, Record<string, BadgeTone>> = {
         partially_failed: 'warn',
         failed: 'danger',
     },
-    target: { pending: 'info', publishing: 'info', published: 'ok', failed: 'danger' },
+    target: { pending: 'info', publishing: 'info', processing: 'info', published: 'ok', failed: 'danger' },
     account: { connected: 'ok', needs_reauthorization: 'warn', disconnected: 'neutral' },
     attempt: { success: 'ok', retry: 'warn', failed: 'danger', deferred: 'neutral' },
     campaign: { active: 'ok', archived: 'neutral' },

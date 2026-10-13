@@ -8,6 +8,7 @@ use App\Modules\Ai\Actions\AiAvailability;
 use App\Modules\Ai\Actions\DraftService;
 use App\Modules\Ai\Http\Requests\DraftRequest;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 /**
  * AI-assisted drafting for other screens (summarise a record, draft a reply, rewrite). JSON in, JSON out:
@@ -31,11 +32,11 @@ final class DraftController
         return new JsonResponse($this->drafts->generate($context, $input));
     }
 
-    public function status(): JsonResponse
+    public function status(Request $request): JsonResponse
     {
         return new JsonResponse([
             ...$this->availability->describe(),
-            'recordTypes' => DraftService::recordTypes(),
+            'recordTypes' => $this->drafts->recordTypesFor($this->support->context($request)->user),
             'kinds' => [DraftService::SUMMARIZE, DraftService::REPLY, DraftService::REWRITE],
         ]);
     }

@@ -5,13 +5,14 @@ import Button from '@/Core/Components/Button.vue';
 import { useAccess } from '@/Core/composables/useAccess';
 import { route } from '@/Core/lib/route';
 
-defineProps<{ current: 'notifications' | 'messages' | 'templates' | 'audience' | 'settings' }>();
+defineProps<{ current: 'inbox' | 'notifications' | 'messages' | 'templates' | 'audience' | 'settings' }>();
 
 const { t } = useI18n();
 const { can } = useAccess();
 
 const items = computed(() =>
     [
+        { value: 'inbox', name: 'communication.inbox.index', permission: 'communication.inbox.view' },
         { value: 'notifications', name: 'communication.notifications.index', permission: 'communication.notifications.view' },
         { value: 'messages', name: 'communication.messages.index', permission: 'communication.messages.view' },
         { value: 'templates', name: 'communication.templates.index', permission: 'communication.templates.view' },

@@ -15,7 +15,9 @@ use App\Modules\WhatsappMarketing\Enums\MessageStatus;
 use App\Modules\WhatsappMarketing\Enums\MessageType;
 use App\Modules\WhatsappMarketing\Enums\SenderType;
 use App\Modules\WhatsappMarketing\Events\ConversationAssigned;
+use App\Modules\WhatsappMarketing\Events\FeedbackReceived;
 use App\Modules\WhatsappMarketing\Events\MessageReceived;
+use App\Modules\WhatsappMarketing\Jobs\BackfillConversationTimeline;
 use App\Modules\WhatsappMarketing\Models\Conversation;
 use App\Modules\WhatsappMarketing\Models\Message;
 use App\Modules\WhatsappMarketing\Support\Phone;
@@ -39,6 +41,8 @@ final class ConversationManager
         private readonly AgentManager $agents,
         private readonly ContactDirectory $contacts,
         private readonly AuditLogger $audit,
+        private readonly ConversationTimeline $timeline,
+        private readonly FeedbackCollector $feedback,
     ) {}
 
     /**
@@ -65,11 +69,22 @@ final class ConversationManager
             default => MessageType::Unsupported,
         };
         $body = $event->text === null ? null : (Text::clean($event->text, Messenger::MAX_TEXT) ?: null);
+        // ADR 0022: the webhook carries media metadata only (never bytes). We keep the provider media id and the
+        // receiving number so an authorised controller can download and serve the file later (MediaGateway).
+        $media = $event->content?->media;
+        $downloadable = $media !== null && in_array($type, [MessageType::Image, MessageType::Document, MessageType::Audio, MessageType::Video], true);
+        $mediaMime = $media?->mimeType;
+        $mediaFilename = $media?->filename;
         $attachments = in_array($type, [MessageType::Image, MessageType::Document, MessageType::Audio, MessageType::Video, MessageType::Sticker], true)
             ? [[
                 'kind' => $type->value,
-                'mime' => Text::clean((string) ($event->details['media_mime'] ?? ''), 100, false),
+                'mime' => Text::clean((string) ($mediaMime ?? $event->details['media_mime'] ?? ''), 100, false),
                 'has_caption' => $body !== null,
+                'provider_media_id' => $media?->providerMediaId,
+                'filename' => $mediaFilename === null ? null : Text::clean($mediaFilename, 240, false),
+                'voice' => $media !== null && $media->voice,
+                'number_id' => $event->numberId,
+                'downloadable' => $downloadable,
             ]]
             : null;
         $at = $this->occurredAt($event);
@@ -84,15 +99,20 @@ final class ConversationManager
                 $existing = Conversation::query()->where('phone', $phone)->lockForUpdate()->first();
                 $new = $existing === null;
                 $conversation = $existing ?? new Conversation(['phone' => $phone, 'status' => ConversationStatus::Open, 'unread_count' => 0]);
+                $hadContact = $conversation->contact_id !== null;
 
                 $contactId = $event->contactId ?? $conversation->contact_id ?? $this->createdContact($phone, $name);
+
+                // A rating answer to a closed conversation leaves it closed and needs nobody's attention.
+                $feedback = $new ? null : $this->feedback->answer($conversation, $body, $at);
+                $keepClosed = $feedback !== null && $conversation->status === ConversationStatus::Closed;
 
                 $conversation->fill([
                     'contact_id' => $contactId,
                     'profile_name' => $name ?? $conversation->profile_name,
-                    'status' => ConversationStatus::Open,
-                    'closed_at' => null,
-                    'unread_count' => $conversation->unread_count + 1,
+                    'status' => $keepClosed ? ConversationStatus::Closed : ConversationStatus::Open,
+                    'closed_at' => $keepClosed ? $conversation->closed_at : null,
+                    'unread_count' => $conversation->unread_count + ($feedback === null ? 1 : 0),
                     'last_message_at' => $at,
                     'last_message_preview' => Text::preview($body ?? ($type === MessageType::Text ? __('Message') : __('Attachment'))),
                     'last_message_direction' => 'inbound',
@@ -126,10 +146,19 @@ final class ConversationManager
                     return null;
                 }
 
+                // The platform put this message on the timeline only if it knew the sender (ChannelEvent::$contactId).
+                if ($event->contactId === null && $contactId !== null) {
+                    $this->timeline->recordInbound($message, $contactId);
+                }
+
+                if (! $new && ! $hadContact && $contactId !== null) {
+                    BackfillConversationTimeline::dispatch($conversation->id, $contactId);
+                }
+
                 $before = $this->windows->current($conversation, $at);
                 $this->windows->openForInbound($conversation, $at);
 
-                return new InboundResult($message, $conversation, $new, $before === null);
+                return new InboundResult($message, $conversation, $new, $before === null, $feedback);
             });
         } catch (UniqueConstraintViolationException) {
             // Two first messages from one number raced for the conversation row: the loser is a duplicate.
@@ -145,6 +174,16 @@ final class ConversationManager
                 'message_type' => $result->message->type->value,
                 'new_conversation' => $result->newConversation,
             ]));
+
+            if ($result->feedback !== null) {
+                event(new FeedbackReceived([
+                    'feedback_id' => $result->feedback->id,
+                    'conversation_id' => $result->conversation->id,
+                    'contact_id' => $result->feedback->contact_id,
+                    'owner_id' => $result->feedback->owner_id,
+                    'rating' => (int) $result->feedback->rating,
+                ]));
+            }
         }
 
         return $result;
@@ -300,7 +339,12 @@ final class ConversationManager
             throw ValidationException::withMessages(['contact_id' => __('The contact\'s phone number does not match this conversation.')]);
         }
 
+        $hadContact = $conversation->contact_id !== null;
         $conversation->forceFill(['contact_id' => $contact->id])->save();
+
+        if (! $hadContact) {
+            BackfillConversationTimeline::dispatch($conversation->id, $contact->id);
+        }
 
         return $conversation;
     }
@@ -311,8 +355,13 @@ final class ConversationManager
         $first = Text::clean($name ?? $conversation->profile_name ?? '', 120, false) ?: $conversation->phone;
 
         $contact = DB::transaction(function () use ($conversation, $first, $owner): Contact {
+            $hadContact = $conversation->contact_id !== null;
             $contact = $this->contacts->createContact(['first_name' => $first, 'phone' => $conversation->phone], $owner);
             $conversation->forceFill(['contact_id' => $contact->id])->save();
+
+            if (! $hadContact) {
+                BackfillConversationTimeline::dispatch($conversation->id, $contact->id);
+            }
 
             return $contact;
         });

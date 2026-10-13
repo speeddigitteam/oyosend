@@ -63,6 +63,17 @@ it('filters on the trigger configuration', function () {
     expect($this->runsOf($tenant, $big))->toHaveCount(1)->and($this->runsOf($tenant, $special))->toHaveCount(1);
 });
 
+it('filters on a maximum in the trigger configuration', function () {
+    $tenant = $this->flowTenant();
+    $small = $this->makeWorkflow($tenant, $this->simpleGraph(['maximum_amount' => 2]), name: 'Small');
+
+    $this->raise($tenant, 'a', 3);
+    expect($this->runsOf($tenant, $small))->toBeEmpty();
+
+    $this->raise($tenant, 'b', 2);
+    expect($this->runsOf($tenant, $small))->toHaveCount(1);
+});
+
 it('takes a condition and follows only the matching branch', function () {
     $tenant = $this->flowTenant();
     $graph = $this->graphOf(

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Core\Communication\Data;
 
+use App\Core\Communication\Data\Whatsapp\WhatsappContent;
 use Carbon\CarbonInterface;
 use InvalidArgumentException;
 
@@ -33,6 +34,15 @@ final readonly class MarketingMessage
      *                                               template name, language and parameters). Keys are prefixed with the
      *                                               channel (`whatsapp_template`), at most 10, values at most 2000 characters.
      *                                               They cannot override connection settings or the marketing references.
+     * @param  string|null  $senderNumberId  WhatsApp: the workspace number to send from (`ChannelNumber::$id`, see
+     *                                       `ChannelNumberDirectory`). Null sends from the default number. A number that is
+     *                                       unknown, disabled or belongs to another channel answers `sender_number_unavailable`.
+     * @param  WhatsappContent|null  $whatsapp  Rich WhatsApp content (template with media/buttons, reply buttons,
+     *                                          list, call-to-action, media, product, product list, Flow). `body` stays the
+     *                                          text of the message. Every kind but a template is only valid inside the
+     *                                          customer's open 24-hour window: the caller must also send the provider
+     *                                          hint `whatsapp_window_until`, and without an open window the gateway answers
+     *                                          `outside_customer_service_window` and records nothing. WhatsApp only.
      */
     public function __construct(
         public string $module,
@@ -47,6 +57,8 @@ final readonly class MarketingMessage
         public ?CarbonInterface $sendAt = null,
         public MessagingPurpose $purpose = MessagingPurpose::Marketing,
         public array $providerHints = [],
+        public ?string $senderNumberId = null,
+        public ?WhatsappContent $whatsapp = null,
     ) {
         if (preg_match('/^[a-z][a-z0-9_.-]{0,39}$/', $module) !== 1) {
             throw new InvalidArgumentException('A module key is lower-case words of up to 40 characters.');
@@ -66,6 +78,18 @@ final readonly class MarketingMessage
 
         if ($purpose === MessagingPurpose::Transactional && $channel !== MarketingChannel::Whatsapp) {
             throw new InvalidArgumentException('Only WhatsApp replies may be sent as transactional through the marketing gateway.');
+        }
+
+        if ($whatsapp !== null) {
+            if ($channel !== MarketingChannel::Whatsapp) {
+                throw new InvalidArgumentException('WhatsApp content can only be sent on the WhatsApp channel.');
+            }
+
+            $whatsapp->assertBody($body);
+        }
+
+        if ($senderNumberId !== null && ($channel === MarketingChannel::Email || preg_match('/^[0-9A-Za-z]{26}$/', $senderNumberId) !== 1)) {
+            throw new InvalidArgumentException('A sender number is a workspace number id of a messaging channel.');
         }
 
         if (count($providerHints) > 10) {

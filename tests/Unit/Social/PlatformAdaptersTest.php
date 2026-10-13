@@ -64,10 +64,19 @@ it('declares capabilities that match what each adapter really implements', funct
     $linkedin = app(LinkedInPlatform::class)->capabilities();
     $x = app(XPlatform::class)->capabilities();
 
-    expect($facebook->publish)->toBeTrue()->and($facebook->images)->toBeTrue()->and($facebook->video)->toBeFalse()
-        ->and($facebook->analytics)->toBeTrue()->and($facebook->comments)->toBeFalse()
+    expect($facebook->publish)->toBeTrue()->and($facebook->images)->toBeTrue()->and($facebook->video)->toBeTrue()
+        ->and($facebook->maxMedia)->toBe(10)
+        ->and($facebook->analytics)->toBeTrue()->and($facebook->comments)->toBeTrue()
         ->and($linkedin->publish)->toBeTrue()->and($linkedin->images)->toBeFalse()->and($linkedin->analytics)->toBeFalse()
         ->and($x->publish)->toBeTrue()->and($x->maxText)->toBe(280);
+});
+
+it('reports no Facebook video capability while the operator has not enabled video publishing', function () {
+    config(['social.platforms.facebook.video_publishing' => false]);
+    $facebook = app(FacebookPagesPlatform::class);
+
+    expect($facebook->capabilities()->video)->toBeFalse()
+        ->and(array_map(fn ($type) => $type->value, $facebook->postTypes()))->toBe(['post', 'photos']);
 });
 
 it('connects Facebook pages through the documented token and accounts calls', function () {

@@ -8,6 +8,7 @@ use App\Core\Access\AccessChecker;
 use App\Core\Access\RecordAccess;
 use App\Core\Identity\Models\TenantMembership;
 use App\Core\Identity\Models\User;
+use App\Modules\Social\Actions\AccountAllowList;
 use App\Modules\Social\Actions\SocialSettings;
 use App\Modules\Social\Models\Campaign;
 use App\Modules\Social\Models\Category;
@@ -28,6 +29,7 @@ final class SocialSupport
         private readonly SocialSettings $settings,
         private readonly SocialPlatforms $platforms,
         private readonly SocialPresenter $presenter,
+        private readonly AccountAllowList $allowList,
     ) {}
 
     public function actor(Request $request): User
@@ -49,7 +51,28 @@ final class SocialSupport
         $post = Post::query()->findOrFail($id);
         $this->records->authorize($actor, $permission, $post);
 
+        // The account allow-list narrows what the permission alone would allow.
+        $ability = match ($permission) {
+            'social.posts.edit', 'social.posts.delete', 'social.posts.schedule' => AccountAllowList::PUBLISH,
+            'social.posts.approve' => AccountAllowList::APPROVE,
+            default => null,
+        };
+
+        if ($ability !== null) {
+            $this->allowList->assert($actor, $ability, $post->targets()->pluck('account_id')->all());
+        }
+
         return $post;
+    }
+
+    /**
+     * Refuse accounts outside the actor's allow-list for `$ability` (publish, approve, analytics).
+     *
+     * @param  list<string>  $accountIds
+     */
+    public function assertAccounts(User $actor, string $ability, array $accountIds): void
+    {
+        $this->allowList->assert($actor, $ability, $accountIds);
     }
 
     /**
@@ -69,6 +92,7 @@ final class SocialSupport
     {
         return [
             'accounts' => SocialAccount::query()->where('status', '!=', 'disconnected')->orderBy('platform')->orderBy('name')->get()
+                ->filter(fn (SocialAccount $account): bool => $this->mayPublishTo($account->id))->values()
                 ->map(fn (SocialAccount $account): array => $this->presenter->accountOption($account))->all(),
             'campaigns' => Campaign::query()->where('status', 'active')->orderBy('name')->get(['id', 'name'])
                 ->map(fn (Campaign $campaign): array => ['id' => $campaign->id, 'name' => $campaign->name])->all(),
@@ -83,6 +107,14 @@ final class SocialSupport
             'platforms' => $this->presenter->platforms(),
             'limits' => ['maxMedia' => (int) config('social.media.max_per_post', 10), 'maxBody' => 5000],
         ];
+    }
+
+    /** Whether the signed-in member may publish to the account (the post form lists only those). */
+    private function mayPublishTo(string $accountId): bool
+    {
+        $user = auth('web')->user();
+
+        return ! $user instanceof User || $this->allowList->allows($user, AccountAllowList::PUBLISH, $accountId);
     }
 
     public function platforms(): SocialPlatforms

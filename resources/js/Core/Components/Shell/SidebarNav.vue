@@ -64,15 +64,13 @@ const blocks = computed(() =>
     }),
 );
 
-/** The group holding the current page is always open, whatever was stored. */
+/** A group is open unless the person collapsed it — the one holding the current page can be closed too. */
 function isOpen(block: GroupBlock): boolean {
-    return block.hasCurrent || !isCollapsed(block.id);
+    return !isCollapsed(block.id);
 }
 
 function onToggle(block: GroupBlock): void {
-    if (!block.hasCurrent) {
-        toggle(block.id);
-    }
+    toggle(block.id);
 }
 
 function elementId(block: GroupBlock): string {
@@ -115,6 +113,7 @@ function linkClass(current: boolean): string[] {
                             @click="onToggle(block)"
                         >
                             <span class="min-w-0 flex-1 truncate">{{ block.label }}</span>
+                            <span v-if="block.hasCurrent && !isOpen(block)" class="size-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
                             <ChevronDown
                                 :class="['size-3.5 shrink-0 transition-transform', isOpen(block) ? '' : '-rotate-90 rtl:rotate-90']"
                                 aria-hidden="true"

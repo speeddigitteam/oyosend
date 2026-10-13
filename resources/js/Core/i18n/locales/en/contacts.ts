@@ -12,6 +12,18 @@ export default {
         people: 'People',
         companies: 'Companies',
     },
+    // Customer 360: what every app holds about one contact (ADR 0020).
+    customer360: {
+        title: 'Customer overview',
+        description: 'What your apps hold about {name}, in one place.',
+        loading: 'Loading customer records…',
+        loadError: 'The customer overview could not be loaded.',
+        retry: 'Try again',
+        empty: 'No app has records about this customer yet.',
+        sectionEmpty: 'Nothing yet.',
+        shown: '{shown} of {total}',
+        viewAll: 'View all',
+    },
     // One label per field, shared by the columns, the forms and the details of both lists.
     fields: {
         name: 'Name',

@@ -40,7 +40,8 @@ final class DealController
     public function index(Request $request): Response
     {
         $actor = $this->support->actor($request);
-        $input = $request->validate(['search' => ['nullable', 'string', 'max:100'], 'status' => ['nullable', Rule::enum(DealStatus::class)], 'pipeline' => ['nullable', 'string', 'size:26'], 'stage' => ['nullable', 'string', 'size:26'], 'segment' => ['nullable', 'string', 'size:26'], 'view' => ['nullable', 'string', Rule::in(['list', 'board'])]]);
+        $input = $request->validate(['search' => ['nullable', 'string', 'max:100'], 'status' => ['nullable', Rule::enum(DealStatus::class)], 'pipeline' => ['nullable', 'string', 'size:26'], 'stage' => ['nullable', 'string', 'size:26'], 'segment' => ['nullable', 'string', 'size:26'], 'view' => ['nullable', 'string', Rule::in(['list', 'board'])], 'create_for' => ['nullable', 'string', 'size:26']]);
+        $prefill = $actor->can(self::EDIT) ? $this->support->prefillContact($input['create_for'] ?? null, $actor) : null;
         $search = trim((string) ($input['search'] ?? ''));
         $segment = ($input['segment'] ?? null) === null ? null : Segment::query()
             ->where('entity_type', CrmEntityType::Deal)->where('is_active', true)->findOrFail($input['segment']);
@@ -83,7 +84,7 @@ final class DealController
             }
         }
 
-        return Inertia::render('Modules/CRM/Pages/Deals/Index', ['deals' => $deals, 'filters' => ['search' => $search, 'status' => $input['status'] ?? null, 'pipeline' => $boardPipelineId ?? ($input['pipeline'] ?? null), 'stage' => $input['stage'] ?? null, 'segment' => $input['segment'] ?? null, 'view' => $input['view'] ?? null], 'segments' => Segment::query()->where('entity_type', CrmEntityType::Deal)->where('is_active', true)->orderBy('name')->get(['id', 'name']), 'pipelines' => $this->pipelines(), 'leads' => $this->support->leadOptions($actor), 'contacts' => $this->support->contactOptions($actor), 'companies' => $this->support->companyOptions($actor), 'owners' => $this->support->ownerOptions($actor, self::ASSIGN), 'canCreate' => $actor->can(self::EDIT), 'boardDeals' => $boardDeals]);
+        return Inertia::render('Modules/CRM/Pages/Deals/Index', ['deals' => $deals, 'filters' => ['search' => $search, 'status' => $input['status'] ?? null, 'pipeline' => $boardPipelineId ?? ($input['pipeline'] ?? null), 'stage' => $input['stage'] ?? null, 'segment' => $input['segment'] ?? null, 'view' => $input['view'] ?? null], 'segments' => Segment::query()->where('entity_type', CrmEntityType::Deal)->where('is_active', true)->orderBy('name')->get(['id', 'name']), 'pipelines' => $this->pipelines(), 'leads' => $this->support->leadOptions($actor), 'contacts' => $this->support->contactOptions($actor, $prefill), 'companies' => $this->support->companyOptions($actor), 'owners' => $this->support->ownerOptions($actor, self::ASSIGN), 'canCreate' => $actor->can(self::EDIT), 'boardDeals' => $boardDeals, 'prefillContact' => $prefill]);
     }
 
     public function show(Request $request, Deal $deal): Response

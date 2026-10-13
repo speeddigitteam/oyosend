@@ -41,6 +41,6 @@ final class LeadCreatedTrigger implements TriggerDefinition
 
     public static function outputSchema(): array
     {
-        return ['type' => 'object', 'required' => ['lead_id', 'title', 'score'], 'properties' => ['lead_id' => ['type' => 'string'], 'title' => ['type' => 'string'], 'contact_id' => ['type' => ['string', 'null']], 'company_id' => ['type' => ['string', 'null']], 'owner_id' => ['type' => ['string', 'null']], 'score' => ['type' => 'integer']]];
+        return ['type' => 'object', 'required' => ['lead_id', 'title', 'score'], 'properties' => ['lead_id' => ['type' => 'string'], 'title' => ['type' => 'string'], 'contact_id' => ['type' => ['string', 'null']], 'company_id' => ['type' => ['string', 'null']], 'owner_id' => ['type' => ['string', 'null']], 'score' => ['type' => 'integer'], 'source_id' => ['type' => ['string', 'null']], 'source_key' => ['type' => ['string', 'null']]]];
     }
 }

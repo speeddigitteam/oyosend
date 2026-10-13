@@ -128,7 +128,7 @@ onBeforeUnmount(() => {
         </header>
 
         <main id="main" tabindex="-1" class="flex-1 px-2 pt-6 pb-12 focus:outline-none sm:px-3 lg:pr-6 lg:pl-3">
-            <div class="mx-auto w-full max-w-[78rem] animate-rise">
+            <div class="mx-auto w-full max-w-[88rem] animate-rise">
                 <slot />
             </div>
         </main>

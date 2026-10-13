@@ -153,7 +153,9 @@ never present in props, JSON, audit or exceptions, four-eyes approval and return
 scheduling, publishing idempotency (a second run and a racing worker publish nothing twice), retry with backoff,
 final failure, unknown-outcome handling, stuck-target flagging, account and workspace rate limits, token refresh and
 reauthorisation, plan limits, media privacy and content verification, CSV safety, honest analytics, and the real
-scheduled-job inventory. Platform adapters are unit-tested against `Http::fake` request shapes. The
+scheduled-job inventory. Facebook photo, video and Reel publishing is tested against `Tests\Support\Fixtures\FakeFacebookGraph`, a stateful stand-in
+for the documented Graph flows with injectable failures (chunk boundaries, resumed offsets, processing, timeouts, permission and token errors,
+never publishing twice); `Tests\Support\Fixtures\Mp4Builder` makes structurally valid MP4 headers for the probe and media tests. Platform adapters are unit-tested against `Http::fake` request shapes. The
 `InteractsWithSocial` helper and `Tests\Support\Fixtures\FakeSocialPlatform` (tests only) build accounts, posts and
 scriptable platform failures.
 

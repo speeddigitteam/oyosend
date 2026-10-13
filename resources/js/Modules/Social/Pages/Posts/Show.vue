@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { router, usePage, useForm } from '@inertiajs/vue3';
-import { CalendarClock, Check, Pencil, RotateCcw, Send, Trash2, Undo2, X } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { CalendarClock, Check, KeyRound, Pencil, RotateCcw, Send, Trash2, Undo2, X } from 'lucide-vue-next';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Badge from '@/Core/Components/Badge.vue';
 import Button from '@/Core/Components/Button.vue';
@@ -42,6 +42,23 @@ const link = computed(() => safeUrl(props.post.linkUrl));
 const previews = computed<PostPreview[]>(() => (props.post.status === 'published' ? [] : props.post.previews));
 const hasIssues = computed(() => previews.value.some((item) => item.issues.length > 0));
 const failedTargets = computed(() => props.post.targets.filter((target) => target.status === 'failed'));
+
+// Failures that only the account owner can fix by connecting the Page again (missing permission, expired token).
+const REAUTH_CODES = ['reauthorization_required', 'facebook_permission_missing'];
+
+function needsReconnect(target: PostTargetDetail): boolean {
+    return target.status === 'failed' && target.lastErrorCode !== null && REAUTH_CODES.includes(target.lastErrorCode);
+}
+
+// A video is processed by the platform for a while: follow it without asking people to refresh.
+const inFlight = computed(() => props.post.targets.some((target) => target.status === 'publishing' || target.status === 'processing'));
+let poll: ReturnType<typeof setInterval> | undefined;
+
+watch(inFlight, (active) => {
+    clearInterval(poll);
+    poll = active ? setInterval(() => router.reload({ only: ['post'] }), 20000) : undefined;
+}, { immediate: true });
+onBeforeUnmount(() => clearInterval(poll));
 
 function act(name: string, params: Record<string, string>, after?: () => void): void {
     busy.value = true;
@@ -135,7 +152,10 @@ function when(value: string | null): string {
     <div class="grid gap-3 lg:grid-cols-3">
         <div class="grid min-w-0 content-start gap-3 lg:col-span-2">
             <Card :title="t('social.show.content')">
-                <template #actions><SocialBadge kind="post" :value="post.status" /></template>
+                <template #actions>
+                    <Badge v-if="post.aiAssisted" tone="info" :title="t('socialAi.badgeHint')" data-testid="ai-assisted">{{ t('socialAi.badge') }}</Badge>
+                    <SocialBadge kind="post" :value="post.status" />
+                </template>
 
                 <p v-if="post.body" class="text-sm leading-6 break-words whitespace-pre-wrap text-ink" data-testid="post-body">{{ post.body }}</p>
                 <p v-else class="text-sm text-ink-muted">{{ t('social.show.noText') }}</p>
@@ -185,6 +205,24 @@ function when(value: string | null): string {
                             {{ t('social.show.nextAttempt', { when: when(target.nextAttemptAt) }) }}
                         </p>
 
+                        <div v-if="target.status === 'processing'" class="grid gap-1 rounded-control bg-info-soft px-3 py-2 text-[0.8125rem] text-info" role="status" data-testid="processing">
+                            <p class="font-medium">{{ target.remoteState === 'processing' ? t('socialPublishing.processing.processingTitle') : t('socialPublishing.processing.uploadingTitle') }}</p>
+                            <p>{{ target.remoteState === 'processing' ? t('socialPublishing.processing.processingBody') : t('socialPublishing.processing.uploadingBody') }}</p>
+                            <p v-if="target.lastError" class="text-xs break-words">{{ t('socialPublishing.processing.retrying', { reason: target.lastError }) }}</p>
+                            <p v-if="target.processingSince" class="text-xs">{{ t('socialPublishing.processing.since', { when: when(target.processingSince) }) }}</p>
+                        </div>
+
+                        <div v-if="needsReconnect(target)" class="grid gap-2 rounded-control border border-warn px-3 py-2 text-[0.8125rem]" role="status" data-testid="reconnect">
+                            <p class="font-medium text-ink">{{ t('socialPublishing.reconnect.title') }}</p>
+                            <p class="text-ink-muted">{{ t('socialPublishing.reconnect.body') }}</p>
+                            <div>
+                                <Button size="sm" :href="route('social.accounts.index')">
+                                    <template #icon><KeyRound class="size-3.5" aria-hidden="true" /></template>
+                                    {{ t('socialPublishing.reconnect.action') }}
+                                </Button>
+                            </div>
+                        </div>
+
                         <div v-if="target.status === 'failed'" class="grid gap-2 rounded-control bg-danger-soft px-3 py-2 text-[0.8125rem] text-danger" role="status">
                             <p v-if="target.lastError" class="break-words">{{ target.lastError }}</p>
                             <p v-if="target.needsManualCheck" class="font-medium" data-testid="manual-check">{{ t('social.show.manualCheck') }}</p>
@@ -225,6 +263,9 @@ function when(value: string | null): string {
                         <p v-if="preview.text" class="mt-2 text-[0.8125rem] break-words whitespace-pre-wrap text-ink-muted">{{ preview.text }}</p>
                         <ul v-if="preview.issues.length > 0" class="mt-2 grid gap-1 text-[0.8125rem] text-warn">
                             <li v-for="issue in preview.issues" :key="issue">{{ issue }}</li>
+                        </ul>
+                        <ul v-if="(preview.warnings ?? []).length > 0" class="mt-2 grid gap-1 text-xs text-ink-muted" data-testid="preview-warnings">
+                            <li v-for="warning in preview.warnings" :key="warning">{{ warning }}</li>
                         </ul>
                     </li>
                 </ul>
@@ -268,6 +309,14 @@ function when(value: string | null): string {
                     <div>
                         <dt class="eyebrow">{{ t('social.fields.status') }}</dt>
                         <dd class="mt-1"><SocialBadge kind="post" :value="post.status" /></dd>
+                    </div>
+                    <div v-if="post.aiAssisted">
+                        <dt class="eyebrow">{{ t('socialAi.badge') }}</dt>
+                        <dd class="mt-1 text-ink-muted" data-testid="ai-assisted-note">{{ t('socialAi.badgeHint') }}</dd>
+                    </div>
+                    <div v-if="post.postType && post.postType !== 'post'">
+                        <dt class="eyebrow">{{ t('socialPublishing.postType.label') }}</dt>
+                        <dd class="mt-1 text-ink" data-testid="post-type">{{ t(`socialPublishing.postType.${post.postType}`) }}</dd>
                     </div>
                     <div v-if="post.scheduledFor">
                         <dt class="eyebrow">{{ t('social.show.scheduledFor') }}</dt>

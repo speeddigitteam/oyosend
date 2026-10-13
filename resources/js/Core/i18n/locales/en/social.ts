@@ -54,6 +54,7 @@ export default {
         target: {
             pending: 'Queued',
             publishing: 'Publishing',
+            processing: 'Processing',
             published: 'Published',
             failed: 'Failed',
         },

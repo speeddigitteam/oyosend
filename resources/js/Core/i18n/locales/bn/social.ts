@@ -55,6 +55,7 @@ const social: MessageSchema['social'] = {
         target: {
             pending: 'সারিতে আছে',
             publishing: 'প্রকাশ হচ্ছে',
+            processing: 'প্রক্রিয়া চলছে',
             published: 'প্রকাশিত',
             failed: 'ব্যর্থ',
         },

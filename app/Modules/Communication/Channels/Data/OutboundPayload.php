@@ -16,6 +16,9 @@ final readonly class OutboundPayload
      * @param  string  $to  Normalized address: lower-case email or `+digits`.
      * @param  string|null  $unsubscribeUrl  Present for marketing messages only.
      * @param  array<string, scalar|null>  $meta  Provider hints (an approved WhatsApp template name, a sender id).
+     * @param  string|null  $senderAccountId  The provider account of the workspace number to send from (WhatsApp
+     *                                        `phone_number_id`); null means the connection's own setting.
+     * @param  string|null  $senderNumberId  Our id of that number (for adapters that keep per-number state).
      */
     public function __construct(
         public string $messageId,
@@ -29,5 +32,7 @@ final readonly class OutboundPayload
         public ?string $footer = null,
         public ?string $unsubscribeUrl = null,
         public array $meta = [],
+        public ?string $senderAccountId = null,
+        public ?string $senderNumberId = null,
     ) {}
 }

@@ -38,7 +38,7 @@ specification is [`MASTER_PROMPT.md`](MASTER_PROMPT.md).
   visual editor that run as the member who published them; a paid assistant whose changes are proposals a person
   confirms; tickets, SLAs and a knowledge base; and a Reports app that runs the reports every other app publishes.
 
-The 16 registered modules and their 251 permissions are tabulated in [`docs/MODULES.md`](docs/MODULES.md). CRM,
+The 16 registered modules and their 252 permissions are tabulated in [`docs/MODULES.md`](docs/MODULES.md). CRM,
 Projects, Invoicing, HRM, Payroll and Talent are the production business apps. `migrate --seed` synchronizes catalogue
 entries (as well as permissions), and deployments run `apps:sync --prune` explicitly. The store test
 suite retains a deliberately separate `test_crm` fixture. One payment gateway (SSLCommerz) is implemented

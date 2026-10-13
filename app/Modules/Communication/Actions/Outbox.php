@@ -157,6 +157,7 @@ final class Outbox
                     'failed_at' => $status === MessageStatus::Failed ? $now : null,
                     'failure_code' => $failure,
                     'meta' => $request->meta === [] ? null : $request->meta,
+                    'sender_number_id' => $request->senderNumberId,
                 ]);
                 $message->save();
 

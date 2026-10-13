@@ -67,12 +67,34 @@ final class CrmControllerSupport
         return $id === null ? null : $this->records->constrain(Company::query(), $actor, ContactController::VIEW)->findOrFail($id);
     }
 
-    /** @return list<array{id: string, name: string}> */
-    public function contactOptions(User $actor): array
+    /**
+     * @param  array{id: string, name: string}|null  $include  Kept in the list even past the first 500 (a prefilled contact).
+     * @return list<array{id: string, name: string}>
+     */
+    public function contactOptions(User $actor, ?array $include = null): array
     {
-        return $this->records->constrain(Contact::query(), $actor, ContactController::VIEW)
+        $options = $this->records->constrain(Contact::query(), $actor, ContactController::VIEW)
             ->orderBy('first_name')->orderBy('last_name')->limit(500)->get(['id', 'first_name', 'last_name'])
             ->map(fn (Contact $contact): array => ['id' => $contact->id, 'name' => $contact->fullName()])->all();
+
+        if ($include !== null && ! in_array($include['id'], array_column($options, 'id'), true)) {
+            array_unshift($options, $include);
+        }
+
+        return $options;
+    }
+
+    /**
+     * The contact a create form opened from elsewhere (Customer 360, `?create_for=`) starts with, or null when the
+     * member may not see it.
+     *
+     * @return array{id: string, name: string}|null
+     */
+    public function prefillContact(?string $id, User $actor): ?array
+    {
+        $contact = $id === null ? null : $this->records->constrain(Contact::query(), $actor, ContactController::VIEW)->find($id);
+
+        return $contact === null ? null : ['id' => $contact->id, 'name' => $contact->fullName()];
     }
 
     /** @return list<array{id: string, name: string}> */

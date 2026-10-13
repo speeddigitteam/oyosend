@@ -7,6 +7,7 @@ use App\Core\Billing\Http\Controllers\InvoiceController;
 use App\Core\Contacts\Http\Controllers\CompanyController;
 use App\Core\Contacts\Http\Controllers\ContactController;
 use App\Core\Contacts\Http\Controllers\ContactMergeController;
+use App\Core\Contacts\Http\Controllers\CustomerRecordsController;
 use App\Core\Dashboard\Http\Controllers\DashboardController;
 use App\Core\Http\Controllers\LocaleController;
 use App\Core\Identity\Http\Controllers\Auth\InvitationAcceptanceController;
@@ -203,6 +204,7 @@ Route::middleware(['auth:web', 'auth.session', 'member'])->group(function () {
             Route::get('contacts', [ContactController::class, 'index'])->name('core.contacts.index');
             Route::get('contacts/duplicates', [ContactMergeController::class, 'detect'])->name('core.contacts.duplicates');
             Route::get('contacts/{contact}/duplicates', [ContactMergeController::class, 'candidates'])->name('core.contacts.duplicates.show');
+            Route::get('contacts/{contact}/records', [CustomerRecordsController::class, 'show'])->middleware('throttle:60,1')->name('core.contacts.records');
             Route::get('companies', [CompanyController::class, 'index'])->name('core.contacts.companies.index');
         });
         Route::middleware('can:core.contacts.manage')->group(function () {

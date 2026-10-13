@@ -19,6 +19,7 @@ import { useFormat } from '@/Core/composables/useFormat';
 import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
 import { route } from '@/Core/lib/route';
 import FormDialog from '../../Components/FormDialog.vue';
+import ListRulesDialog from '../../Components/ListRulesDialog.vue';
 import { safeRoute } from '../../Components/links';
 import type { ContactMatch, Paginated } from '../../Components/types';
 import { useWhatsappFormat } from '../../Components/useWhatsappFormat';
@@ -57,6 +58,7 @@ const selected = ref<string[]>([]);
 const adding = ref(false);
 const addingAll = ref(false);
 const allConfirm = ref(false);
+const rulesOpen = ref(false);
 const removing = ref<MemberRow | null>(null);
 const removeConfirm = ref(false);
 const removeBusy = ref(false);
@@ -232,12 +234,16 @@ const columns = computed<Column[]>(() => [
             </div>
 
             <template #footer>
-                <Button size="sm" variant="ghost" @click="allConfirm = true">{{ t('whatsapp.lists.addAll') }}</Button>
+                <div class="flex flex-wrap gap-2">
+                    <Button size="sm" variant="secondary" data-testid="add-by-rules" @click="rulesOpen = true">{{ t('whatsapp.lists.addByRules') }}</Button>
+                    <Button size="sm" variant="ghost" @click="allConfirm = true">{{ t('whatsapp.lists.addAll') }}</Button>
+                </div>
             </template>
         </Card>
     </div>
 
     <template v-if="canManage">
+        <ListRulesDialog v-model:open="rulesOpen" :list-id="list.id" />
         <ConfirmDialog
             v-model:open="allConfirm"
             tone="default"

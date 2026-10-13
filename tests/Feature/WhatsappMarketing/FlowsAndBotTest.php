@@ -79,7 +79,9 @@ it('runs a menu: the prompt, then the chosen option by number or label', functio
     ]]]);
 
     ($this->say)('menu');
-    Http::assertSent(fn (Request $request): bool => ($request['text']['body'] ?? '') === "How can we help?\n1. Pricing\n2. Talk to an agent");
+    // Two short labels fit reply buttons; the customer's tap comes back as the label's text.
+    Http::assertSent(fn (Request $request): bool => ($request['interactive']['body']['text'] ?? '') === 'How can we help?'
+        && array_column(array_column($request['interactive']['action']['buttons'], 'reply'), 'title') === ['Pricing', 'Talk to an agent']);
 
     ($this->say)('Talk to an agent');
 

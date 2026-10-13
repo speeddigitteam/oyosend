@@ -95,7 +95,7 @@ final class EmailMarketingServiceProvider extends ModuleServiceProvider
                 new NavigationItem('emailMarketingSequences', 'email_marketing.sequences.index', 'workflow', 'email_marketing.sequences.view', 'apps', 124, 'email_marketing.sequences.*'),
                 new NavigationItem('emailMarketingReports', 'email_marketing.reports.index', 'chart-no-axes-combined', 'email_marketing.reports.view', 'apps', 125, 'email_marketing.reports.*'),
                 new NavigationItem('emailMarketingImports', 'email_marketing.imports.index', 'upload', 'email_marketing.subscribers.import', 'apps', 126, 'email_marketing.imports.*'),
-                new NavigationItem('emailMarketingSettings', 'email_marketing.settings.index', 'settings', 'email_marketing.settings.manage', 'manage', 41, 'email_marketing.settings.*'),
+                new NavigationItem('emailMarketingSettings', 'email_marketing.settings.index', 'settings', 'email_marketing.settings.manage', 'apps', 900, 'email_marketing.settings.*'),
             ],
             widgets: [
                 new WidgetDefinition('email_marketing.overview', 'EmailMarketingOverviewWidget', EmailMarketingOverviewWidget::class, 'email_marketing.campaigns.view', span: 4, order: 22),

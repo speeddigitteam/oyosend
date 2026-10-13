@@ -7,6 +7,9 @@ namespace App\Modules\CRM;
 use App\Core\AppStore\Enums\AppBillingType;
 use App\Core\AppStore\Enums\AppCategory;
 use App\Core\Contacts\Contracts\ContactMergeReference;
+use App\Core\Contacts\Contracts\CustomerRecordProvider;
+use App\Core\Crm\Contracts\CrmAudience;
+use App\Core\Crm\Contracts\LeadIntake;
 use App\Core\Modules\AppOffer;
 use App\Core\Modules\ModuleManifest;
 use App\Core\Modules\ModuleServiceProvider;
@@ -14,14 +17,22 @@ use App\Core\Modules\NavigationItem;
 use App\Core\Modules\PermissionDefinition;
 use App\Core\Modules\WidgetDefinition;
 use App\Core\Reporting\Contracts\ReportProvider;
+use App\Modules\CRM\Actions\CrmAudienceService;
 use App\Modules\CRM\Actions\CrmContactMergeReference;
+use App\Modules\CRM\Actions\LeadIntakeService;
 use App\Modules\CRM\Automation\Actions\AssignLeadAction;
 use App\Modules\CRM\Automation\Actions\CreateFollowUpAction;
+use App\Modules\CRM\Automation\Actions\CreateLeadAction;
 use App\Modules\CRM\Automation\Actions\MoveDealStageAction;
 use App\Modules\CRM\Automation\Triggers\ActivityCompletedTrigger;
 use App\Modules\CRM\Automation\Triggers\DealWonTrigger;
 use App\Modules\CRM\Automation\Triggers\LeadCreatedTrigger;
 use App\Modules\CRM\Automation\Triggers\LeadQualifiedTrigger;
+use App\Modules\CRM\Automation\Triggers\QuoteAcceptedTrigger;
+use App\Modules\CRM\Automation\Triggers\SalesOrderStatusChangedTrigger;
+use App\Modules\CRM\CustomerRecords\ActivitiesSection;
+use App\Modules\CRM\CustomerRecords\DealsSection;
+use App\Modules\CRM\CustomerRecords\LeadsSection;
 use App\Modules\CRM\Models\Activity;
 use App\Modules\CRM\Models\Attachment;
 use App\Modules\CRM\Models\Contract;
@@ -57,7 +68,12 @@ final class CRMServiceProvider extends ModuleServiceProvider
         parent::register();
         $this->app->tag(ReportProviders::ALL, ReportProvider::TAG);
 
+        // Replaces the core null objects; each answers `unavailable` / empty itself for a workspace without CRM.
+        $this->app->bind(LeadIntake::class, LeadIntakeService::class);
+        $this->app->bind(CrmAudience::class, CrmAudienceService::class);
+
         $this->app->tag(CrmContactMergeReference::class, ContactMergeReference::class);
+        $this->app->tag([LeadsSection::class, DealsSection::class, ActivitiesSection::class], CustomerRecordProvider::TAG);
     }
 
     protected function describe(): ModuleManifest
@@ -104,7 +120,7 @@ final class CRMServiceProvider extends ModuleServiceProvider
                 new NavigationItem('crmContracts', 'crm.sales.contracts.index', 'scroll-text', 'crm.contracts.view', 'apps', 80, 'crm.sales.contracts.*'),
                 new NavigationItem('crmTargets', 'crm.sales.targets.index', 'target', 'crm.targets.view', 'apps', 90, 'crm.sales.targets.*'),
                 new NavigationItem('crmReports', 'crm.sales.reports.index', 'chart-no-axes-combined', 'crm.reports.view', 'apps', 100, 'crm.sales.reports.*'),
-                new NavigationItem('crmSettings', 'crm.settings.index', 'settings', 'crm.settings.manage', 'manage', 35, 'crm.settings.*'),
+                new NavigationItem('crmSettings', 'crm.settings.index', 'settings', 'crm.settings.manage', 'apps', 900, 'crm.settings.*'),
             ],
             widgets: [
                 new WidgetDefinition('crm.pipeline', 'PipelineWidget', PipelineWidget::class, 'crm.deals.view', span: 8, order: 15),
@@ -114,9 +130,12 @@ final class CRMServiceProvider extends ModuleServiceProvider
                 LeadQualifiedTrigger::class,
                 DealWonTrigger::class,
                 ActivityCompletedTrigger::class,
+                QuoteAcceptedTrigger::class,
+                SalesOrderStatusChangedTrigger::class,
             ],
             actions: [
                 AssignLeadAction::class,
+                CreateLeadAction::class,
                 CreateFollowUpAction::class,
                 MoveDealStageAction::class,
             ],

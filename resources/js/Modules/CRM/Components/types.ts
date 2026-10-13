@@ -68,6 +68,7 @@ export interface LeadListProps {
     companies: Option[];
     owners: OwnerOption[];
     canCreate: boolean;
+    prefillContact: Option | null;
 }
 
 export interface PipelineStage {
@@ -116,6 +117,7 @@ export interface DealListProps {
     owners: OwnerOption[];
     canCreate: boolean;
     boardDeals: Deal[] | null;
+    prefillContact: Option | null;
 }
 
 export interface LeadDealSummary {
@@ -166,6 +168,7 @@ export interface ActivityListProps {
     companies: Option[];
     owners: OwnerOption[];
     canCreate: boolean;
+    prefillContact: Option | null;
 }
 
 export interface SettingsPipeline extends Pipeline {

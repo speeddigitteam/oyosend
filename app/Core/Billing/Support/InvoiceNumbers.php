@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Core\Billing\Support;
 
+use App\Core\Settings\PlatformSettings;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -16,6 +17,8 @@ final class InvoiceNumbers
 {
     private const string SEQUENCE = 'invoice';
 
+    public function __construct(private readonly PlatformSettings $settings) {}
+
     public function next(): string
     {
         DB::table('platform_sequences')->insertOrIgnore(['name' => self::SEQUENCE, 'value' => 0]);
@@ -27,6 +30,6 @@ final class InvoiceNumbers
 
         DB::table('platform_sequences')->where('name', self::SEQUENCE)->update(['value' => $current + 1]);
 
-        return sprintf('%s-%s-%06d', (string) config('platform.billing.invoice_prefix', 'INV'), Carbon::now()->format('Y'), $current + 1);
+        return sprintf('%s-%s-%06d', $this->settings->invoicePrefix(), Carbon::now()->format('Y'), $current + 1);
     }
 }

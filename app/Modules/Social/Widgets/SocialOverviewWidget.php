@@ -9,6 +9,7 @@ use App\Core\Access\RecordAccess;
 use App\Core\Identity\Models\User;
 use App\Modules\Social\Enums\AccountStatus;
 use App\Modules\Social\Enums\PostStatus;
+use App\Modules\Social\LeadAds\LeadAdsFigures;
 use App\Modules\Social\Models\Post;
 use App\Modules\Social\Models\SocialAccount;
 use Illuminate\Support\Carbon;
@@ -24,7 +25,7 @@ final class SocialOverviewWidget
         private readonly AccessChecker $access,
     ) {}
 
-    /** @return array<string, int|string|null> */
+    /** @return array<string, int|string|bool|null> */
     public function __invoke(User $user): array
     {
         $posts = fn () => $this->records->constrain(Post::query(), $user, 'social.posts.view');
@@ -38,6 +39,7 @@ final class SocialOverviewWidget
                 ? SocialAccount::query()->where('status', AccountStatus::NeedsReauthorization->value)->count()
                 : 0,
             'nextScheduledFor' => is_string($next) ? Carbon::parse($next)->toIso8601String() : null,
+            ...LeadAdsFigures::forUser($this->access, $user),
         ];
     }
 }

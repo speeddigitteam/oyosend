@@ -19,10 +19,11 @@ import { route } from '@/Core/lib/route';
 import ActivityFormDialog from '../../Components/ActivityFormDialog.vue';
 import CrmStatusBadge from '../../Components/CrmStatusBadge.vue';
 import type { Activity, ActivityListProps, ActivityStatus, ActivityType } from '../../Components/types';
+import { usePrefillCreate } from '../../Components/usePrefillCreate';
 
 defineOptions({ layout: TenantLayout });
 const props = defineProps<ActivityListProps>(); const { t } = useI18n(); const format = useFormat();
-const loading = ref(false); const formOpen = ref(false); const target = ref<Activity | null>(null); const cancelTarget = ref<Activity | null>(null); const cancelBusy = ref(false);
+const loading = ref(false); const { open: formOpen, initialContactId } = usePrefillCreate(props.prefillContact, props.canCreate); const target = ref<Activity | null>(null); const cancelTarget = ref<Activity | null>(null); const cancelBusy = ref(false);
 const search = ref(props.filters.search); const status = ref(props.filters.status ?? ''); const type = ref(props.filters.type ?? ''); const overdue = ref(props.filters.overdue); const segment = ref(props.filters.segment ?? '');
 const statusOptions = computed(() => [{ value: '', label: t('crm.common.all') }, ...(['planned', 'completed', 'canceled'] as ActivityStatus[]).map((value) => ({ value, label: t(`crm.status.${value}`) }))]);
 const typeOptions = computed(() => [{ value: '', label: t('crm.common.all') }, ...(['task', 'meeting', 'call', 'follow_up'] as ActivityType[]).map((value) => ({ value, label: t(`crm.activityTypes.${value}`) }))]);
@@ -51,6 +52,6 @@ function relation(activity: Activity): string | null { return activity.deal?.tit
         <template #cell-actions="{ row }"><div v-if="row.editable" class="flex justify-end gap-1"><Button v-if="row.status === 'planned'" icon size="sm" variant="ghost" :aria-label="t('crm.activities.complete')" @click="complete(row)"><template #icon><Check class="size-4" aria-hidden="true" /></template></Button><Button v-if="row.status === 'planned'" icon size="sm" variant="ghost" :aria-label="t('crm.activities.cancel')" @click="cancelTarget = row"><template #icon><X class="size-4" aria-hidden="true" /></template></Button><Button icon size="sm" variant="ghost" :aria-label="t('crm.common.edit')" @click="edit(row)"><template #icon><Pencil class="size-4" aria-hidden="true" /></template></Button></div></template>
         <template #empty><EmptyState :title="t('crm.common.noMatches')" :description="t('crm.common.noMatchesBody')"><template #icon><Search /></template><Button size="sm" @click="clear">{{ t('crm.common.clearFilters') }}</Button></EmptyState></template>
     </DataTable><Pagination :meta="activities" /><template v-if="!canCreate" #footer><p class="text-[0.8125rem] text-ink-subtle">{{ t('crm.common.viewOnly') }}</p></template></Card>
-    <ActivityFormDialog v-if="canCreate" v-model:open="formOpen" :activity="target" :leads="leads" :deals="deals" :contacts="contacts" :companies="companies" :owners="owners" />
+    <ActivityFormDialog v-if="canCreate" v-model:open="formOpen" :activity="target" :leads="leads" :deals="deals" :contacts="contacts" :companies="companies" :owners="owners" :initial-contact-id="initialContactId" />
     <ConfirmDialog :open="cancelTarget !== null" :title="t('crm.activities.cancelTitle')" :description="cancelTarget ? t('crm.activities.cancelBody', { name: cancelTarget.subject }) : undefined" :confirm-label="t('crm.activities.cancel')" :loading="cancelBusy" tone="default" @update:open="!$event && (cancelTarget = null)" @confirm="cancel" />
 </template>

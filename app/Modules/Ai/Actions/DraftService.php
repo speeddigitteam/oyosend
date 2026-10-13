@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Ai\Actions;
 
 use App\Core\Ai\ToolContext;
+use App\Core\Identity\Models\User;
 use App\Modules\Ai\Enums\AiState;
 use App\Modules\Ai\Enums\Feature;
 use App\Modules\Ai\Support\AiRefusal;
@@ -27,15 +28,20 @@ final class DraftService
 
     public const string REWRITE = 'rewrite';
 
-    /** Record type => read tool that loads it. */
+    /**
+     * Record type => read tool that loads it. A module's tool is offered only when the workspace is entitled to
+     * the module and enabled the tool's data scope; otherwise the draft is "not found" like an invisible record.
+     */
     private const array RECORD_TOOLS = [
         'contact' => 'contacts_get',
         'company' => 'companies_get',
+        'whatsapp_conversation' => 'whatsapp_conversation_get',
     ];
 
     public function __construct(
         private readonly AiGateway $gateway,
         private readonly ToolRunner $runner,
+        private readonly ToolRegistry $tools,
     ) {}
 
     /**
@@ -44,6 +50,19 @@ final class DraftService
     public static function recordTypes(): array
     {
         return array_keys(self::RECORD_TOOLS);
+    }
+
+    /**
+     * The record types this member can draft from now: the tool's app is entitled, its data scope is enabled and
+     * the member holds its permission.
+     *
+     * @return list<string>
+     */
+    public function recordTypesFor(User $user): array
+    {
+        $available = $this->tools->availableFor($user);
+
+        return array_keys(array_filter(self::RECORD_TOOLS, static fn (string $tool): bool => isset($available[$tool])));
     }
 
     /**
@@ -88,9 +107,12 @@ final class DraftService
             }
 
             $data = DataBlock::wrapJson($type, $id, $run->json);
-            $task = $kind === self::SUMMARIZE
-                ? 'Summarize the record below in at most five short bullet points for a colleague: who it is, the relationship status and anything that needs follow-up.'
-                : "Draft a {$tone} reply message to the person or company described by the record below.";
+            $task = match (true) {
+                $kind === self::SUMMARIZE && $type === 'whatsapp_conversation' => 'Summarize the WhatsApp conversation below in at most five short bullet points for a colleague: what the customer wants, what was answered and what is still open.',
+                $kind === self::SUMMARIZE => 'Summarize the record below in at most five short bullet points for a colleague: who it is, the relationship status and anything that needs follow-up.',
+                $type === 'whatsapp_conversation' => "Draft the next {$tone} WhatsApp reply from the business to the customer in the conversation below. Answer the customer's latest message, in the language the customer wrote in, as plain text of at most 600 characters. Do not promise anything the conversation does not support.",
+                default => "Draft a {$tone} reply message to the person or company described by the record below.",
+            };
         }
 
         $prompt = $task;

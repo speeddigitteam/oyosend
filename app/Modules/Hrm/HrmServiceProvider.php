@@ -110,7 +110,7 @@ final class HrmServiceProvider extends ModuleServiceProvider
                 new NavigationItem('hrmLeaveApprovals', 'hrm.leave.approvals', 'badge-check', 'hrm.leave.approve', 'apps', 27, 'hrm.leave.approvals'),
                 new NavigationItem('hrmHolidays', 'hrm.holidays.index', 'calendar-check', 'hrm.holidays.view', 'apps', 28, 'hrm.holidays.*'),
                 new NavigationItem('hrmReports', 'hrm.reports.index', 'chart-no-axes-combined', 'hrm.reports.view', 'apps', 29, 'hrm.reports.*'),
-                new NavigationItem('hrmSettings', 'hrm.settings.index', 'settings', 'hrm.settings.manage', 'manage', 38, 'hrm.settings.*'),
+                new NavigationItem('hrmSettings', 'hrm.settings.index', 'settings', 'hrm.settings.manage', 'apps', 900, 'hrm.settings.*'),
             ],
             widgets: [
                 new WidgetDefinition('hrm.self', 'HrmSelfWidget', HrmSelfWidget::class, 'hrm.self.view', span: 4, order: 15),

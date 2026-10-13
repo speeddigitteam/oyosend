@@ -14,10 +14,14 @@ use App\Modules\WhatsappMarketing\Actions\ChannelStatus;
 use App\Modules\WhatsappMarketing\Actions\ConversationAccess;
 use App\Modules\WhatsappMarketing\Actions\ConversationManager;
 use App\Modules\WhatsappMarketing\Actions\Messenger;
+use App\Modules\WhatsappMarketing\Actions\NoteManager;
+use App\Modules\WhatsappMarketing\Actions\WhatsappNumbers;
 use App\Modules\WhatsappMarketing\Enums\ConversationStatus;
 use App\Modules\WhatsappMarketing\Enums\TemplateStatus;
 use App\Modules\WhatsappMarketing\Http\Presenter;
 use App\Modules\WhatsappMarketing\Models\Conversation;
+use App\Modules\WhatsappMarketing\Models\ConversationNote;
+use App\Modules\WhatsappMarketing\Models\Feedback;
 use App\Modules\WhatsappMarketing\Models\Message;
 use App\Modules\WhatsappMarketing\Models\QuickReply;
 use App\Modules\WhatsappMarketing\Models\Template;
@@ -41,6 +45,7 @@ final class InboxController
         private readonly ChannelStatus $channel,
         private readonly RecordAccess $records,
         private readonly Presenter $presenter,
+        private readonly WhatsappNumbers $numbers,
     ) {}
 
     public function index(Request $request): Response
@@ -84,6 +89,7 @@ final class InboxController
             ],
             'agents' => $this->presenter->agents(),
             'channel' => $this->channel->describe(),
+            'numbers' => $this->numbers->picker(),
             'canStart' => $canStart,
             'contactMatches' => $canStart && $contactSearch !== ''
                 ? $this->records->constrain(Contact::query(), $actor, ContactController::VIEW)
@@ -205,6 +211,14 @@ final class InboxController
         }
 
         $replyable = $can(Permissions::CONVERSATIONS_REPLY);
+        $manageable = $can(Permissions::CONVERSATIONS_MANAGE);
+        $membership = $this->presenter->membership($actor);
+        $notes = ConversationNote::query()
+            ->where('conversation_id', $conversation->id)
+            ->with('author.user:id,name')
+            ->orderBy('created_at')->orderBy('id')
+            ->limit(NoteManager::MAX_NOTES)->get();
+        $feedback = Feedback::query()->where('conversation_id', $conversation->id)->latest('requested_at')->first();
 
         return Inertia::render('Modules/WhatsappMarketing/Pages/Inbox/Show', [
             'conversation' => [
@@ -217,6 +231,16 @@ final class InboxController
                 'contactPhoneMatches' => $conversation->contact !== null && Phone::e164($conversation->contact->phone) === $conversation->phone,
             ],
             'messages' => $messages->map(fn (Message $message): array => $this->presenter->message($message))->all(),
+            'notes' => $notes->map(fn (ConversationNote $note): array => [
+                ...$this->presenter->note($note),
+                'removable' => $manageable || ($note->author_id !== null && $note->author_id === $membership->id),
+            ])->all(),
+            'feedback' => $feedback === null ? null : [
+                'status' => $feedback->status->value,
+                'rating' => $feedback->rating,
+                'requestedAt' => $feedback->requested_at->toIso8601String(),
+                'answeredAt' => $feedback->answered_at?->toIso8601String(),
+            ],
             'templates' => $replyable ? $this->approvedTemplates() : [],
             'quickReplies' => $replyable
                 ? QuickReply::query()->where('is_active', true)->orderBy('shortcut')->limit(100)->get()
@@ -225,11 +249,12 @@ final class InboxController
             'agents' => $this->presenter->agents(),
             'phoneContacts' => $phoneContacts,
             'channel' => $this->channel->describe(),
+            'numbers' => $this->numbers->picker(),
             'can' => [
                 'reply' => $replyable,
                 'assign' => $can(Permissions::CONVERSATIONS_ASSIGN),
                 'assignOthers' => $this->access->hasAll($actor, Permissions::CONVERSATIONS_ASSIGN),
-                'manage' => $can(Permissions::CONVERSATIONS_MANAGE),
+                'manage' => $manageable,
                 'isAgent' => $this->access->isAgent($actor),
                 'createContact' => $actor->can('core.contacts.manage'),
             ],
@@ -246,6 +271,7 @@ final class InboxController
             'template_id' => ['required', 'string', 'size:26'],
             'variables' => ['nullable', 'array', 'max:20'],
             'variables.*' => ['nullable', 'string', 'max:1024'],
+            'sender_number_id' => ['nullable', 'string', 'size:26', 'regex:/^[0-9A-Za-z]{26}$/'],
         ]);
 
         $contact = $this->records->constrain(Contact::query(), $actor, ContactController::VIEW)->find($input['contact_id']);
@@ -259,7 +285,7 @@ final class InboxController
             $conversation = $this->conversations->forContact($contact)
                 ?? throw ValidationException::withMessages(['contact_id' => __('This contact has no phone number with a country code.')]);
             $this->access->authorize($actor, Permissions::CONVERSATIONS_REPLY, $conversation);
-            $this->messenger->sendTemplate($conversation, $template, array_values(array_map('strval', $input['variables'] ?? [])), $membership);
+            $this->messenger->sendTemplate($conversation, $template, array_values(array_map('strval', $input['variables'] ?? [])), $membership, senderNumberId: $input['sender_number_id'] ?? null);
 
             return $conversation;
         });

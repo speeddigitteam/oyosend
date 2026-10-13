@@ -103,6 +103,14 @@ const ENTRIES: PanelEntry[] = [
         icon: 'sparkles',
         ability: 'platform.settings.manage',
     },
+    {
+        key: 'integrations',
+        label: 'platformIntegrations',
+        route: 'platform.integrations.index',
+        active: 'platform.integrations.*',
+        icon: 'share-2',
+        ability: 'platform.settings.manage',
+    },
 ];
 
 /*

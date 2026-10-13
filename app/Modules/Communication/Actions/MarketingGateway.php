@@ -38,11 +38,15 @@ final class MarketingGateway implements ChannelGateway
 
     public const string META_RECIPIENT = 'marketing_recipient_id';
 
+    /** The rich WhatsApp content (JSON of a `WhatsappContent`), set by the gateway only. */
+    public const string META_CONTENT = 'whatsapp_content';
+
     public function __construct(
         private readonly CommunicationAccess $access,
         private readonly MarketingChannelStatus $status,
         private readonly MarketingAudienceResolver $audience,
         private readonly Outbox $outbox,
+        private readonly ChannelNumbers $numbers,
     ) {}
 
     public function availability(MarketingChannel $channel): ChannelAvailability
@@ -69,6 +73,29 @@ final class MarketingGateway implements ChannelGateway
             return SendReceipt::unavailable((string) $availability->reason);
         }
 
+        // The workspace number to send from (ADR 0022). No number named means the default; a workspace without
+        // numbers (a provider with no per-number account) sends as before.
+        $sender = null;
+
+        if ($message->senderNumberId !== null && $message->channel !== MarketingChannel::Whatsapp) {
+            return SendReceipt::unavailable('sender_number_unavailable');
+        }
+
+        if ($message->channel === MarketingChannel::Whatsapp) {
+            $sender = $this->numbers->senderRow($message->channel, $message->senderNumberId);
+
+            if ($message->senderNumberId !== null && $sender === null) {
+                return SendReceipt::unavailable('sender_number_unavailable');
+            }
+        }
+
+        // Rich content: everything but a template is a free-form message, valid only inside the customer's
+        // open service window, exactly like a transactional reply (the caller names the window it holds).
+        if ($message->whatsapp !== null && $message->whatsapp->kind->requiresOpenWindow()
+            && ! $this->windowOpen($message->providerHints['whatsapp_window_until'] ?? null)) {
+            return SendReceipt::unavailable('outside_customer_service_window');
+        }
+
         $contact = Contact::query()->find($message->contactId, ['id', 'email', 'phone']);
 
         if ($contact === null) {
@@ -86,6 +113,13 @@ final class MarketingGateway implements ChannelGateway
 
         // Provider hints first: they can never replace the marketing references.
         $meta = [...$message->providerHints, self::META_MODULE => $message->module];
+
+        // Rich content comes only through the validated value object, never through a hint.
+        unset($meta[self::META_CONTENT]);
+
+        if ($message->whatsapp !== null) {
+            $meta[self::META_CONTENT] = $message->whatsapp->toJson();
+        }
 
         if ($message->campaignId !== null) {
             $meta[self::META_CAMPAIGN] = $message->campaignId;
@@ -107,6 +141,7 @@ final class MarketingGateway implements ChannelGateway
             source: $message->module,
             sendAt: $message->sendAt,
             meta: $meta,
+            senderNumberId: $sender?->id,
         ));
 
         return $this->receipt($queued, $decision->allowed ? null : $decision->reason->value, false);
@@ -203,7 +238,17 @@ final class MarketingGateway implements ChannelGateway
             $reason,
             $replayed,
             $state === DeliveryState::Queued ? self::immutable($message->next_attempt_at) : null,
+            $message->sender_number_id,
         );
+    }
+
+    private function windowOpen(mixed $until): bool
+    {
+        try {
+            return is_string($until) && CarbonImmutable::parse($until)->isFuture();
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     private static function immutable(?CarbonInterface $moment): ?CarbonImmutable

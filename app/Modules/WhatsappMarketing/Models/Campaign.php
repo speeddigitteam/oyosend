@@ -34,6 +34,10 @@ use Illuminate\Support\Carbon;
  * @property string $template_body
  * @property string|null $list_name
  * @property array<int, array<string, string>> $variable_map
+ * @property string|null $header_media_type
+ * @property string|null $header_media_id
+ * @property list<array{sub_type: string, index: int, value: string}>|null $button_params
+ * @property string|null $sender_number_id
  * @property CarbonInterface|null $scheduled_at
  * @property CarbonInterface|null $started_at
  * @property CarbonInterface|null $snapshot_at
@@ -58,7 +62,7 @@ class Campaign extends Model
     protected $table = 'whatsapp_campaigns';
 
     /** @var list<string> */
-    protected $fillable = ['name', 'status', 'template_id', 'list_id', 'template_name', 'template_language', 'template_category', 'template_body', 'list_name', 'variable_map', 'scheduled_at', 'started_at', 'snapshot_at', 'completed_at', 'cancelled_at', 'total_recipients', 'stop_reason', 'created_by', 'owner_id', 'department_id', 'branch_id'];
+    protected $fillable = ['name', 'status', 'template_id', 'list_id', 'template_name', 'template_language', 'template_category', 'template_body', 'list_name', 'variable_map', 'header_media_type', 'header_media_id', 'button_params', 'sender_number_id', 'scheduled_at', 'started_at', 'snapshot_at', 'completed_at', 'cancelled_at', 'total_recipients', 'stop_reason', 'created_by', 'owner_id', 'department_id', 'branch_id'];
 
     /** @return array<string, string> */
     protected function casts(): array
@@ -66,6 +70,7 @@ class Campaign extends Model
         return [
             'status' => CampaignStatus::class,
             'variable_map' => 'array',
+            'button_params' => 'array',
             'scheduled_at' => 'datetime',
             'started_at' => 'datetime',
             'snapshot_at' => 'datetime',

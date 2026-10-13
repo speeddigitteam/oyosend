@@ -6,6 +6,7 @@ namespace App\Modules\Social\Http\Controllers;
 
 use App\Core\Support\Toast;
 use App\Modules\Social\Actions\SocialSettings;
+use App\Modules\Social\Ai\CommentSentiment;
 use App\Modules\Social\Http\Requests\SettingsRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,8 +29,11 @@ final class SettingsController
             'settings' => [
                 'requireApproval' => $settings->require_approval,
                 'accountHourlyLimit' => $settings->account_hourly_limit,
+                'aiDailyCap' => $settings->ai_daily_cap,
             ],
             'timezone' => $this->settings->timezone(),
+            // Comments analysed by AI today (our own count). Token figures are not exposed by a public contract.
+            'aiUsedToday' => app(CommentSentiment::class)->usedToday(),
         ]);
     }
 

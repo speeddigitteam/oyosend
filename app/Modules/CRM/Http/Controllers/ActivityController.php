@@ -43,7 +43,8 @@ final class ActivityController
     public function index(Request $request): Response
     {
         $actor = $this->support->actor($request);
-        $input = $request->validate(['search' => ['nullable', 'string', 'max:100'], 'status' => ['nullable', Rule::enum(ActivityStatus::class)], 'type' => ['nullable', Rule::enum(ActivityType::class)], 'overdue' => ['nullable', 'boolean'], 'segment' => ['nullable', 'string', 'size:26']]);
+        $input = $request->validate(['search' => ['nullable', 'string', 'max:100'], 'status' => ['nullable', Rule::enum(ActivityStatus::class)], 'type' => ['nullable', Rule::enum(ActivityType::class)], 'overdue' => ['nullable', 'boolean'], 'segment' => ['nullable', 'string', 'size:26'], 'create_for' => ['nullable', 'string', 'size:26']]);
+        $prefill = $actor->can(self::EDIT) ? $this->support->prefillContact($input['create_for'] ?? null, $actor) : null;
         $search = trim((string) ($input['search'] ?? ''));
         $segment = ($input['segment'] ?? null) === null ? null : Segment::query()
             ->where('entity_type', CrmEntityType::Activity)->where('is_active', true)->findOrFail($input['segment']);
@@ -63,7 +64,7 @@ final class ActivityController
             ->when(($input['overdue'] ?? false) === true, fn ($query) => $query->where('status', ActivityStatus::Planned)->where('due_at', '<', now()))
             ->orderByRaw('due_at is null')->orderBy('due_at')->latest('created_at')->paginate(25)->withQueryString()->through(fn (Activity $activity): array => $this->present($activity, $actor));
 
-        return Inertia::render('Modules/CRM/Pages/Activities/Index', ['activities' => $activities, 'filters' => ['search' => $search, 'status' => $input['status'] ?? null, 'type' => $input['type'] ?? null, 'overdue' => $input['overdue'] ?? false, 'segment' => $input['segment'] ?? null], 'segments' => Segment::query()->where('entity_type', CrmEntityType::Activity)->where('is_active', true)->orderBy('name')->get(['id', 'name']), 'leads' => $this->support->leadOptions($actor), 'deals' => $this->support->dealOptions($actor), 'contacts' => $this->support->contactOptions($actor), 'companies' => $this->support->companyOptions($actor), 'owners' => $this->support->ownerOptions($actor, self::EDIT), 'canCreate' => $actor->can(self::EDIT)]);
+        return Inertia::render('Modules/CRM/Pages/Activities/Index', ['activities' => $activities, 'filters' => ['search' => $search, 'status' => $input['status'] ?? null, 'type' => $input['type'] ?? null, 'overdue' => $input['overdue'] ?? false, 'segment' => $input['segment'] ?? null], 'segments' => Segment::query()->where('entity_type', CrmEntityType::Activity)->where('is_active', true)->orderBy('name')->get(['id', 'name']), 'leads' => $this->support->leadOptions($actor), 'deals' => $this->support->dealOptions($actor), 'contacts' => $this->support->contactOptions($actor, $prefill), 'companies' => $this->support->companyOptions($actor), 'owners' => $this->support->ownerOptions($actor, self::EDIT), 'canCreate' => $actor->can(self::EDIT), 'prefillContact' => $prefill]);
     }
 
     public function store(Request $request): RedirectResponse

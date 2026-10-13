@@ -20,6 +20,7 @@ use Illuminate\Support\Carbon;
  * @property bool $auto_assign
  * @property bool $auto_create_contacts
  * @property bool $bots_enabled
+ * @property bool $feedback_enabled
  * @property Carbon $created_at
  * @property Carbon $updated_at
  */
@@ -32,7 +33,7 @@ class Setting extends Model
     protected $table = 'whatsapp_settings';
 
     /** @var list<string> */
-    protected $fillable = ['business_name', 'display_phone', 'auto_assign', 'auto_create_contacts', 'bots_enabled'];
+    protected $fillable = ['business_name', 'display_phone', 'auto_assign', 'auto_create_contacts', 'bots_enabled', 'feedback_enabled'];
 
     /** @return array<string, string> */
     protected function casts(): array
@@ -41,6 +42,7 @@ class Setting extends Model
             'auto_assign' => 'boolean',
             'auto_create_contacts' => 'boolean',
             'bots_enabled' => 'boolean',
+            'feedback_enabled' => 'boolean',
         ];
     }
 }

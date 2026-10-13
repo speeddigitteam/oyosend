@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace App\Modules\Communication\Actions;
 
 use App\Core\Billing\UsageMeter;
+use App\Core\Communication\Data\MarketingChannel;
+use App\Core\Communication\Data\Whatsapp\WhatsappContent;
 use App\Core\Tenancy\TenantContext;
 use App\Modules\Communication\Channels\Contracts\ChannelProvider;
+use App\Modules\Communication\Channels\Contracts\HandlesMedia;
 use App\Modules\Communication\Channels\CredentialResolver;
+use App\Modules\Communication\Channels\Data\ChannelCredentials;
 use App\Modules\Communication\Channels\Data\OutboundPayload;
 use App\Modules\Communication\Channels\Data\SendResult;
 use App\Modules\Communication\Enums\ConfigurationState;
@@ -19,10 +23,12 @@ use App\Modules\Communication\Events\MessageFailed;
 use App\Modules\Communication\Events\MessageSent;
 use App\Modules\Communication\Jobs\SendMessage;
 use App\Modules\Communication\Models\ChannelConnection;
+use App\Modules\Communication\Models\ChannelPhoneNumber;
 use App\Modules\Communication\Models\Message;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+use InvalidArgumentException;
 use Throwable;
 
 /**
@@ -43,6 +49,8 @@ final class MessageDispatcher
         private readonly UnsubscribeLinks $unsubscribe,
         private readonly UsageMeter $meter,
         private readonly TenantContext $context,
+        private readonly ChannelNumbers $numbers,
+        private readonly MediaLibrary $media,
     ) {}
 
     public function deliver(string $messageId): void
@@ -117,7 +125,17 @@ final class MessageDispatcher
                 return $this->end($message, MessageStatus::Failed, 'provider_not_configured');
             }
 
-            $key = 'communication:send:'.$message->channel->value;
+            // A message from a named workspace number needs that number to still be usable (ADR 0022).
+            if ($message->sender_number_id !== null) {
+                $sender = ChannelPhoneNumber::query()->whereKey($message->sender_number_id)->first();
+
+                if ($sender === null || ! $sender->is_active) {
+                    return $this->end($message, MessageStatus::Failed, 'sender_number_unavailable');
+                }
+            }
+
+            // Providers rate-limit per number: each workspace number has its own budget.
+            $key = 'communication:send:'.$message->channel->value.($message->sender_number_id === null ? '' : ':'.$message->sender_number_id);
             $perMinute = $this->connections->rateLimit($message->channel);
 
             if (RateLimiter::tooManyAttempts($key, $perMinute)) {
@@ -162,12 +180,97 @@ final class MessageDispatcher
             );
 
             $credentials = $this->credentials->resolve($connection->credential_ref, $connection->provider);
+            $payload = $this->prepare($message, $connection, $provider, $credentials, $payload);
+
+            if ($payload instanceof SendResult) {
+                return $payload;
+            }
 
             return $provider->send($payload, $connection, $credentials);
         } catch (Throwable $exception) {
             // Never the message: an adapter or transport exception may carry connection details.
             return SendResult::retry('provider_error', class_basename($exception));
         }
+    }
+
+    /**
+     * The workspace number and, for rich content, the provider media ids (ADR 0022): a stored file is uploaded
+     * for the sending number right before the send (and reused while the provider id is fresh).
+     */
+    private function prepare(Message $message, ChannelConnection $connection, ChannelProvider $provider, ?ChannelCredentials $credentials, OutboundPayload $payload): OutboundPayload|SendResult
+    {
+        $number = $message->sender_number_id === null ? null : ChannelPhoneNumber::query()->whereKey($message->sender_number_id)->first();
+
+        if ($message->sender_number_id !== null && ($number === null || ! $number->is_active)) {
+            return SendResult::rejected('sender_number_unavailable', 'The sending number is no longer available.');
+        }
+
+        $meta = $payload->meta;
+        $json = $meta[MarketingGateway::META_CONTENT] ?? null;
+
+        if (is_string($json) && $json !== '' && $credentials !== null && $provider instanceof HandlesMedia) {
+            try {
+                $content = WhatsappContent::fromJson($json);
+            } catch (InvalidArgumentException) {
+                return SendResult::rejected('invalid_content', 'The WhatsApp message content is not valid.');
+            }
+
+            $ids = [];
+
+            foreach ($content->mediaReferences() as $reference) {
+                if ($reference->mediaId !== null) {
+                    $ids[$reference->mediaId] = true;
+                }
+            }
+
+            if ($ids !== []) {
+                $number ??= $this->numbers->senderRow(MarketingChannel::Whatsapp, null);
+
+                if ($number === null) {
+                    return SendResult::rejected('sender_number_unavailable', 'There is no sending number to upload media for.');
+                }
+
+                $uploaded = [];
+
+                foreach (array_keys($ids) as $mediaId) {
+                    $asset = $this->media->find((string) $mediaId);
+
+                    if ($asset === null) {
+                        return SendResult::rejected('media_not_found', 'A media file of this message no longer exists.');
+                    }
+
+                    $outcome = $this->media->uploadAsset($asset, $number, $connection, $provider, $credentials);
+
+                    if (! $outcome->ok || $outcome->media?->providerMediaId === null) {
+                        $reason = (string) $outcome->reason;
+
+                        return in_array($reason, ['provider_unreachable', 'provider_unavailable'], true)
+                            ? SendResult::retry('provider_unavailable', 'The media upload will be retried.')
+                            : SendResult::rejected('media_upload_failed', $reason);
+                    }
+
+                    $uploaded[(string) $mediaId] = $outcome->media->providerMediaId;
+                }
+
+                $meta[MarketingGateway::META_CONTENT] = $content->withProviderMedia($uploaded)->toJson();
+            }
+        }
+
+        return new OutboundPayload(
+            messageId: $payload->messageId,
+            channel: $payload->channel,
+            to: $payload->to,
+            subject: $payload->subject,
+            body: $payload->body,
+            locale: $payload->locale,
+            fromName: $payload->fromName,
+            replyTo: $payload->replyTo,
+            footer: $payload->footer,
+            unsubscribeUrl: $payload->unsubscribeUrl,
+            meta: $meta,
+            senderAccountId: $number?->phone_number_id,
+            senderNumberId: $number?->id,
+        );
     }
 
     private function settle(Message $message, ChannelProvider $provider, SendResult $result): void

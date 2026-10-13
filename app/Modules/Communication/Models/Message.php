@@ -47,6 +47,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $failure_code
  * @property string|null $failure_message
  * @property array<string, mixed>|null $meta
+ * @property string|null $sender_number_id
  * @property Carbon $created_at
  * @property-read Contact|null $contact
  * @property-read Company|null $company
@@ -64,7 +65,7 @@ class Message extends Model
         'contact_id', 'company_id', 'membership_id', 'template_id', 'channel', 'purpose', 'status', 'recipient',
         'subject', 'body', 'locale', 'idempotency_key', 'source', 'provider', 'provider_message_id', 'attempts',
         'queued_at', 'next_attempt_at', 'dispatched_at', 'sending_at', 'sent_at', 'delivered_at', 'failed_at',
-        'failure_code', 'failure_message', 'meta',
+        'failure_code', 'failure_message', 'meta', 'sender_number_id',
     ];
 
     /** @return array<string, string> */

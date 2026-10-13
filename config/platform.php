@@ -115,8 +115,9 @@ return [
     | Platform billing
     |--------------------------------------------------------------------------
     |
-    | What the platform charges its tenants. `grace_days`, `invoice_lead_days`
-    | and `offline_instructions` are defaults the Super Admin panel can change.
+    | What the platform charges its tenants. Everything here is a default the Super Admin panel
+    | can change at runtime (`grace_days`, `invoice_lead_days`, `offline_instructions`,
+    | `invoice_prefix` and the issuer details are stored in `platform_settings` once edited).
     |
     */
 

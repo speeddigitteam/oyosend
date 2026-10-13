@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Model;
  *
  * @property string $id
  * @property string $connection_id
+ * @property string|null $number_id
  * @property string $provider
  * @property string $account_key
  * @property string $account_value
@@ -26,5 +27,5 @@ class AccountClaim extends Model
     protected $table = 'communication_account_claims';
 
     /** @var list<string> */
-    protected $fillable = ['connection_id', 'provider', 'account_key', 'account_value'];
+    protected $fillable = ['connection_id', 'provider', 'account_key', 'account_value', 'number_id'];
 }

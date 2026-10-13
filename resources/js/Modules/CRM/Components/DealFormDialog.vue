@@ -10,8 +10,8 @@ import Textarea from '@/Core/Components/Textarea.vue';
 import { route } from '@/Core/lib/route';
 import type { Deal, Option, Pipeline } from './types';
 
-const props = withDefaults(defineProps<{ deal?: Deal | null; pipelines: Pipeline[]; leads?: Option[]; contacts?: Option[]; companies?: Option[]; owners?: Option[] }>(), {
-    deal: null, leads: () => [], contacts: () => [], companies: () => [], owners: () => [],
+const props = withDefaults(defineProps<{ deal?: Deal | null; pipelines: Pipeline[]; leads?: Option[]; contacts?: Option[]; companies?: Option[]; owners?: Option[]; initialContactId?: string | null }>(), {
+    deal: null, leads: () => [], contacts: () => [], companies: () => [], owners: () => [], initialContactId: null,
 });
 const open = defineModel<boolean>('open', { default: false });
 const { t } = useI18n();
@@ -32,7 +32,7 @@ function fill(): void {
     form.pipeline_id = pipeline;
     form.stage_id = props.deal?.stage.id ?? props.pipelines.find((item) => item.id === pipeline)?.stages[0]?.id ?? '';
     form.lead_id = props.deal?.lead?.id ?? '';
-    form.contact_id = props.deal?.contact?.id ?? '';
+    form.contact_id = props.deal ? (props.deal.contact?.id ?? '') : (props.initialContactId ?? '');
     form.company_id = props.deal?.company?.id ?? '';
     form.currency = props.deal?.currency ?? page.props.app.currency;
     form.amount = props.deal?.amount ?? 0;

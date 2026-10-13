@@ -12,13 +12,17 @@ import StatTile from '@/Core/Components/StatTile.vue';
 import { useFormat } from '@/Core/composables/useFormat';
 import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
 import { route } from '@/Core/lib/route';
+import SentimentSummary from '../../Components/SentimentSummary.vue';
 import { FIGURES, isReported, safeUrl } from '../../Components/socialFormat';
+import PageInsightsPanel from '../../Components/insights/PageInsightsPanel.vue';
+import type { InsightsDashboard } from '../../Components/insights/types';
 import type { AnalyticsReport, EngagementFigures } from '../../Components/types';
 
 defineOptions({ layout: TenantLayout });
 
 const props = defineProps<{
     report: AnalyticsReport;
+    insights?: InsightsDashboard;
     range: { from: string; to: string; timezone: string };
 }>();
 
@@ -36,7 +40,7 @@ const reporters = computed(() => props.report.platformsWithAnalytics
     .join(', '));
 
 function apply(): void {
-    router.get(route('social.analytics.index'), { from: from.value, to: to.value }, { preserveState: true, replace: true });
+    router.get(route('social.analytics.index'), { from: from.value, to: to.value, days: props.insights?.period.days }, { preserveState: true, replace: true });
 }
 
 /** A number, or the words "not reported". A missing figure is never shown as zero. */
@@ -55,6 +59,8 @@ function total(key: keyof EngagementFigures): string {
         :title="t('social.analytics.title')"
         :description="t('social.analytics.description', { timezone: range.timezone })"
     />
+
+    <PageInsightsPanel v-if="insights" :insights="insights" :range="range" class="mb-8" />
 
     <Card class="mb-3">
         <form class="flex flex-wrap items-end gap-2" novalidate @submit.prevent="apply">
@@ -183,4 +189,6 @@ function total(key: keyof EngagementFigures): string {
             </div>
         </Card>
     </template>
+
+    <SentimentSummary :from="range.from" :to="range.to" />
 </template>

@@ -105,6 +105,7 @@ final class PostController
     public function store(PostRequest $request): RedirectResponse
     {
         $actor = $this->support->actor($request);
+        $this->support->assertAccounts($actor, 'publish', array_column($this->targets($request), 'account_id'));
         $post = $this->posts->create(
             $this->attributes($request),
             $this->targets($request),
@@ -147,6 +148,11 @@ final class PostController
     {
         $actor = $this->support->actor($request);
         $record = $this->support->post($actor, $post, self::EDIT);
+
+        if ($request->has('targets')) {
+            $this->support->assertAccounts($actor, 'publish', array_column($this->targets($request), 'account_id'));
+        }
+
         $updated = $this->posts->update(
             $record,
             $this->attributes($request),
@@ -275,6 +281,7 @@ final class PostController
         $input = $request->validated();
 
         return [
+            ...(isset($input['post_type']) ? ['post_type' => (string) $input['post_type']] : []),
             'title' => $this->blank($input['title'] ?? null),
             'body' => $this->blank($input['body'] ?? null),
             'link_url' => $this->blank($input['link_url'] ?? null),
@@ -282,6 +289,8 @@ final class PostController
             'campaign_id' => $this->blank($input['campaign_id'] ?? null),
             'category_id' => $this->blank($input['category_id'] ?? null),
             'hashtag_set_id' => $this->blank($input['hashtag_set_id'] ?? null),
+            ...((array) ($input['extra_hashtags'] ?? []) !== [] ? ['extra_hashtags' => array_values((array) $input['extra_hashtags'])] : []),
+            ...(! empty($input['ai_assisted']) && $request->user('web')?->can('social.posts.ai_assist') ? ['ai_assisted' => true] : []),
         ];
     }
 

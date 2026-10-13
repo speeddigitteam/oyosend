@@ -56,6 +56,33 @@ export interface MessageAttachment {
     kind?: string;
     mime?: string;
     has_caption?: boolean;
+    /** An inbound file the platform can download and serve (ADR 0022). */
+    downloadable?: boolean;
+    filename?: string | null;
+    voice?: boolean;
+}
+
+/** One WhatsApp business number of the workspace (ADR 0022). */
+export interface WhatsappNumber {
+    id: string;
+    label: string;
+    displayNumber: string | null;
+    accountId: string;
+    isDefault: boolean;
+    isActive: boolean;
+}
+
+/** The number picker's active numbers and the pre-selected default. */
+export interface NumberPicker {
+    options: WhatsappNumber[];
+    defaultId: string | null;
+}
+
+/** Reply buttons or a list an outbound message offered. The customer's choice comes back as the label's text. */
+export interface MessageChoices {
+    kind: 'buttons' | 'list';
+    button: string | null;
+    options: string[];
 }
 
 export interface MessageRow {
@@ -69,6 +96,7 @@ export interface MessageRow {
     status: MessageStatus;
     failureCode: string | null;
     attachments: MessageAttachment[];
+    interactive?: MessageChoices | null;
     occurredAt: string;
     deliveredAt: string | null;
     readAt: string | null;
@@ -142,6 +170,10 @@ export interface CampaignRow {
     listId: string | null;
     listName: string;
     variables: Record<string, VariableMapping> | null;
+    headerMediaType: string | null;
+    headerMediaId: string | null;
+    buttonParams: { sub_type: string; index: number; value: string }[];
+    senderNumberId: string | null;
     scheduledAt: string | null;
     startedAt: string | null;
     completedAt: string | null;
@@ -181,4 +213,30 @@ export interface KanbanColumn {
     key: 'unassigned' | 'active' | 'closed';
     count: number;
     items: ConversationSummary[];
+}
+
+/** An internal note on a conversation: for the team only, never sent. */
+export interface ConversationNoteRow {
+    id: string;
+    body: string;
+    author: string | null;
+    createdAt: string;
+    removable: boolean;
+}
+
+export type FeedbackStatus = 'pending' | 'answered' | 'expired';
+
+/** The latest rating request of a conversation. */
+export interface ConversationFeedback {
+    status: FeedbackStatus;
+    rating: number | null;
+    requestedAt: string;
+    answeredAt: string | null;
+}
+
+/** One declarative rule that picks contacts for a list. */
+export interface ContactRule {
+    field: string;
+    operator: string;
+    value: string;
 }

@@ -8,7 +8,7 @@ touching billing; the module's own page (`docs/INDEX.md` lists every page and AD
 State: Phases 1–8 are complete and signed off. Phase 9 Marketing Apps (Email, SMS, WhatsApp, Social) and the
 Automation, AI, Support and Reports modules are built but unreviewed (see `PROGRESS.md`); Phase 13 production
 hardening has begun (health probes, queue/index audits, backup verification, benchmark; ADR 0019) and is not
-signed off. 16 modules and 251 permissions are registered (`docs/MODULES.md`). CRM, Projects, Invoicing, HRM, Payroll and Talent are production optional apps. One phase per session; stop at the end of the phase and report.
+signed off. `core` plus 17 optional modules and 268 permissions are registered (`docs/MODULES.md`). CRM, Projects, Invoicing, HRM, Payroll and Talent are production optional apps. One phase per session; stop at the end of the phase and report.
 
 ## Stack
 
@@ -21,7 +21,7 @@ Not installed until needed: Sanctum (API tokens), Reverb (realtime), Meilisearch
 
 | Decision | Resolution in this repo |
 |---|---|
-| Modular monolith, one shared MySQL DB, `tenant_id` on tenant-owned tables | `app/Core` + `app/Platform`; 15 optional apps in `app/Modules/`, each one provider listed in `config/modules.php`. Platform-wide tables with no `tenant_id` are the documented exceptions (`communication_provider_accounts`, `communication_account_claims`, `ai_provider_accounts`; `docs/DATABASE.md` section 2) |
+| Modular monolith, one shared MySQL DB, `tenant_id` on tenant-owned tables | `app/Core` + `app/Platform`; 17 optional apps in `app/Modules/`, each one provider listed in `config/modules.php`. Platform-wide tables with no `tenant_id` are the documented exceptions (`communication_provider_accounts`, `communication_account_claims`, `ai_provider_accounts`; `docs/DATABASE.md` section 2) |
 | Tenant = subdomain `{tenant}.APP_DOMAIN`; central site on the root; custom domains later | `TenantHost` + `InitializeTenancy`, hostname only. `tenant_domains.type` reserves `custom`; not routed |
 | Local dev on `*.localhost` | Yes. Natively `php artisan serve` on `:8000` |
 | Super Admin: own guard, own host `admin.APP_DOMAIN`, own layout, `platform_users` table | `platform` guard, `routes/platform.php`, `App\Platform`, `PlatformLayout`; 2FA mandatory |
@@ -29,7 +29,7 @@ Not installed until needed: Sanctum (API tokens), Reverb (realtime), Meilisearch
 | `stancl/tenancy` single-DB if it supports Laravel 13 | Used (3.10.1), with **our own** fail-closed scope, cache prefixing, storage API — ADR 0001 |
 | `spatie/laravel-permission` teams mode | Used (team = tenant) for schema and assignment; **checks go through our `AccessChecker`** — ADR 0002; scopes — ADR 0007 |
 | Scout, `database` driver first, Meilisearch later | Installed; no searchable model yet |
-| Credentials in the environment, never the database | Held for payment gateways, Social platform apps and `APP_KEY`. One owner-approved exception: operator **messaging** provider accounts, encrypted and write-only (ADR 0013). Operator **AI** provider accounts exist in code but were not covered by that approval: open decision in ADR 0018 |
+| Credentials in the environment, never the database | Owner decision (ADR 0028): an operator configures every integration from the Super Admin panel, stored encrypted and write-only, with the environment as the fallback default. Covers **messaging** provider accounts (ADR 0013) and **payment gateways** (ADR 0028, `payment_gateway_accounts`); **Social** and **Meta Ads** credentials follow the same pattern next. Operator **AI** provider accounts exist in code (open decision in ADR 0018). `APP_KEY`, the database/cache/session/queue connections and `APP_DOMAIN` stay environment-only by necessity (the floor that cannot move) |
 | Communication through providers behind interfaces, honest `not_configured` | Marketing apps send only through `App\Core\Communication` contracts (ADR 0014); no adapter has been run against a live provider |
 | Backend tests: Pest | Pest 5 on a real MySQL database `oyosend_testing` |
 | Frontend tests: Vitest; Playwright from Phase 2 | Vitest in `tests/js`. Playwright: see `PROGRESS.md` |
@@ -50,9 +50,9 @@ app/Core/{Tenancy,Identity,Access,Organization,Contacts,Settings,Registration,Bi
           Automation,Events,Audit,Dashboard,Workforce,Communication,Reporting,Ai,Http,Support}
 app/Core/CoreServiceProvider.php     the `core` module: manifest, bindings, Gate::before, gateways, null contracts
 app/Platform/                        Super Admin panel (the only code that reads across tenants), health probes, `ops:*`
-app/Modules/<Module>/                15 optional apps: `CRM`, `Projects`, `Invoicing`, `Hrm`, `Payroll`, `Talent` (production);
+app/Modules/<Module>/                17 optional apps: `CRM`, `Projects`, `Invoicing`, `Hrm`, `Payroll`, `Talent` (production);
                                      `Automation`, `Ai`, `Communication`, `EmailMarketing`, `SmsMarketing`, `WhatsappMarketing`,
-                                     `Social`, `Support`, `Reports` (built, unreviewed). Table: `docs/MODULES.md`
+                                     `Social`, `MetaAds`, `Support`, `Reports`, `Notes` (built, unreviewed). Table: `docs/MODULES.md`
 routes/{central,tenant,tenant-callbacks,platform,console}.php     routes/web.php is NOT loaded
 config/{platform,tenancy,modules,permission,trustedproxy,horizon,ziggy}.php, plus one file per app with settings:
        {ai,automation,communication,email_marketing,sms_marketing,social,whatsapp_marketing}.php
@@ -216,10 +216,11 @@ Vitest from `D:/…`, not `/d/…`. The suite runs `migrate:fresh`: never run it
 - Never mark an invoice paid or fulfil it outside verified `InvoiceSettlement` (which routes to the two managers).
 - Never activate a paid app except through verified `InvoiceSettlement`; never upload/install/execute tenant code.
 - Never give the payment callback routes a session, cookies or the `web` group, and never trust their payload.
-- Never store gateway credentials in the database, show them, log them or put them in an exception message.
-  The one exception (ADR 0013): messaging provider accounts (`communication_provider_accounts`) an operator types
-  in the Super Admin panel are stored encrypted and write-only; payment gateways stay environment-only. AI keys,
-  Social platform credentials and `APP_KEY` are not covered by it (ADR 0018 records the open AI decision).
+- Never store a gateway credential in the database in plaintext, show it, log it or put it in an exception message.
+  The owner-approved exceptions store it encrypted and write-only, typed in the Super Admin panel, never read back:
+  messaging provider accounts (`communication_provider_accounts`, ADR 0013) and payment gateways
+  (`payment_gateway_accounts`, ADR 0028, with the environment as the fallback default). Social and Meta Ads
+  credentials follow the same pattern. `APP_KEY` is never stored in the database (ADR 0018 records the open AI decision).
 - Never call `Storage::disk()` with a hand-built tenant path, and never put tenant data in `cache.central` or
   platform data in the tenant-prefixed `Cache::`.
 - Never set `SESSION_DOMAIN` to a parent domain. Sessions are host-only.

@@ -3,7 +3,9 @@ import { ArrowLeft } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import Button from '@/Core/Components/Button.vue';
 import Card from '@/Core/Components/Card.vue';
+import CustomerPanel from '@/Core/Components/Contacts/CustomerPanel.vue';
 import PageHeader from '@/Core/Components/PageHeader.vue';
+import { useAccess } from '@/Core/composables/useAccess';
 import { useFormat } from '@/Core/composables/useFormat';
 import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
 import { route } from '@/Core/lib/route';
@@ -25,7 +27,8 @@ const props = defineProps<{
 
 const { t } = useI18n();
 const format = useFormat();
-const name = props.customer.company?.name ?? props.customer.contact?.name ?? t('crm.common.notSet');
+const access = useAccess();
+const name =props.customer.company?.name ?? props.customer.contact?.name ?? t('crm.common.notSet');
 const email = props.customer.company?.email ?? props.customer.contact?.email ?? undefined;
 </script>
 
@@ -74,6 +77,7 @@ const email = props.customer.company?.email ?? props.customer.contact?.email ?? 
             />
         </div>
         <div class="grid content-start gap-3">
+            <CustomerPanel v-if="entityType === 'contact' && access.can('core.contacts.view')" :contact-id="entityId" :contact-name="customer.contact?.name" />
             <TimelineList :entries="timeline" />
         </div>
     </div>

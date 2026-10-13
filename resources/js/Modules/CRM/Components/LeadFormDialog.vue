@@ -15,7 +15,9 @@ const props = withDefaults(defineProps<{
     contacts?: Option[];
     companies?: Option[];
     owners?: Option[];
-}>(), { lead: null, sources: () => [], contacts: () => [], companies: () => [], owners: () => [] });
+    /** Contact a new lead starts with (opened from another app's customer view). */
+    initialContactId?: string | null;
+}>(), { lead: null, sources: () => [], contacts: () => [], companies: () => [], owners: () => [], initialContactId: null });
 
 const open = defineModel<boolean>('open', { default: false });
 const { t } = useI18n();
@@ -33,7 +35,7 @@ const form = useForm({
 function fill(): void {
     form.clearErrors();
     form.title = props.lead?.title ?? '';
-    form.contact_id = props.lead?.contact?.id ?? '';
+    form.contact_id = props.lead ? (props.lead.contact?.id ?? '') : (props.initialContactId ?? '');
     form.company_id = props.lead?.company?.id ?? '';
     form.source_id = props.lead?.source?.id ?? '';
     form.status = props.lead?.status ?? 'new';

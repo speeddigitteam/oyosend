@@ -33,7 +33,7 @@ final class SettingsManager
     }
 
     /**
-     * @param  array{business_name?: string|null, display_phone?: string|null, auto_assign?: bool, auto_create_contacts?: bool, bots_enabled?: bool}  $input
+     * @param  array{business_name?: string|null, display_phone?: string|null, auto_assign?: bool, auto_create_contacts?: bool, bots_enabled?: bool, feedback_enabled?: bool}  $input
      */
     public function update(array $input): Setting
     {
@@ -52,6 +52,7 @@ final class SettingsManager
             'auto_assign' => (bool) ($input['auto_assign'] ?? $setting->auto_assign),
             'auto_create_contacts' => (bool) ($input['auto_create_contacts'] ?? $setting->auto_create_contacts),
             'bots_enabled' => (bool) ($input['bots_enabled'] ?? $setting->bots_enabled),
+            'feedback_enabled' => (bool) ($input['feedback_enabled'] ?? $setting->feedback_enabled),
         ])->save();
 
         return $setting;
