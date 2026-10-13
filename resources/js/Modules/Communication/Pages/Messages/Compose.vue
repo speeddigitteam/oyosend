@@ -22,6 +22,7 @@ const props = defineProps<{
     contacts: ContactOption[];
     channels: ChannelStatus[];
     purposes: string[];
+    canChoosePurpose: boolean;
     templates: TemplateOption[];
     contactId: string | null;
 }>();
@@ -34,7 +35,8 @@ const firstReady = props.channels.find((channel) => channel.state === 'configure
 const form = useForm({
     contact_id: props.contactId ?? '',
     channel: firstReady as string,
-    purpose: (props.purposes.includes('transactional') ? 'transactional' : (props.purposes[0] ?? 'transactional')) as string,
+    // Without the sensitive permission free text is always marketing; the server decides, this only mirrors it.
+    purpose: (props.canChoosePurpose && props.purposes.includes('transactional') ? 'transactional' : 'marketing') as string,
     template_id: '',
     subject: '',
     body: '',
@@ -59,7 +61,9 @@ const channelOptions = computed(() =>
     })),
 );
 const purposeOptions = computed(() => props.purposes.map((value) => ({ value, label: label('purpose', value) })));
-const templateChoices = computed(() => props.templates.filter((template) => template.channel === form.channel && template.purpose === form.purpose));
+const templateChoices = computed(() =>
+    props.templates.filter((template) => template.channel === form.channel && (!props.canChoosePurpose || template.purpose === form.purpose)),
+);
 const templateOptions = computed(() => [
     { value: '', label: t('communication.compose.templateNone') },
     ...templateChoices.value.map((template) => ({ value: template.id, label: `${template.name} (${label('locale', template.locale)})` })),
@@ -75,6 +79,7 @@ function send(): void {
     form
         .transform((data) => ({
             ...data,
+            purpose: props.canChoosePurpose ? data.purpose : null,
             template_id: data.template_id === '' ? null : data.template_id,
             subject: data.template_id !== '' || data.channel !== 'email' || data.subject.trim() === '' ? null : data.subject,
             body: data.template_id !== '' || data.body.trim() === '' ? null : data.body,
@@ -125,12 +130,16 @@ const contactHint = computed(() => {
                 </div>
                 <Select v-model="form.channel" :options="channelOptions" :label="t('communication.compose.channel')" :error="form.errors.channel" />
                 <Select
+                    v-if="canChoosePurpose"
                     v-model="form.purpose"
                     :options="purposeOptions"
                     :label="t('communication.compose.purpose')"
                     :hint="t('communication.compose.purposeHint')"
                     :error="form.errors.purpose"
                 />
+                <p v-if="!canChoosePurpose" class="text-[0.8125rem] text-ink-muted sm:col-span-2" data-testid="purpose-fixed">
+                    {{ t('communication.compose.purposeFixed') }}
+                </p>
                 <div v-if="templateChoices.length > 0" class="sm:col-span-2">
                     <Select
                         v-model="form.template_id"

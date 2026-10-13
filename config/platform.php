@@ -154,6 +154,11 @@ return [
             'store_password' => env('SSLCOMMERZ_STORE_PASSWORD'),
             'sandbox' => (bool) env('SSLCOMMERZ_SANDBOX', true),
         ],
+        'aamarpay' => [
+            'store_id' => env('AAMARPAY_STORE_ID'),
+            'signature_key' => env('AAMARPAY_SIGNATURE_KEY'),
+            'sandbox' => (bool) env('AAMARPAY_SANDBOX', true),
+        ],
     ],
 
     /*
@@ -187,6 +192,40 @@ return [
 
     'security' => [
         'csp' => env('SECURITY_CSP', 'report-only'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Health endpoints
+    |--------------------------------------------------------------------------
+    |
+    | GET /health is liveness: it answers `ok` and nothing else, to anyone.
+    | GET /health/ready runs the live checks (App\Platform\Support\SystemHealth)
+    | and is answered only to a caller whose address is in `allowed_ips` (exact
+    | addresses or CIDR blocks, comma separated in the environment) or who sends
+    | `Authorization: Bearer {token}`. Anyone else gets a 404. The token is off
+    | unless HEALTH_TOKEN is set; use a long random string. `allowed_ips` is
+    | EMPTY by default, so the bearer token is required unless addresses are
+    | configured. IP allow-listing is only sound with a correct TRUSTED_PROXIES:
+    | behind a same-host reverse proxy every caller looks like 127.0.0.1.
+    |
+    */
+
+    // Operator tooling (php artisan ops:*). The mysql client used by ops:verify-backup.
+    'ops' => [
+        'mysql_bin' => env('MYSQL_BIN', 'mysql'),
+    ],
+
+    'health' => [
+        'allowed_ips' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('HEALTH_ALLOWED_IPS', '')),
+        ))),
+        'token' => env('HEALTH_TOKEN'),
+        // The scheduler's heartbeat (written every minute) older than this many seconds is a failure.
+        'scheduler_max_age' => (int) env('HEALTH_SCHEDULER_MAX_AGE', 180),
+        // More jobs than this waiting in any one queue makes the backlog check fail.
+        'queue_backlog' => (int) env('HEALTH_QUEUE_BACKLOG', 1000),
     ],
 
 ];

@@ -180,6 +180,13 @@ export default {
         expected: 'Expected {date}',
         noExpectedDate: 'No close date',
         linkedLead: 'From lead {name}',
+        listView: 'List',
+        boardView: 'Board',
+        viewLabel: 'View mode',
+        boardEmpty: 'No open deals in this stage.',
+        boardNoPipeline: 'No pipeline is configured. Add one in CRM settings.',
+        closeWarning: 'Moving this deal to {stage} closes it. A closed deal cannot be moved to another stage.',
+        lostReasonHint: 'For a lost deal, this note is saved as the reason.',
     },
     activities: {
         title: 'Activities',

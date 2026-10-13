@@ -65,7 +65,7 @@ final class EmailMarketingServiceProvider extends ModuleServiceProvider
         return new ModuleManifest(
             key: 'email_marketing',
             name: 'Email Marketing',
-            version: '1.0.0',
+            version: '1.1.0',
             dependencies: ['core', 'communication'],
             permissions: [
                 new PermissionDefinition('email_marketing.lists.view', 'email_marketing_lists'),
@@ -195,6 +195,11 @@ final class EmailMarketingServiceProvider extends ModuleServiceProvider
                 'email_marketing.settings.update',
                 'email_marketing.track.click',
                 'email_marketing.web.show',
+                'email_marketing.lists.signup',
+                'email_marketing.signup.show',
+                'email_marketing.signup.store',
+                'email_marketing.signup.confirm.show',
+                'email_marketing.signup.confirm.store',
             ],
             scheduledJobs: [
                 new ScheduledJobDefinition('email_marketing.run', RunEmailMarketing::class, ScheduledJobFrequency::EveryMinute),
@@ -205,6 +210,7 @@ final class EmailMarketingServiceProvider extends ModuleServiceProvider
     protected function bootModule(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
+        $this->loadViewsFrom(__DIR__.'/Resources/views', 'email_marketing');
         $this->loadTenantRoutes(__DIR__.'/routes.php');
         $this->loadTenantCallbackRoutes(__DIR__.'/callbacks.php');
 

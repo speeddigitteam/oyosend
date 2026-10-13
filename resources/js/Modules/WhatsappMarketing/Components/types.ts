@@ -176,3 +176,9 @@ export interface FlowLimits {
     optionActions: number;
     keywords: number;
 }
+
+export interface KanbanColumn {
+    key: 'unassigned' | 'active' | 'closed';
+    count: number;
+    items: ConversationSummary[];
+}

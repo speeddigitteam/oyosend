@@ -80,6 +80,7 @@ final class SlaMonitor
                 && $ticket->resolution_due_at !== null
                 && $ticket->resolution_due_at->lessThanOrEqualTo($now)) {
                 $ticket->resolution_breached_at = $now;
+                $ticket->resolution_first_breached_at ??= $now;
                 $breached['resolution'] = $ticket->resolution_due_at;
             }
 

@@ -9,6 +9,11 @@ import { appEnv, DATABASE } from './support/env';
  * that this is the database it is connected to.
  */
 export default function globalSetup(): void {
+    // The database was already built and seeded by hand (a slow shared MySQL): E2E_SKIP_SETUP=1.
+    if (process.env.E2E_SKIP_SETUP === '1') {
+        return;
+    }
+
     if (!/_testing$/.test(DATABASE)) {
         throw new Error(`Refusing to rebuild [${DATABASE}]: the end-to-end database must be named *_testing.`);
     }

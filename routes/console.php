@@ -1,6 +1,7 @@
 <?php
 
 use App\Core\Registration\Models\WorkspaceRegistration;
+use App\Platform\Support\SystemHealth;
 use Illuminate\Support\Facades\Schedule;
 
 /*
@@ -22,3 +23,6 @@ Schedule::command('apps:run-scheduled')->everyMinute()->withoutOverlapping();
 
 // Sign-ups whose confirmation link expired, and finished ones after a month.
 Schedule::command('model:prune', ['--model' => [WorkspaceRegistration::class]])->daily();
+
+// Proves the scheduler is running: /health/ready reports the age of this beat.
+Schedule::call(static fn () => app(SystemHealth::class)->beat())->name('platform:scheduler-heartbeat')->everyMinute();

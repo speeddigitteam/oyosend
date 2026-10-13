@@ -32,9 +32,10 @@ it('answers 404 for every communication page when the workspace is not entitled'
         $this->actingAsOwner($plain)->get($this->commUrl($plain, $path))->assertNotFound();
     }
 
-    // The stateless callbacks answer the same way.
+    // The stateless webhooks answer the same way. The unsubscribe page does not: a recipient can always opt
+    // out, and it answers "invalid" for any token the workspace did not issue.
     $this->post($this->commUrl($plain, '/webhooks/fake_sms'), [])->assertNotFound();
-    $this->get($this->commUrl($plain, '/unsubscribe/'.str_repeat('a', 40)))->assertNotFound();
+    $this->get($this->commUrl($plain, '/unsubscribe/'.str_repeat('a', 40)))->assertOk()->assertSee('This link is not valid');
 });
 
 it('refuses a member who lacks the permission and serves the owner', function () {

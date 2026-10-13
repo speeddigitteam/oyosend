@@ -97,7 +97,14 @@ return [
     */
 
     'waits' => [
+        // Seconds a queue may take to clear before Horizon raises a long-wait event.
         'redis:default' => 60,
+        'redis:notifications' => 60,
+        'redis:webhooks' => 60,
+        'redis:billing' => 120,
+        'redis:automation' => 120,
+        'redis:ai' => 120,
+        'redis:campaigns' => 300,
     ],
 
     /*

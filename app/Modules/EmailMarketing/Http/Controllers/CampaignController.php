@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Modules\EmailMarketing\Http\Controllers;
 
 use App\Core\Access\RecordAccess;
+use App\Core\Contacts\Models\Contact;
+use App\Core\Identity\Models\User;
 use App\Core\Support\Like;
 use App\Core\Support\Toast;
 use App\Modules\EmailMarketing\Actions\CampaignManager;
@@ -15,6 +17,7 @@ use App\Modules\EmailMarketing\Models\Campaign;
 use App\Modules\EmailMarketing\Models\Delivery;
 use App\Modules\EmailMarketing\Models\Template;
 use App\Modules\EmailMarketing\Support\CsvSafe;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -101,9 +104,15 @@ final class CampaignController
         $actor = $this->support->actor($request);
         $record = $this->support->campaign($actor, $campaign, self::VIEW);
 
+        // A recipient is a person's name and address: each one only for someone who may see that contact.
+        $visible = $this->visibleContacts($actor);
+        $hidden = Delivery::query()->where('campaign_id', $record->id)->count()
+            - Delivery::query()->where('campaign_id', $record->id)->tap($visible)->count();
+
         $deliveries = Delivery::query()
             ->with('contact')
             ->where('campaign_id', $record->id)
+            ->tap($visible)
             ->when($request->query('delivery_status') !== null && is_string($request->query('delivery_status')), fn ($query) => $query->where('status', (string) $request->query('delivery_status')))
             ->orderBy('id')
             ->paginate(25, pageName: 'deliveries_page')
@@ -113,6 +122,7 @@ final class CampaignController
         return Inertia::render('Modules/EmailMarketing/Pages/Campaigns/Show', [
             'campaign' => $this->presenter->campaignDetail($record, $actor),
             'deliveries' => $deliveries,
+            'hiddenDeliveries' => max(0, $hidden),
             'deliveryStatus' => is_string($request->query('delivery_status')) ? $request->query('delivery_status') : null,
             'members' => $actor->can('email_marketing.campaigns.send') ? $this->support->memberOptions() : [],
             'maxTestRecipients' => (int) config('email_marketing.test_send_max_recipients', 5),
@@ -243,12 +253,14 @@ final class CampaignController
 
     public function export(Request $request, string $campaign): StreamedResponse
     {
-        $record = $this->support->campaign($this->support->actor($request), $campaign, self::VIEW);
+        $actor = $this->support->actor($request);
+        $record = $this->support->campaign($actor, $campaign, self::VIEW);
+        $visible = $this->visibleContacts($actor);
 
-        $rows = (function () use ($record): \Generator {
-            foreach (Delivery::query()->with('contact')->where('campaign_id', $record->id)->orderBy('id')->lazyById(500) as $delivery) {
+        $rows = (function () use ($record, $visible): \Generator {
+            foreach (Delivery::query()->with('contact')->where('campaign_id', $record->id)->tap($visible)->orderBy('id')->lazyById(500) as $delivery) {
                 yield [
-                    $delivery->contact->email, $delivery->variant, $delivery->status->value, $delivery->reason,
+                    $delivery->contact?->email, $delivery->variant, $delivery->status->value, $delivery->reason,
                     $delivery->sent_at?->toIso8601String(), $delivery->clicked_at?->toIso8601String(), $delivery->click_count,
                     $delivery->viewed_at?->toIso8601String(),
                 ];
@@ -260,6 +272,23 @@ final class CampaignController
         return response()->streamDownload(static function () use ($csv): void {
             echo $csv;
         }, 'campaign-deliveries.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    /**
+     * Narrows deliveries to those the member may see: contacts inside their `core.contacts.view` scope, plus
+     * history of contacts that no longer exist (shown as "Deleted contact", with no identity).
+     *
+     * @return \Closure(Builder<Delivery>): void
+     */
+    private function visibleContacts(User $actor): \Closure
+    {
+        $visible = $this->records->constrain(Contact::query(), $actor, 'core.contacts.view')->select('id');
+
+        return static function (Builder $query) use ($visible): void {
+            $query->where(static fn (Builder $match) => $match
+                ->whereIn('contact_id', $visible)
+                ->orWhereNotIn('contact_id', Contact::query()->select('id')));
+        };
     }
 
     /** @return array<string, mixed> */

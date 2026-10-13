@@ -40,7 +40,10 @@ beforeEach(function () {
         $raw = is_array($body) ? json_encode($body) : $body;
         $timestamp = (string) ($overrides['timestamp'] ?? now()->timestamp);
         $secret = $overrides['secret'] ?? $this->hook['secret'];
-        $signature = $overrides['signature'] ?? 'sha256='.hash_hmac('sha256', $timestamp.'.'.$raw, $secret);
+        $signed = isset($overrides['delivery']) && ! ($overrides['delivery_unsigned'] ?? false)
+            ? $timestamp.'.'.$overrides['delivery'].'.'.$raw
+            : $timestamp.'.'.$raw;
+        $signature = $overrides['signature'] ?? 'sha256='.hash_hmac('sha256', $signed, $secret);
         $server = ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json'];
 
         if (! ($overrides['no_headers'] ?? false)) {
@@ -117,6 +120,21 @@ it('de-duplicates on a sender-chosen delivery id', function () {
     ($this->deliver)(['source' => 'c'], ['delivery' => 'evt_2'])->assertStatus(202);
 
     expect($this->runsOf($this->tenant, $this->hook['workflow']))->toHaveCount(2);
+});
+
+it('refuses a signed request replayed with a different, unsigned delivery id', function () {
+    // The signature covers no delivery id; adding one afterwards must not give a fresh replay key.
+    $raw = json_encode(['source' => 'captured']);
+    $signature = 'sha256='.hash_hmac('sha256', now()->timestamp.'.'.$raw, $this->hook['secret']);
+
+    ($this->deliver)($raw, ['signature' => $signature])->assertStatus(202);
+    ($this->deliver)($raw, ['signature' => $signature, 'delivery' => 'evt_forged'])->assertStatus(401);
+    ($this->deliver)($raw, ['signature' => $signature])->assertOk()->assertJsonPath('status', 'duplicate');
+
+    // A malformed delivery id is refused before it can be a key.
+    ($this->deliver)(['source' => 'x'], ['delivery' => str_repeat('a', 65)])->assertStatus(422);
+
+    expect($this->runsOf($this->tenant, $this->hook['workflow']))->toHaveCount(1);
 });
 
 it('answers 404 for an unknown token and for a token used on another workspace', function () {
@@ -260,4 +278,15 @@ describe('outbound webhook node', function () {
         Http::assertSentCount(1);
         expect($this->onlyRun($this->tenant, $workflow)->status)->toBe(RunStatus::Failed);
     });
+});
+
+it('lets only a workflow publisher rotate the trigger credential', function () {
+    [$manageOnly] = $this->memberWith($this->tenant, ['automation.webhooks.manage', 'automation.workflows.view']);
+    [$publisher] = $this->memberWith($this->tenant, ['automation.workflows.publish', 'automation.workflows.view']);
+    $url = $this->tenantUrl($this->tenant, "/automation/workflows/{$this->hook['workflow']->id}/webhook/rotate");
+
+    $this->actingAsMember($this->tenant, $manageOnly)->post($url)->assertForbidden();
+    $this->actingAsMember($this->tenant, $publisher)->post($url)->assertRedirect();
+
+    ($this->deliver)(['source' => 'x'])->assertStatus(404); // the old pair no longer works
 });

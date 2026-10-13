@@ -30,6 +30,7 @@ const catalogue: MessageSchema['catalogue'] = {
         communication: 'কমিউনিকেশন',
         reports: 'রিপোর্ট ও অ্যানালিটিক্স',
         automation: 'ওয়ার্কফ্লো অটোমেশন',
+        ai: 'এআই',
     },
     permissionGroups: {
         members: 'সদস্য',
@@ -404,6 +405,7 @@ const catalogue: MessageSchema['catalogue'] = {
         'communication.notifications.view': { label: 'নোটিফিকেশন কেন্দ্র ব্যবহার', description: 'নিজের নোটিফিকেশন দেখতে এবং কোনগুলো পাবেন তা বেছে নিতে পারবেন।' },
         'communication.messages.view': { label: 'বার্তা দেখা', description: 'অনুমোদিত রেকর্ড সীমার মধ্যে বার্তার লগ ও বার্তার বিস্তারিত দেখতে পারবেন।' },
         'communication.messages.send': { label: 'বার্তা পাঠানো', description: 'কন্টাক্টকে একটি করে বার্তা পাঠাতে এবং অনুমোদিত রেকর্ড সীমার মধ্যে বার্তা আবার পাঠাতে বা বাতিল করতে পারবেন।' },
+        'communication.messages.send_transactional': { label: 'হাতে লেখা বার্তা লেনদেনমূলক হিসেবে পাঠানো', description: 'হাতে লেখা বার্তা লেনদেনমূলক হিসেবে পাঠাতে পারবেন, যেখানে সম্মতি, মার্কেটিং সাপ্রেশন ও নীরব সময় প্রযোজ্য হয় না। সংবেদনশীল: যাঁরা সম্মতি ছাড়াই গ্রাহককে বার্তা পাঠাতে পারেন কেবল তাঁদেরই দিন।' },
         'communication.timeline.view': { label: 'যোগাযোগের টাইমলাইন দেখা', description: 'যেসব কন্টাক্ট ও প্রতিষ্ঠান আগে থেকেই দেখতে পারেন, তাদের টাইমলাইন দেখতে পারবেন।' },
         'communication.timeline.log': { label: 'যোগাযোগ লগ করা', description: 'নোট, ফোনালাপ, বৈঠক ও ইমেইল হাতে লগ করতে এবং অনুমোদিত রেকর্ড সীমার মধ্যে নিজের এন্ট্রি সরাতে পারবেন।' },
         'communication.templates.view': { label: 'বার্তার টেমপ্লেট দেখা', description: 'বার্তার টেমপ্লেট ও তাদের প্লেসহোল্ডার দেখতে পারবেন।' },

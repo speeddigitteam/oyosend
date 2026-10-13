@@ -6,12 +6,14 @@ namespace App\Modules\Social\Http\Controllers;
 
 use App\Core\Billing\UsageLimits;
 use App\Core\Support\Toast;
+use App\Core\Tenancy\TenantContext;
 use App\Modules\Social\Actions\AccountManager;
 use App\Modules\Social\Enums\AccountStatus;
 use App\Modules\Social\Http\Requests\ConnectRequest;
 use App\Modules\Social\Http\Requests\SelectAccountsRequest;
 use App\Modules\Social\Models\SocialAccount;
 use App\Modules\Social\Platforms\ProfileConnection;
+use App\Modules\Social\Support\OAuthBroker;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -36,6 +38,8 @@ final class AccountController
         private readonly SocialSupport $support,
         private readonly SocialPresenter $presenter,
         private readonly UsageLimits $limits,
+        private readonly OAuthBroker $broker,
+        private readonly TenantContext $tenants,
     ) {}
 
     public function index(Request $request): Response
@@ -53,7 +57,7 @@ final class AccountController
             ],
             'canManage' => $actor->can('social.accounts.manage'),
             'redirectUris' => collect($this->support->platforms()->all())
-                ->map(fn ($platform): array => ['platform' => $platform->key(), 'uri' => route('social.accounts.callback', ['platform' => $platform->key()])])
+                ->map(fn ($platform): array => ['platform' => $platform->key(), 'uri' => $this->redirectUri($platform->key())])
                 ->values()->all(),
         ]);
     }
@@ -75,15 +79,15 @@ final class AccountController
 
         $this->accounts->assertSeatAvailable($reauthorize);
 
-        $state = Str::random(40);
-        $authorization = $adapter->authorizationRequest(
-            route('social.accounts.callback', ['platform' => $platform]),
-            $state,
-        );
+        // The session keeps the random value; the platform sees it wrapped in the broker's signed envelope.
+        $inner = Str::random(40);
+        $state = $this->broker->wrap($this->tenants->require()->slug, $platform, $inner);
+        $authorization = $adapter->authorizationRequest($this->redirectUri($platform), $state);
 
         $request->session()->put(self::SESSION, [
             'platform' => $platform,
-            'state' => $state,
+            'state' => $inner,
+            'wrapped' => $state !== $inner,
             'verifier' => $authorization->codeVerifier,
             'user' => $actor->getKey(),
             'account_id' => $reauthorize?->id,
@@ -105,7 +109,7 @@ final class AccountController
             && ($pending['platform'] ?? null) === $platform
             && ($pending['user'] ?? null) === $actor->getKey()
             && ($pending['expires'] ?? 0) >= now()->getTimestamp()
-            && $state !== '' && hash_equals((string) ($pending['state'] ?? ''), $state);
+            && $this->stateMatches($platform, $state, (string) ($pending['state'] ?? ''), ($pending['wrapped'] ?? false) === true);
 
         if (! $valid) {
             Toast::error(__('The authorisation expired or could not be verified. Start again.'));
@@ -123,7 +127,7 @@ final class AccountController
         $profiles = $this->accounts->exchange(
             $adapter,
             $code,
-            route('social.accounts.callback', ['platform' => $platform]),
+            $this->redirectUri($platform),
             is_string($pending['verifier'] ?? null) ? $pending['verifier'] : null,
         );
 
@@ -155,6 +159,33 @@ final class AccountController
         $selection = $this->accounts->stashSelection($platform, $profiles, (string) $actor->getKey());
 
         return redirect()->route('social.accounts.select', ['selection' => $selection]);
+    }
+
+    /** The URI registered with the platform: the central broker's, or this workspace's own. */
+    private function redirectUri(string $platform): string
+    {
+        return $this->broker->redirectUri($platform, route('social.accounts.callback', ['platform' => $platform]));
+    }
+
+    /**
+     * The returned `state` against the session's random value. A wrapped state must also carry a valid
+     * envelope for this very workspace and platform; the inner value is then compared in constant time.
+     */
+    private function stateMatches(string $platform, string $returned, string $expected, bool $wrapped): bool
+    {
+        if ($returned === '' || $expected === '') {
+            return false;
+        }
+
+        if (! $wrapped) {
+            return hash_equals($expected, $returned);
+        }
+
+        $envelope = $this->broker->unwrap($returned, $platform);
+
+        return $envelope !== null
+            && $envelope['slug'] === $this->tenants->require()->slug
+            && hash_equals($expected, $envelope['inner']);
     }
 
     /** Choose which of several granted pages/profiles to connect. */

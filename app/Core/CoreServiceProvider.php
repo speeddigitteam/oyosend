@@ -20,6 +20,7 @@ use App\Core\Automation\Triggers\MemberJoinedTrigger;
 use App\Core\Billing\Console\RunBillingCycleCommand;
 use App\Core\Billing\CurrentSubscription;
 use App\Core\Billing\Enums\LimitKind;
+use App\Core\Billing\Gateways\AamarPayGateway;
 use App\Core\Billing\Gateways\GatewayRegistry;
 use App\Core\Billing\Gateways\SslCommerzGateway;
 use App\Core\Billing\Models\Invoice;
@@ -27,11 +28,13 @@ use App\Core\Billing\Models\Payment;
 use App\Core\Billing\Models\Plan;
 use App\Core\Billing\Models\Subscription;
 use App\Core\Communication\Contracts\ChannelGateway;
+use App\Core\Communication\Contracts\ConsentRecorder;
 use App\Core\Communication\Contracts\InteractionRecorder;
 use App\Core\Communication\Contracts\MarketingAudience;
 use App\Core\Communication\Contracts\Notifier;
 use App\Core\Communication\Contracts\UnsubscribeLinks;
 use App\Core\Communication\NullChannelGateway;
+use App\Core\Communication\NullConsentRecorder;
 use App\Core\Communication\NullInteractionRecorder;
 use App\Core\Communication\NullMarketingAudience;
 use App\Core\Communication\NullNotifier;
@@ -188,6 +191,7 @@ final class CoreServiceProvider extends ModuleServiceProvider
         $this->app->bindIf(InteractionRecorder::class, NullInteractionRecorder::class);
         $this->app->bindIf(MarketingAudience::class, NullMarketingAudience::class);
         $this->app->bindIf(UnsubscribeLinks::class, NullUnsubscribeLinks::class);
+        $this->app->bindIf(ConsentRecorder::class, NullConsentRecorder::class);
         $this->app->bindIf(ChannelGateway::class, NullChannelGateway::class);
 
         // Schedule idempotency is platform-wide. It must not be affected by
@@ -205,6 +209,12 @@ final class CoreServiceProvider extends ModuleServiceProvider
                 config('platform.gateways.sslcommerz.store_id'),
                 config('platform.gateways.sslcommerz.store_password'),
                 (bool) config('platform.gateways.sslcommerz.sandbox', true),
+            ));
+            $registry->register(new AamarPayGateway(
+                $app->make(HttpFactory::class),
+                config('platform.gateways.aamarpay.store_id'),
+                config('platform.gateways.aamarpay.signature_key'),
+                (bool) config('platform.gateways.aamarpay.sandbox', true),
             ));
 
             return $registry;

@@ -181,6 +181,14 @@ const whatsapp: MessageSchema['whatsapp'] = {
         unreadCount: '{count}টি না-পড়া',
         unassignedLabel: 'কাউকে দেওয়া হয়নি',
         windowOpen: 'উইন্ডো চালু',
+        viewList: 'তালিকা',
+        viewBoard: 'বোর্ড',
+        col: {
+            unassigned: 'দায়িত্বহীন',
+            active: 'চলছে',
+            closed: 'বন্ধ',
+        },
+        boardMore: 'আরও {count}টি দেখানো হয়নি',
     },
     start: {
         title: 'কথোপকথন শুরু করুন',
@@ -357,6 +365,7 @@ const whatsapp: MessageSchema['whatsapp'] = {
         audienceLink: 'সম্মতির রেকর্ড খুলুন',
         membersTitle: 'এই তালিকার কন্টাক্ট: {cap}-এর মধ্যে {count}',
         membersCaption: 'এই তালিকার কন্টাক্ট',
+        hiddenMembers: '{count} জন সদস্য এমন কন্টাক্ট যাঁদের আপনি দেখতে পারেন না। তাঁরা তালিকায় আছেন, কিন্তু এখানে দেখানো হয়নি।',
         membersEmpty: 'এই তালিকায় এখনো কোনো কন্টাক্ট নেই',
         membersEmptyBody: 'পাশে কন্টাক্ট খুঁজে যোগ করুন।',
         canReceive: 'পেতে পারবেন',
@@ -453,6 +462,7 @@ const whatsapp: MessageSchema['whatsapp'] = {
         readRateHint: 'পৌঁছানোর মধ্যে যা পড়া হয়েছে',
         reasonsTitle: 'কেন বার্তা পাঠানো হয়নি',
         recipients: 'প্রাপক',
+        hiddenRecipients: '{count} জন প্রাপক এমন কন্টাক্ট যাঁদের আপনি দেখতে পারেন না। তাঁরা ক্যাম্পেইনে আছেন, কিন্তু এখানে তালিকাভুক্ত নয়।',
         state: 'অবস্থা',
         anyState: 'যে কোনো অবস্থা',
         columns: {

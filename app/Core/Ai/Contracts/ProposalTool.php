@@ -21,4 +21,14 @@ interface ProposalTool extends AiTool
      * @return array<string, scalar|null> Ids and scalars describing the result (no free text).
      */
     public function apply(ToolContext $context, array $payload): array;
+
+    /**
+     * The values a stored proposal would write, for the confirmation card: the person must see what is
+     * being written, not only which fields. Plain text, already length-capped; `old` is the current value
+     * (null for a new record). Returns [] when the record can no longer be shown to this member.
+     *
+     * @param  array<string, mixed>  $payload  The payload of the stored proposal.
+     * @return list<array{field: string, old: string|null, new: string|null}>
+     */
+    public function changes(ToolContext $context, array $payload): array;
 }

@@ -107,7 +107,7 @@ export interface Deal {
 
 export interface DealListProps {
     deals: Paginated<Deal>;
-    filters: { search: string; status: DealStatus | null; pipeline: string | null; stage: string | null; segment: string | null };
+    filters: { search: string; status: DealStatus | null; pipeline: string | null; stage: string | null; segment: string | null; view: 'list' | 'board' | null };
     segments: Option[];
     pipelines: Pipeline[];
     leads: Option[];
@@ -115,6 +115,7 @@ export interface DealListProps {
     companies: Option[];
     owners: OwnerOption[];
     canCreate: boolean;
+    boardDeals: Deal[] | null;
 }
 
 export interface LeadDealSummary {

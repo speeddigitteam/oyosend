@@ -56,7 +56,7 @@ final class AttendanceReport implements ReportProvider
         $days = $this->records->constrain(AttendanceDay::query(), $context->user, self::PERMISSION)
             ->when($context->string('department_id'), fn ($query, string $id) => $query->where('hrm_attendance_days.department_id', $id));
 
-        $page = $this->reports->attendanceByEmployee($days, $context->from, $context->to, $context->rowLimit + 1);
+        $page = $this->reports->attendanceByEmployee($days, $context->from, $context->to, $context->rowLimit + 1, page: 1);
 
         return new ReportResult(array_map(static fn (array $row): array => [
             'employee_number' => $row['employeeNumber'],

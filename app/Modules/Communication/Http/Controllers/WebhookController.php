@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Communication\Http\Controllers;
 
+use App\Modules\Communication\Actions\ChannelEventListenerFailed;
 use App\Modules\Communication\Actions\WebhookProcessor;
 use App\Modules\Communication\Channels\Contracts\VerifiesWebhookSubscription;
 use App\Modules\Communication\Channels\CredentialResolver;
@@ -36,7 +37,7 @@ final class WebhookController
 
         $connection = $adapter === null ? null : ChannelConnection::query()
             ->where('provider', $provider)->where('channel', $adapter->channel()->value)->where('is_enabled', true)->first();
-        $secret = $connection === null ? null : $this->credentials->resolve($connection->webhook_secret_ref);
+        $secret = $connection === null ? null : $this->credentials->webhookSecret($connection->webhook_secret_ref, $connection->provider);
 
         // Unknown, unconnected or without a secret: nothing to verify against, and nothing is disclosed.
         if ($adapter === null || $connection === null || $secret === null || ! $adapter->supportsWebhooks()) {
@@ -74,7 +75,12 @@ final class WebhookController
             return true;
         }));
 
-        $this->processor->process($adapter, $events);
+        try {
+            $this->processor->process($adapter, $events);
+        } catch (ChannelEventListenerFailed) {
+            // Nothing of the event was kept: the provider redelivers it, and it is applied afresh.
+            return response('Try again', 503)->header('Content-Type', 'text/plain')->header('Retry-After', '60');
+        }
 
         return response('OK', 200)->header('Content-Type', 'text/plain');
     }
@@ -89,7 +95,7 @@ final class WebhookController
 
         $connection = $adapter === null ? null : ChannelConnection::query()
             ->where('provider', $provider)->where('channel', $adapter->channel()->value)->where('is_enabled', true)->first();
-        $token = $connection === null ? null : $this->credentials->attribute($connection->webhook_secret_ref, 'verify_token');
+        $token = $connection === null ? null : $this->credentials->attribute($connection->webhook_secret_ref, 'verify_token', $connection->provider);
 
         if (! $adapter instanceof VerifiesWebhookSubscription || $token === null) {
             return response('Not found', 404)->header('Content-Type', 'text/plain');

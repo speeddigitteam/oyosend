@@ -26,6 +26,21 @@ final class PhoneNumber
         }
 
         $value = strtr($value, self::BENGALI_DIGITS);
+
+        // `(+880) 1711 000 001`: a bracketed country code. The plus then moves in front of the brackets.
+        $value = preg_replace('/^\(\s*\+\s*(\d+)\s*\)/', '+$1', $value) ?? $value;
+
+        // Digits, spaces, dashes, dots and brackets, with a plus only at the start. Letters (`ext 12`, `Tel:`)
+        // are refused: stripping them would glue an extension onto the number.
+        if (preg_match('/^\+?[0-9\s().\-]+$/u', $value) !== 1) {
+            return null;
+        }
+
+        // `+880 (0)1712345678`: the bracketed trunk zero after a country code is not part of the number.
+        if (str_starts_with($value, '+') || str_starts_with($value, '00')) {
+            $value = preg_replace('/\(\s*0\s*\)/', '', $value, 1) ?? $value;
+        }
+
         $international = str_starts_with($value, '+');
         $digits = preg_replace('/\D+/', '', $value) ?? '';
 

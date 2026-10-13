@@ -19,8 +19,10 @@ import reports from './reports';
 import organization from './organization';
 import platformAudit from './platformAudit';
 import platformBilling from './platformBilling';
+import platformMessaging from './platformMessaging';
 import platformPlans from './platformPlans';
 import platformSettings from './platformSettings';
+import platformAi from './platformAi';
 import platformWorkspaces from './platformWorkspaces';
 import register from './register';
 import workspace from './workspace';
@@ -80,4 +82,6 @@ export default {
     platformBilling,
     platformAudit,
     platformSettings,
+    platformAi,
+    platformMessaging,
 };

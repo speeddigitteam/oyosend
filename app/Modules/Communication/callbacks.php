@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Modules\Communication\Http\Controllers\UnsubscribeController;
 use App\Modules\Communication\Http\Controllers\WebhookController;
 use Illuminate\Support\Facades\Route;
 
@@ -27,10 +26,4 @@ Route::get('communication/webhooks/{provider}', [WebhookController::class, 'veri
     ->where('provider', '[a-z][a-z0-9_]{0,39}')
     ->name('communication.webhooks.verify');
 
-Route::get('communication/unsubscribe/{token}', [UnsubscribeController::class, 'show'])
-    ->where('token', '[A-Za-z0-9]{1,64}')
-    ->name('communication.unsubscribe.show');
-
-Route::post('communication/unsubscribe/{token}', [UnsubscribeController::class, 'store'])
-    ->where('token', '[A-Za-z0-9]{1,64}')
-    ->name('communication.unsubscribe.store');
+// The unsubscribe routes are in callbacks-unsubscribe.php: they must keep working when the app has lapsed.

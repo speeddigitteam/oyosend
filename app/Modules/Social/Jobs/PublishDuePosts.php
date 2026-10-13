@@ -24,6 +24,12 @@ final class PublishDuePosts implements RequiresTenantContext, ShouldBeEncrypted,
     /** The runner may re-run a failed job; a second pass is harmless because claims are atomic. */
     public int $tries = 2;
 
+    /** Seconds; equal to the Horizon supervisor's worker timeout for this queue. */
+    public int $timeout = 60;
+
+    /** @var list<int> Seconds between attempts. */
+    public array $backoff = [30, 120];
+
     public function __construct()
     {
         $this->onQueue('default');

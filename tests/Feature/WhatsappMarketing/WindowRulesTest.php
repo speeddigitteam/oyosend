@@ -116,9 +116,9 @@ it('never sends a marketing template without a recorded opt-in', function () {
     });
 });
 
-it('lets a utility template reach a customer who wrote to us without a marketing opt-in', function () {
+it('lets a utility template reach a customer whose service window is open without a marketing opt-in', function () {
     $template = $this->waTemplate($this->tenant, ['category' => 'utility', 'body' => 'Your request {{1}} was received.']);
-    $this->travel(30)->hours();
+    $this->travel(2)->hours();
 
     $this->actingAsMember($this->tenant, $this->user)
         ->post($this->waUrl($this->tenant, "/inbox/{$this->conversation->id}/templates"), [
@@ -127,6 +127,31 @@ it('lets a utility template reach a customer who wrote to us without a marketing
         ])->assertSessionHasNoErrors();
 
     Http::assertSentCount(1);
+
+    $this->inTenant($this->tenant, function (): void {
+        $outbox = OutboxMessage::query()->firstOrFail();
+
+        expect($outbox->purpose->value)->toBe('transactional')
+            ->and($outbox->meta['whatsapp_window_until'])->toBeString();
+    });
+});
+
+it('treats a utility template as marketing once the service window has closed', function () {
+    $template = $this->waTemplate($this->tenant, ['category' => 'utility', 'body' => 'Your request {{1}} was received.']);
+    $this->travel(30)->hours();
+
+    $this->actingAsMember($this->tenant, $this->user)
+        ->post($this->waUrl($this->tenant, "/inbox/{$this->conversation->id}/templates"), [
+            'template_id' => $template->id,
+            'variables' => ['#42'],
+        ]);
+
+    // Having written to us once is not consent to marketing: no opt-in, nothing sent.
+    Http::assertNothingSent();
+
+    $this->inTenant($this->tenant, function (): void {
+        expect(OutboxMessage::query()->firstOrFail()->purpose->value)->toBe('marketing');
+    });
 });
 
 it('treats a utility template to someone who never wrote to us as marketing', function () {

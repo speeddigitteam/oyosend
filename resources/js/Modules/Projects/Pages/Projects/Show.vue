@@ -131,7 +131,7 @@ function confirmPlanningCancellation(): void {
         <div class="grid min-w-0 content-start gap-3">
             <Card>
                 <div class="flex flex-wrap items-center justify-between gap-3"><div class="flex flex-wrap items-center gap-2"><ProjectStatusBadge :value="project.status" /><span class="text-sm text-ink-muted">{{ project.category?.name ?? t('projects.common.notSet') }}</span><ProjectStatusActions v-if="project.editable" :project-id="project.id" :status="project.status" /></div><ViewSwitcher v-model="view" /></div>
-                <div class="mt-5"><TaskBoard v-if="view === 'board'" :tasks="tasks" @select="select" /><TaskList v-else-if="view === 'list'" :tasks="tasks" :project-id="project.id" @select="select" /><TaskCalendar v-else-if="view === 'calendar'" :tasks="tasks" @select="select" /><TaskGantt v-else :tasks="tasks" @select="select" /></div>
+                <div class="mt-5"><TaskBoard v-if="view === 'board'" :tasks="tasks" :project-id="project.id" @select="select" /><TaskList v-else-if="view === 'list'" :tasks="tasks" :project-id="project.id" @select="select" /><TaskCalendar v-else-if="view === 'calendar'" :tasks="tasks" @select="select" /><TaskGantt v-else :tasks="tasks" @select="select" /></div>
             </Card>
         </div>
         <aside class="grid content-start gap-3">
@@ -169,7 +169,7 @@ function confirmPlanningCancellation(): void {
         <Card :title="t('projects.activity.title')" flush><template #actions><Activity class="size-4 text-ink-subtle" aria-hidden="true" /></template><EmptyState v-if="activity.length === 0" :title="t('projects.activity.empty')" compact /><ol v-else class="max-h-80 divide-y divide-line overflow-y-auto"><li v-for="entry in activity" :key="entry.id" class="px-5 py-3"><p class="text-sm text-ink">{{ activityLabel(entry) }}</p><p class="mt-1 text-xs text-ink-subtle">{{ format.date(entry.occurredAt, 'datetime') }}<template v-if="entry.actor"> · {{ t('projects.activity.by', { name: entry.actor }) }}</template></p></li></ol></Card>
     </div>
 
-    <div class="mt-3 grid gap-3 lg:grid-cols-2">
+    <div class="mt-3 grid items-start gap-3 lg:grid-cols-2">
         <ProjectTeamPanel :project-id="project.id" :members="members" :options="memberOptions" :can-manage="canManageMembers" />
         <Card :title="t('projects.attachments.title')"><template #actions><Paperclip class="size-4 text-ink-subtle" aria-hidden="true" /></template><AttachmentsPanel :project-id="project.id" :attachments="projectAttachments" :can-upload="Boolean(project.editable)" /></Card>
     </div>

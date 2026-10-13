@@ -23,7 +23,7 @@ Route::middleware(['auth:web', 'auth.session', 'member', 'subscribed'])->prefix(
     Route::post('workflows/{workflow}/archive', [WorkflowController::class, 'archive'])->middleware('can:automation.workflows.publish')->name('automation.workflows.archive');
     Route::post('workflows/{workflow}/duplicate', [WorkflowController::class, 'duplicate'])->middleware('can:automation.workflows.manage')->name('automation.workflows.duplicate');
     Route::post('workflows/{workflow}/versions/{version}/restore', [WorkflowController::class, 'restore'])->middleware('can:automation.workflows.manage')->name('automation.workflows.versions.restore');
-    Route::post('workflows/{workflow}/webhook/rotate', [WorkflowController::class, 'rotateWebhook'])->middleware('can:automation.webhooks.manage')->name('automation.workflows.webhook.rotate');
+    Route::post('workflows/{workflow}/webhook/rotate', [WorkflowController::class, 'rotateWebhook'])->middleware('can:automation.workflows.publish')->name('automation.workflows.webhook.rotate');
     Route::post('workflows/{workflow}/test', [WorkflowController::class, 'test'])->middleware(['can:automation.workflows.manage', 'throttle:30,1'])->name('automation.workflows.test');
     Route::post('workflows/{workflow}/run', [WorkflowController::class, 'run'])->middleware(['can:automation.runs.start', 'throttle:60,1'])->name('automation.workflows.run');
 

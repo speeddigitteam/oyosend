@@ -84,6 +84,11 @@ final class ApprovalManager
             return 'closed';
         }
 
+        // Past its deadline a decision is no longer accepted, even before the sweeper marks it expired.
+        if ($approval->expires_at !== null && $approval->expires_at->isPast()) {
+            return 'expired';
+        }
+
         if ($member->status !== MembershipStatus::Active) {
             return 'inactive';
         }
@@ -108,14 +113,43 @@ final class ApprovalManager
     }
 
     /**
+     * Whether the approval concerns this member: it is addressed to them (by id, or by a permission they
+     * hold), they asked for it, or they decided it. Decides who sees it in the inbox history.
+     */
+    public function involves(Approval $approval, TenantMembership $member): bool
+    {
+        if ($approval->requested_by_membership_id === $member->id || $approval->decided_by_membership_id === $member->id) {
+            return true;
+        }
+
+        if ($approval->approver_type === 'membership') {
+            return $approval->approver_membership_id === $member->id;
+        }
+
+        $permission = (string) $approval->approver_permission;
+
+        return $permission !== '' && $this->access->allows($member->user, $permission);
+    }
+
+    /**
      * @throws ValidationException
      */
     public function decide(Approval $approval, TenantMembership $member, bool $approve, ?string $comment): Approval
     {
-        $decided = DB::transaction(function () use ($approval, $member, $approve, $comment): Approval {
+        $expired = false;
+
+        $decided = DB::transaction(function () use ($approval, $member, $approve, $comment, &$expired): Approval {
             $fresh = Approval::query()->lockForUpdate()->findOrFail($approval->id);
 
             $refusal = $this->refusal($fresh, $member);
+
+            if ($refusal === 'expired') {
+                // Close it now (the same transition the sweeper makes) so the run resolves by its timeout rule.
+                $fresh->forceFill(['status' => ApprovalStatus::Expired, 'decided_at' => Carbon::now()])->save();
+                $expired = true;
+
+                return $fresh;
+            }
 
             if ($refusal !== null) {
                 throw ValidationException::withMessages(['approval' => match ($refusal) {
@@ -148,6 +182,10 @@ final class ApprovalManager
         });
 
         $this->starter->queue($decided->run_id);
+
+        if ($expired) {
+            throw ValidationException::withMessages(['approval' => __('This approval has expired.')]);
+        }
 
         return $decided;
     }

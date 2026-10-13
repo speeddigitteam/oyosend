@@ -6,6 +6,7 @@ namespace App\Modules\Ai\Http\Controllers;
 
 use App\Core\Ai\Contracts\AiTool;
 use App\Core\Ai\Contracts\ProposalTool;
+use App\Core\Ai\ToolContext;
 use App\Core\Identity\Models\TenantMembership;
 use App\Core\Support\Toast;
 use App\Modules\Ai\Actions\AiAvailability;
@@ -99,10 +100,11 @@ final class AssistantController
                 'outputTokens' => $message->output_tokens,
                 'createdAt' => $message->created_at?->toIso8601String(),
             ])->all(),
-            'proposals' => $proposals->map(static fn (Proposal $proposal): array => [
+            'proposals' => $proposals->map(fn (Proposal $proposal): array => [
                 'id' => $proposal->id,
                 'tool' => $proposal->tool,
                 'summary' => $proposal->summary,
+                'changes' => $this->changes($proposal, $context),
                 'status' => $proposal->status->value,
                 'pending' => $proposal->status === ProposalStatus::Pending && $proposal->expires_at->isFuture(),
                 'expiresAt' => $proposal->expires_at->toIso8601String(),
@@ -111,6 +113,22 @@ final class AssistantController
             'availability' => $this->availability->describe(),
             'canConfirm' => $context->user->can('ai.proposals.confirm'),
         ]);
+    }
+
+    /**
+     * What a pending proposal would write, shown on its card. Decided proposals show none.
+     *
+     * @return list<array{field: string, old: string|null, new: string|null}>
+     */
+    private function changes(Proposal $proposal, ToolContext $context): array
+    {
+        if ($proposal->status !== ProposalStatus::Pending || ! $proposal->expires_at->isFuture()) {
+            return [];
+        }
+
+        $tool = $this->tools->findProposalTool($proposal->tool, $context->user);
+
+        return $tool === null ? [] : $tool->changes($context, $proposal->payload);
     }
 
     public function message(MessageRequest $request, string $conversation): RedirectResponse

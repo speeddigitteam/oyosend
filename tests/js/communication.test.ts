@@ -290,7 +290,7 @@ describe('communication locale', () => {
 
         for (const source of [en.catalogue, bn.catalogue] as unknown as { modules: Record<string, string>; permissions: Record<string, unknown>; limits: Record<string, unknown> }[]) {
             expect(source.modules.communication).toBeTruthy();
-            expect(Object.keys(source.permissions).filter((key) => key.startsWith('communication.'))).toHaveLength(11);
+            expect(Object.keys(source.permissions).filter((key) => key.startsWith('communication.'))).toHaveLength(12);
             expect(source.limits['communication.messages']).toBeTruthy();
         }
     });
@@ -468,6 +468,7 @@ describe('message pages', () => {
                     contacts: [{ id: 'c1', name: 'Rahim Uddin', email: 'rahim@example.com', phone: null }],
                     channels,
                     purposes: ['transactional', 'marketing'],
+                    canChoosePurpose: true,
                     templates: [],
                     contactId: 'c1',
                 },
@@ -489,6 +490,7 @@ describe('message pages', () => {
                     contacts: [{ id: 'c1', name: 'Rahim Uddin', email: 'rahim@example.com', phone: null }],
                     channels,
                     purposes: ['transactional', 'marketing'],
+                    canChoosePurpose: true,
                     templates: [{ id: 't1', name: 'Invoice sent', channel: 'email', locale: 'en', purpose: 'transactional', subject: 'Invoice' }],
                     contactId: 'c1',
                 },
@@ -502,6 +504,30 @@ describe('message pages', () => {
         expect(inertia.submissions[0]).toMatchObject({ method: 'post', url: '/communication.messages.store' });
         expect(inertia.submissions[0]!.data).toMatchObject({ contact_id: 'c1', channel: 'email', purpose: 'transactional', template_id: null, subject: 'Hello', body: 'Your invoice is ready.' });
         expect(String(inertia.submissions[0]!.data.request_id)).toMatch(/^[A-Za-z0-9_-]+$/);
+    });
+
+    it('hides the purpose control and sends no purpose without the transactional permission', async () => {
+        const wrapper = track(
+            mount(MessagesCompose, {
+                props: {
+                    contacts: [{ id: 'c1', name: 'Rahim Uddin', email: 'rahim@example.com', phone: null }],
+                    channels,
+                    purposes: ['marketing'],
+                    canChoosePurpose: false,
+                    templates: [],
+                    contactId: 'c1',
+                },
+            }),
+        );
+
+        expect(wrapper.find('[data-testid="purpose-fixed"]').exists()).toBe(true);
+        expect(wrapper.findAll('select')).toHaveLength(2);
+
+        await wrapper.get('input[type="text"]').setValue('Hello');
+        await wrapper.get('textarea').setValue('Hi there');
+        await wrapper.get('form').trigger('submit');
+
+        expect(inertia.submissions[0]!.data).toMatchObject({ purpose: null, body: 'Hi there' });
     });
 });
 

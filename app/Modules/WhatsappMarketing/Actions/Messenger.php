@@ -37,8 +37,10 @@ use Illuminate\Validation\ValidationException;
  *  - a free-form reply needs a running 24-hour customer-service window (enforced here, again by the adapter at
  *    send time through `whatsapp_window_until`, and by Meta);
  *  - outside the window only an APPROVED template is sent;
- *  - a marketing template always needs a recorded opt-in; a utility template may go to a customer who has
- *    written to us before, because that customer started the relationship.
+ *  - a campaign message is ALWAYS marketing: a tenant-chosen "utility" label never exempts a bulk send from
+ *    consent, suppression or quiet hours. A one-to-one template an agent sends is transactional only for a
+ *    non-marketing template while the customer's own 24-hour window is open (the customer just wrote to us);
+ *    otherwise it needs a recorded opt-in like any marketing message.
  */
 final class Messenger
 {
@@ -126,8 +128,12 @@ final class Messenger
         $parameters = array_map(static fn (string $value): string => Text::clean($value, 1024, false), $parameters);
         $body = Text::clean(TemplateParameters::render($template->body_text, $parameters), self::MAX_TEXT);
 
-        // Marketing templates, and anything sent to someone who never wrote to us, need an opt-in.
-        $purpose = $template->category === TemplateCategory::Marketing || $conversation->last_inbound_at === null
+        // Campaigns, marketing templates and anything sent outside a running service window need an opt-in.
+        $until = $this->windows->serviceWindowUntil($conversation);
+        $bulk = $campaign !== null || $recipient !== null || $by === SenderType::Campaign;
+        $purpose = $bulk
+            || $template->category === TemplateCategory::Marketing
+            || $until === null
             ? MessagingPurpose::Marketing
             : MessagingPurpose::Transactional;
 
@@ -143,6 +149,8 @@ final class Messenger
                 'whatsapp_template' => $template->name,
                 'whatsapp_language' => $template->language,
                 'whatsapp_params' => (string) json_encode($parameters, JSON_UNESCAPED_UNICODE),
+                // The platform honours "transactional" only against an open window: it is named here.
+                ...($purpose === MessagingPurpose::Transactional ? ['whatsapp_window_until' => $until->toIso8601String()] : []),
             ],
             template: $template,
             campaign: $campaign,

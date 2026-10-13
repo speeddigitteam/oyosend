@@ -6,6 +6,7 @@ namespace App\Modules\Automation\Http\Controllers;
 
 use App\Core\Support\Toast;
 use App\Modules\Automation\Actions\RunManager;
+use App\Modules\Automation\Engine\ApprovalManager;
 use App\Modules\Automation\Enums\RunMode;
 use App\Modules\Automation\Enums\RunSource;
 use App\Modules\Automation\Enums\RunStatus;
@@ -25,7 +26,11 @@ use Inertia\Response;
 /** Run history with per-step logs, cancel and retry. */
 final class RunController
 {
-    public function __construct(private readonly Actor $actor, private readonly RunManager $runs) {}
+    public function __construct(
+        private readonly Actor $actor,
+        private readonly RunManager $runs,
+        private readonly ApprovalManager $approvals,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -69,7 +74,13 @@ final class RunController
         $workflow = Workflow::query()->find($run->workflow_id);
         $graph = Graph::parse($run->graph ?? WorkflowVersion::query()->findOrFail($run->version_id)->graph)[0];
         $steps = $run->steps()->orderBy('sequence')->orderBy('id')->get();
-        $approvals = Approval::query()->where('run_id', $run->id)->orderBy('created_at')->get();
+        // Step input/output/logs and the trigger payload can hold data from modules the viewer may not
+        // open; only run managers see them. Everyone with `runs.view` keeps status, timing and errors.
+        $detail = $this->actor->can($request, Permissions::RUNS_MANAGE);
+        $membership = $this->actor->membership($request);
+        $approvals = Approval::query()->where('run_id', $run->id)->orderBy('created_at')->get()
+            ->filter(fn (Approval $approval): bool => $detail || $this->approvals->involves($approval, $membership))
+            ->values();
         $names = Presenter::names([
             $run->started_by_membership_id,
             ...$approvals->pluck('approver_membership_id')->all(),
@@ -79,8 +90,9 @@ final class RunController
 
         return Inertia::render('Modules/Automation/Pages/Runs/Show', [
             'run' => Presenter::run($run, $names, $workflow?->name),
-            'payload' => Presenter::payload($run),
-            'steps' => Presenter::steps($steps, $graph),
+            'payload' => $detail ? Presenter::payload($run) : [],
+            'detailHidden' => ! $detail,
+            'steps' => Presenter::steps($steps, $graph, $detail),
             'approvals' => $approvals->map(static fn (Approval $approval): array => Presenter::approval($approval, $names))->values()->all(),
             // The exact graph the run executed, for overlaying step statuses on the canvas.
             'graph' => $graph->toArray(),

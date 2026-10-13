@@ -4,7 +4,7 @@ A multi-tenant business SaaS platform: one workspace per company on its own subd
 CRM, invoicing, marketing, support, automation) added through a built-in App Store. The full product
 specification is [`MASTER_PROMPT.md`](MASTER_PROMPT.md).
 
-**Current state: Phases 1–8 are complete. Phase 9 Marketing Apps and the Automation, AI, Support and Reports modules are built but not yet independently reviewed; Phase 13 hardening has not started.** What exists:
+**Current state: Phases 1–8 are complete. The Phase 9 marketing apps (Email, SMS, WhatsApp, Social) and the Automation, AI, Support and Reports apps are built and pass the automated checks but have had no independent review or live-provider test. Phase 13 production hardening has begun (health probes, queue and index audits, backup verification, a benchmark tool) and is not finished.** What exists:
 
 - **Foundation (Phase 1):** subdomain tenancy with fail-closed isolation, sign-in with two-factor authentication,
   memberships and invitations, tenant-scoped roles and permissions, an audit trail, the module / entitlement /
@@ -24,8 +24,23 @@ specification is [`MASTER_PROMPT.md`](MASTER_PROMPT.md).
   projections; milestones, sprints, dependencies, collaboration and client access; integer-money budgets and
   expenses; timesheets, workload, approvals, reporting and retry-safe automation actions.
 
-CRM and Projects are the compiled production business apps. `migrate --seed` synchronizes their catalogue entries
-(as well as permissions), and deployments run `apps:sync --prune` explicitly. The store test
+- **Invoicing, HR Management, Payroll and Talent (Phases 6 and 7):** customer invoices, payments, credit notes and
+  recurring billing; employees, attendance and leave; payroll runs with four-eyes approval and immutable payslips;
+  recruitment, onboarding, performance and training. HR apps share read contracts and never import each other's models.
+- **Communication platform (Phase 8):** a per-member notification centre, a message outbox with consent, suppression,
+  quiet hours and rate limits, templates, an interaction timeline and signed provider webhooks. Providers: the
+  platform mailer, SMTP, Twilio, a generic HTTP SMS gateway and the WhatsApp Cloud API, configured by environment
+  references or by operator provider accounts typed into the Super Admin panel (encrypted, write-only; ADR 0013).
+- **Marketing and engagement apps (Phase 9):** Email Marketing, SMS Marketing and WhatsApp Business send only through
+  core Communication contracts; Social Media schedules and publishes to Facebook Pages, LinkedIn and X behind an
+  approval workflow. No provider adapter has been run against its live service.
+- **Workflow Automation, AI Assistant, Customer Support and Reports (Phases 10 to 12):** versioned JSON workflows with a
+  visual editor that run as the member who published them; a paid assistant whose changes are proposals a person
+  confirms; tickets, SLAs and a knowledge base; and a Reports app that runs the reports every other app publishes.
+
+The 16 registered modules and their 251 permissions are tabulated in [`docs/MODULES.md`](docs/MODULES.md). CRM,
+Projects, Invoicing, HRM, Payroll and Talent are the production business apps. `migrate --seed` synchronizes catalogue
+entries (as well as permissions), and deployments run `apps:sync --prune` explicitly. The store test
 suite retains a deliberately separate `test_crm` fixture. One payment gateway (SSLCommerz) is implemented
 but has not been run against the provider's sandbox; until credentials are set, invoices are paid by recording
 an offline payment in the Super Admin panel. See [`docs/BILLING.md`](docs/BILLING.md).
@@ -157,6 +172,8 @@ are then created in the panel; workspaces can also sign up on the central site.
 | `php artisan platform:create-admin {email} [--name=] [--role=]` | Create a Super Admin panel account (`super_admin` or `support_admin`). Interactive; the password is asked for |
 | `php artisan billing:run [--tenant=slug]` | Advance base and app billing: invoices, overdue, expiry and cancellation. Scheduled hourly; safe to run by hand |
 | `php artisan apps:run-scheduled` | Dispatch due manifest jobs for entitled tenants; scheduled every minute |
+| `php artisan ops:verify-backup {dump}` | Restore a mysqldump into a scratch `*_restore_check` database, check the core tables, drop it (`docs/BACKUP_RESTORE.md`) |
+| `php artisan ops:benchmark` | Seed synthetic rows into a `*_testing` database and time key list queries with `EXPLAIN` (`docs/PERFORMANCE.md`) |
 
 Never run `migrate:fresh` or any destructive database command against anything but the disposable test database.
 
@@ -178,5 +195,11 @@ CI is `.github/workflows/ci.yml` (Pint, Larastan, Pest, vue-tsc, Vitest, build).
 | [`docs/BILLING.md`](docs/BILLING.md) | Plans, subscriptions, invoices, payments, gateways, limits |
 | [`docs/APP_STORE.md`](docs/APP_STORE.md) | Catalogue sync, licences, lifecycle, separate app billing and entitlement gates |
 | [`docs/CRM.md`](docs/CRM.md) / [`docs/PROJECTS.md`](docs/PROJECTS.md) | Production business-module workflows and boundaries |
-| `docs/AUTOMATION.md`, `docs/INTEGRATIONS.md` | What exists today for each, and what is planned |
-| [`docs/adr/`](docs/adr) | Decisions: tenancy, RBAC, identity/sessions, local environment, design system, billing, scopes, sign-up/support access and the first-party App Store |
+| [`docs/INDEX.md`](docs/INDEX.md) | Every document and ADR, by topic |
+| [`docs/AUTOMATION.md`](docs/AUTOMATION.md), [`docs/WORKFLOWS.md`](docs/WORKFLOWS.md) | Trigger/action contracts and the workflow engine |
+| [`docs/COMMUNICATION.md`](docs/COMMUNICATION.md), [`docs/EMAIL_MARKETING.md`](docs/EMAIL_MARKETING.md), [`docs/SMS_MARKETING.md`](docs/SMS_MARKETING.md), [`docs/WHATSAPP.md`](docs/WHATSAPP.md), [`docs/SOCIAL.md`](docs/SOCIAL.md) | Messaging platform, marketing apps and social publishing |
+| [`docs/AI.md`](docs/AI.md), [`docs/SUPPORT.md`](docs/SUPPORT.md), [`docs/REPORTS.md`](docs/REPORTS.md) | AI Assistant, Customer Support, Reports & Analytics |
+| [`docs/HRM.md`](docs/HRM.md), [`docs/PAYROLL.md`](docs/PAYROLL.md), [`docs/TALENT.md`](docs/TALENT.md), [`docs/INVOICING.md`](docs/INVOICING.md) | HR, payroll, talent and invoicing apps |
+| [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md) | Outside services and integration rules |
+| [`docs/BACKUP_RESTORE.md`](docs/BACKUP_RESTORE.md), [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md) | Backup verification and the benchmark baseline |
+| [`docs/adr/`](docs/adr) | Decisions (0001 to 0019): tenancy, RBAC, identity/sessions, local environment, design system, billing, scopes, sign-up/support access, the App Store, domain boundaries, the workflow editor, provider accounts, marketing contracts, reporting, account claims, workflow authority, AI and operator tooling |

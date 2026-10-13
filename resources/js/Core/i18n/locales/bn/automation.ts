@@ -609,6 +609,7 @@ const automation: MessageSchema['automation'] = {
             resumeAt: 'চলবে {when}',
             payload: 'যে ডেটা দিয়ে রান শুরু হয়েছিল',
             payloadEmpty: 'কোনো ডেটা নেই।',
+            detailHidden: 'ধাপের ডেটা ও ট্রিগারের পেলোড শুধু যাঁরা রান পরিচালনা করেন তাঁদের দেখানো হয়।',
             stepsTitle: 'ধাপ',
             noSteps: 'এখনো কোনো ধাপ চলেনি।',
             graph: 'যে পথে চলেছে',

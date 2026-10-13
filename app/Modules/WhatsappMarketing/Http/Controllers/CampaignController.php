@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Modules\WhatsappMarketing\Http\Controllers;
 
 use App\Core\Access\RecordAccess;
+use App\Core\Contacts\Http\Controllers\ContactController;
+use App\Core\Contacts\Models\Contact;
 use App\Core\Support\Toast;
 use App\Core\Tenancy\TenantContext;
 use App\Modules\WhatsappMarketing\Actions\CampaignManager;
@@ -110,9 +112,15 @@ final class CampaignController
             ->toBase()->selectRaw('reason, count(*) as total')->groupBy('reason')->pluck('total', 'reason')
             ->map(static fn (mixed $count): int => (int) $count)->all();
 
+        // A recipient list is a list of people: each one only for someone who may see that contact. The counts
+        // above are aggregates; the rows and the hidden count follow the viewer's contact scope.
+        $visible = $this->records->constrain(Contact::query(), $actor, ContactController::VIEW)->select('id');
+        $hidden = max(0, array_sum($states) - Recipient::query()->where('campaign_id', $campaign->id)->whereIn('contact_id', $visible)->count());
+
         $filter = $request->query('state');
         $recipients = Recipient::query()
             ->where('campaign_id', $campaign->id)
+            ->whereIn('contact_id', $visible)
             ->with('contact:id,first_name,last_name,phone')
             ->when(is_string($filter) && RecipientState::tryFrom($filter) !== null, fn ($query) => $query->where('state', $filter))
             ->orderBy('id')
@@ -150,6 +158,7 @@ final class CampaignController
             ],
             'reasons' => $reasons,
             'recipients' => $recipients,
+            'hiddenRecipients' => $hidden,
             'stateFilter' => is_string($filter) ? $filter : null,
             'channel' => $this->channel->describe(),
             'can' => [

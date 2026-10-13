@@ -42,8 +42,9 @@ test.describe('Payroll', () => {
         // A first band that does not start at zero cannot be saved.
         await expect(dialog.getByRole('button', { name: 'Create rule set', exact: true })).toBeDisabled();
         await dialog.getByLabel('Name').fill('Example rule');
-        await dialog.getByLabel('Code').fill('EXAMPLE');
-        await dialog.getByRole('textbox', { name: 'From' }).first().fill('10');
+        await dialog.getByLabel('Code', { exact: true }).fill('EXAMPLE');
+        await dialog.getByTestId('slab-0').getByLabel('From').fill('10');
+        await dialog.getByTestId('slab-0').getByLabel('Rate').fill('5');
         await expect(dialog.getByTestId('slab-problem')).toContainText('must start at 0');
 
         noErrors();

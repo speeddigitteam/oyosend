@@ -9,15 +9,18 @@ use App\Modules\WhatsappMarketing\Support\Phone;
 use App\Modules\WhatsappMarketing\Support\Text;
 use Illuminate\Validation\ValidationException;
 
-it('only accepts numbers with a country code as WhatsApp numbers', function (?string $raw, ?string $expected) {
+it('reads a WhatsApp number in the one canonical form and guesses nothing else', function (?string $raw, ?string $expected) {
     expect(Phone::e164($raw))->toBe($expected);
 })->with([
     ['+8801711000001', '+8801711000001'],
     ['+880 1711-000001', '+8801711000001'],
     ['008801711000001', '+8801711000001'],
     ['(+880) 1711 000 001', '+8801711000001'],
-    ['01711000001', null],
-    ['1711000001', null],
+    ['01711000001', '+8801711000001'],
+    ['1711000001', '+8801711000001'],
+    ['8801711000001', '+8801711000001'],
+    ['0212345678', null],
+    ['4155550100', null],
     ['+0123456789', null],
     ['+12345', null],
     ['+1234567890123456', null],

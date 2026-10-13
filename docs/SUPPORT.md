@@ -36,6 +36,9 @@ immutable; they only move between tickets through merge and split.
 
 - A public reply is the **first response** (`first_responded_at`). An internal note is not.
 - A customer reply on a waiting, resolved or closed ticket re-opens it and resumes the SLA clocks.
+- An agent can log a customer reply (`kind=customer_reply`, for a phone call or a forwarded email). On a resolved or
+  closed ticket that reopens it, so it needs `support.tickets.resolve` like any reopen. The message is shown as the
+  customer's; the history entry carries the logging agent as `actor_id` and `logged_by`.
 - A public reply on a closed ticket is refused ("reopen first"); an internal note is allowed.
 - A reply can carry a status in the same step (`status` on the message request): reply and resolve atomically.
 
@@ -60,8 +63,14 @@ sent to a page. A download goes through `support.tickets.attachments.download`: 
 
 - **Agents** (`support_agents`): a member enrolled to work tickets, with `is_active`, `is_available` and an optional
   `max_open_tickets`. Active agents count against the plan's `support.agents` limit (gauge).
+  Enrolling or changing agents (`POST agents`, `PUT agents/{agent}`) also needs `support.tickets.assign` at scope
+  `all`: an enrolled agent reaches the unassigned tickets of their queues with any scope, so the right is not
+  something a narrower holder may hand out (to others or to themselves).
 - **Queues** (`support_queues` + `support_queue_agents`): a team inbox with `assignment_mode` `manual` or
-  `round_robin`, an optional department, an optional SLA policy.
+  `round_robin`, an optional department, an optional SLA policy. The queue form's `agent_ids` enrols or removes
+  queue agents, which widens (or narrows) who reaches the queue's unassigned tickets: when the submitted set differs
+  from the stored one (`POST queues`, `PUT queues/{queue}`) it needs `support.tickets.assign` at scope `all`, like
+  the agent endpoints. An unchanged or omitted set passes, so a narrower manager can still edit the other fields.
 - **Round robin**: the queue row is locked, eligible agents (active, available, active membership, under their
   capacity) are taken in id order after the last agent chosen (`last_assigned_agent_id`), then wrapping. If nobody
   is eligible the ticket stays unassigned in its queue.
@@ -95,12 +104,12 @@ UTC timestamps; daylight-saving days are honoured because each local day's windo
 | Event | Effect |
 |---|---|
 | Create | Due instants computed from the creation time |
-| Waiting on customer | Remaining working minutes stored, `sla_paused_at` set; breach detection skips the ticket |
+| Waiting on customer | Only once the ticket has had its first response (`first_responded_at`): remaining working minutes stored, `sla_paused_at` set; breach detection skips the ticket. On a ticket nobody has answered yet nothing pauses, so the first-response clock keeps running; the first reply pauses it if the ticket is already waiting |
 | Back to open / customer reply | Due instants recomputed from "now" with the stored remaining minutes |
 | Resolved or closed while paused | Resumed first, so the ticket is judged on the time it had left |
 | Priority change | Unmet clocks are re-targeted; time already used stays used |
 | Queue change to another policy | Unmet clocks restart under the new policy from the ticket's creation |
-| Reopen | A fresh resolution target counted from the reopen time; `resolution_breached_at` is cleared |
+| Reopen | A fresh resolution target counted from the reopen time; `resolution_breached_at` (the current cycle) is cleared, but a miss of the cycle that ended is kept in `resolution_first_breached_at` (stamped by the monitor, or derived from a resolution after its due instant) and reports judge resolution attainment on that first cycle |
 
 **Breach detection**: scheduled job `support.sla` (every minute, entitled workspaces only, queue `automation`) runs
 `SlaMonitor`. Each target of a ticket is stamped (`first_response_breached_at`, `resolution_breached_at`) and
@@ -122,8 +131,11 @@ there is no expression language and no recursion, so a value containing `{{ ... 
 
 - Requested when a ticket is resolved (or closed straight from an active status) if `csat_enabled`, or by an
   agent (`support.tickets.survey`). A new request supersedes an older pending one.
-- The token is 256 random bits, shown once to the requesting agent (the `surveyInvitation` flash: `ticketId`,
-  `url`) and emailed to the requester when `csat_send_email` is on and an address is known. The queued mailable is
+- An agent's request is limited to one new survey per ticket per 10 minutes (the survey created by resolving counts)
+  and is audited as `support.csat.forced`.
+- The token is 256 random bits, emailed to the requester when `csat_send_email` is on and an address is known. Only
+  when no email carries it (`csat_send_email` off, or no address) is it shown once to the requesting agent (the
+  `surveyInvitation` flash: `ticketId`, `url`); an emailed link is never flashed, so an agent cannot answer for the customer. The queued mailable is
   encrypted (`ShouldBeEncrypted`) and queued after commit. **Only the SHA-256 is stored**
   (`support_csat_surveys.token_hash`), never logged, audited or put in an event.
 - Public, stateless routes: `GET /support-survey/{token}` (`support.csat.show`) and `POST /support-survey/{token}`
@@ -131,7 +143,8 @@ there is no expression language and no recursion, so a value containing `{{ ... 
   i.e. the `tenant.callback` group like Communication's unsubscribe page: tenant from the host, `entitled:support`
   and `throttle:60,1`, **no session, no cookies, no CSRF token, no Inertia**. The page is the server-rendered Blade
   view `resources/views/support/survey.blade.php` in the workspace language; a failed validation re-renders it
-  with status 422. The token must be 64 lowercase hex characters; malformed, unknown, answered, superseded and
+  with status 422. Every response (GET, POST, 404) sends `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`
+  and `Cache-Control: no-store, private`. The token must be 64 lowercase hex characters; malformed, unknown, answered, superseded and
   expired are the same 404 page. Because the group has no `subscribed` paywall, a link keeps working for a
   workspace whose subscription lapsed.
 - **Single use**: answering locks the row, then a conditional `UPDATE ... WHERE status = 'pending'` flips it to
@@ -153,7 +166,7 @@ for `support.kb.manage`; publishing, unpublishing and archiving need `support.kb
 ## 8. Merge and split
 
 - **Merge** (`support.tickets.merge`): moves every message and attachment and the tags of the source onto the
-  target, adopts the source's first response and requester fields where the target has none, expires the source's
+  target, adopts the source's requester fields where the target has none and its first response only when the requesters match (shared contact, company or email) and it is the earlier one, expires the source's
   pending surveys, repoints earlier merges (no chains) and marks the source `merged` with `merged_into_id`. Refused:
   merging a ticket into itself, either ticket already merged, a target that is resolved or closed (reopen it first),
   and two tickets with no common contact, company or requester email unless `confirm` is sent. Both tickets get a
@@ -168,7 +181,16 @@ for `support.kb.manage`; publishing, unpublishing and archiving need `support.kb
 and resolved per local day), backlog (by status, priority, queue; unassigned; aging buckets), SLA attainment
 (met / missed / pending, rate in basis points), first-response and resolution times (average and median, whole
 minutes of wall-clock time) and CSAT (requested, responses, response rate, average in hundredths, satisfied share,
-distribution). Ranges are local dates in the workspace timezone, at most 366 days. Merged tickets are excluded.
+distribution). Resolution attainment is judged on the first resolution cycle (a reopened ticket that missed its
+target stays missed). Callers that need one figure pass `sections` (`volume`, `backlog`, `sla`, `times`, `csat`); the
+report providers do, so each scans only what it shows. Ranges are local dates in the workspace timezone, at most 366 days. Merged tickets are excluded.
+
+Every figure is computed in SQL on the tenant-scoped ticket query, and no ticket is hydrated: GROUP BY for volume (15-minute UTC
+buckets mapped to local days in PHP, so daylight saving and half-hour zones stay exact), backlog (status, priority, queue,
+owner IS NULL, aging band) and CSAT ratings; conditional SUM/COUNT for SLA outcomes, counts and averages; medians read
+the one or two middle rows of an ordered, bounded (LIMIT/OFFSET) query. `tests/Feature/SupportDesk/SupportReportsAggregateTest.php`
+compares it with a per-ticket reference over a few hundred generated tickets in three timezones. Measured with
+`php artisan ops:benchmark --tickets=6000`: about 4.9 s before, about 0.26 s after, identical output.
 
 ## 10. Plan limits, events, automation
 

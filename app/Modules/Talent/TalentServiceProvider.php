@@ -154,7 +154,7 @@ final class TalentServiceProvider extends ModuleServiceProvider
             ],
             widgets: [
                 new WidgetDefinition('talent.self', 'TalentSelfWidget', TalentSelfWidget::class, 'talent.self.view', span: 4, order: 17),
-                new WidgetDefinition('talent.overview', 'TalentOverviewWidget', TalentOverviewWidget::class, 'talent.analytics.view', span: 6, order: 18),
+                new WidgetDefinition('talent.overview', 'TalentOverviewWidget', TalentOverviewWidget::class, 'talent.analytics.view', span: 8, order: 18),
             ],
             triggers: [
                 CandidateHiredTrigger::class,

@@ -6,6 +6,7 @@ namespace App\Modules\EmailMarketing\Jobs;
 
 use App\Core\Tenancy\Contracts\RequiresTenantContext;
 use App\Modules\EmailMarketing\Actions\CampaignRunner;
+use App\Modules\EmailMarketing\Actions\PublicSignup;
 use App\Modules\EmailMarketing\Actions\SequenceRunner;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeEncrypted;
@@ -27,13 +28,20 @@ final class RunEmailMarketing implements RequiresTenantContext, ShouldBeEncrypte
 
     public int $tries = 2;
 
+    /** Seconds; equal to the Horizon supervisor's worker timeout for this queue. */
+    public int $timeout = 300;
+
+    /** @var list<int> Seconds between attempts. */
+    public array $backoff = [30, 120];
+
     public function __construct()
     {
         $this->onQueue('campaigns');
     }
 
-    public function handle(CampaignRunner $campaigns, SequenceRunner $sequences): void
+    public function handle(CampaignRunner $campaigns, SequenceRunner $sequences, PublicSignup $signups): void
     {
+        $signups->prune();
         $handed = $campaigns->run();
         $sequences->run($campaigns->leftover($handed));
     }

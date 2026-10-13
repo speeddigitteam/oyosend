@@ -136,6 +136,7 @@ const DECLARED_BY_COMMUNICATION = [
     'communication.audience.view',
     'communication.consent.manage',
     'communication.messages.send',
+    'communication.messages.send_transactional',
     'communication.messages.view',
     'communication.notifications.view',
     'communication.settings.manage',

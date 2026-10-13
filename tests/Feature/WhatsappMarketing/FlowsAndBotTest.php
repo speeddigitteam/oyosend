@@ -2,10 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Modules\Communication\Models\Consent;
+use App\Modules\Communication\Models\Suppression;
 use App\Modules\WhatsappMarketing\Actions\ConversationManager;
 use App\Modules\WhatsappMarketing\Actions\FlowManager;
+use App\Modules\WhatsappMarketing\Actions\Messenger;
 use App\Modules\WhatsappMarketing\Actions\SettingsManager;
 use App\Modules\WhatsappMarketing\Enums\FlowTrigger;
+use App\Modules\WhatsappMarketing\Enums\SenderType;
 use App\Modules\WhatsappMarketing\Models\Conversation;
 use App\Modules\WhatsappMarketing\Models\Flow;
 use App\Modules\WhatsappMarketing\Models\Message;
@@ -141,14 +145,59 @@ it('does not answer in a conversation that is assigned to a person', function ()
     expect(($this->botReplies)())->toBe(0);
 });
 
-it('answers STOP with an unsubscribe link even when no flow exists', function () {
+it('records an opt-out at once on STOP, even when no flow exists, and confirms it once', function () {
+    $this->waOptIn($this->tenant, $this->contact);
+
+    ($this->say)('STOP');
+    ($this->say)('stop');
     ($this->say)('STOP');
 
     $this->inTenant($this->tenant, function (): void {
-        $reply = Message::query()->where('sender_type', 'bot')->firstOrFail();
+        $replies = Message::query()->where('sender_type', 'bot')->get();
+        $consent = Consent::query()->where('contact_id', $this->contact->id)->where('channel', 'whatsapp')->firstOrFail();
 
-        expect($reply->body)->toContain('/communication/unsubscribe/');
+        expect($replies)->toHaveCount(1)
+            ->and($replies->first()->body)->toContain('You have been unsubscribed')
+            ->and($consent->status->value)->toBe('opted_out')
+            ->and($consent->method)->toBe('keyword')
+            ->and(Suppression::query()->where('address', '+8801711000001')->where('scope', 'marketing')->exists())->toBeTrue();
     });
+});
+
+it('stops a campaign for a contact who sent STOP after the audience was decided', function () {
+    $this->waOptIn($this->tenant, $this->contact);
+    $template = $this->waTemplate($this->tenant, ['name' => 'late_offer']);
+    $conversation = $this->waConversation($this->tenant, $this->contact);
+
+    ($this->say)('UNSUBSCRIBE');
+    Http::fake();
+
+    $outcome = $this->inTenant($this->tenant, fn () => app(Messenger::class)->sendTemplate(
+        $conversation->fresh(), $template, ['Rahim', 'Acme'], null, SenderType::Campaign,
+    ));
+
+    expect($outcome->message->status->value)->toBe('blocked');
+    Http::assertNothingSent();
+});
+
+it('does not let a utility label exempt a campaign message from consent', function () {
+    $utility = $this->waTemplate($this->tenant, ['name' => 'utility_promo', 'category' => 'utility', 'body' => 'Big sale {{1}}']);
+    $conversation = $this->waConversation($this->tenant, $this->contact);
+    // The customer has written to us and the window is open, but never opted in to marketing.
+    $this->inTenant($this->tenant, fn () => Conversation::query()->whereKey($conversation->id)->update(['last_inbound_at' => now()]));
+    Http::fake();
+
+    $campaign = $this->inTenant($this->tenant, fn () => app(Messenger::class)->sendTemplate(
+        $conversation->fresh(), $utility, ['x'], null, SenderType::Campaign,
+    ));
+    $agent = $this->inTenant($this->tenant, fn () => app(Messenger::class)->sendTemplate(
+        $conversation->fresh(), $utility, ['x'], $this->membership, SenderType::Agent,
+    ));
+
+    // A campaign is always marketing: no opt-in, no message. An agent's one-to-one utility template inside the
+    // customer's open window is a service message.
+    expect($campaign->message->status->value)->toBe('blocked')
+        ->and($agent->message->status->value)->not->toBe('blocked');
 });
 
 it('answers STOP honestly for a number that is not a contact', function () {

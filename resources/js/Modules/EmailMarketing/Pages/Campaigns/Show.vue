@@ -25,6 +25,7 @@ defineOptions({ layout: TenantLayout });
 const props = defineProps<{
     campaign: CampaignDetail;
     deliveries: Paginated<DeliveryRow>;
+    hiddenDeliveries?: number;
     deliveryStatus: string | null;
     members: MemberOption[];
     maxTestRecipients: number;
@@ -263,6 +264,9 @@ const variantKeys = computed(() => (['a', 'b'] as const).filter((variant) => rep
                         {{ t('emailMarketing.deliveries.export') }}
                     </Button>
                 </div>
+                <p v-if="(hiddenDeliveries ?? 0) > 0" class="border-b border-line px-5 py-3 text-[0.8125rem] text-ink-muted" data-testid="hidden-deliveries">
+                    {{ t('emailMarketing.deliveries.hidden', { count: format.number(hiddenDeliveries ?? 0) }) }}
+                </p>
                 <DataTable :columns="columns" :rows="deliveries.data" row-key="id" :caption="t('emailMarketing.deliveries.caption')">
                     <template #cell-contact="{ row }">
                         <span class="text-ink">{{ row.contact.name }}</span>

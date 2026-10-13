@@ -178,3 +178,26 @@ it('reports the numbers of an invoice-free workspace as zero rows rather than fa
 
     expect($page['result']['rows'])->toBe([])->and($page['report']['usesDateRange'])->toBeFalse();
 });
+
+it('does not let the request page change what a report run or export returns', function () {
+    foreach (['Mina', 'Rafi'] as $name) {
+        $person = $this->hire($this->tenant, ['first_name' => $name]);
+        $this->inTenant($this->tenant, function () use ($person): void {
+            $day = new AttendanceDay;
+            $day->forceFill([
+                'employee_id' => $person->id, 'work_date' => '2026-03-04', 'status' => 'present',
+                'scheduled_minutes' => 480, 'worked_minutes' => 470, 'is_closed' => true,
+                'owner_id' => $person->owner_id, 'department_id' => $person->department_id, 'branch_id' => $person->branch_id,
+            ])->save();
+        });
+    }
+
+    [$hrUser] = $this->reportsMember($this->tenant, ['reports.reports.view', 'reports.reports.export', 'hrm.attendance.view'], ['hrm.attendance.view' => 'all']);
+
+    expect(($this->rows)($hrUser, 'hrm.attendance', 'page=2'))->toHaveCount(2)
+        ->and(($this->rows)($hrUser, 'hrm.attendance', 'page=3'))->toHaveCount(2);
+
+    $csv = $this->actingAsMember($this->tenant, $hrUser)
+        ->get($this->reportsUrl($this->tenant, '/run/hrm.attendance/export?page=2'))->assertOk()->getContent();
+    expect(substr_count($csv, "\r\n"))->toBe(3)->and($csv)->toContain('Mina')->and($csv)->toContain('Rafi');
+});

@@ -5,10 +5,11 @@
  * Everything the app keeps (sessions, cache, queue) is in that database, and
  * `global-setup.ts` rebuilds it for every run.
  */
-export const PORT = 8010;
+/** Override with E2E_PORT / E2E_DATABASE to run beside another run (never share a database). */
+export const PORT = Number(process.env.E2E_PORT ?? 8010);
 
 /** Must end in `_testing`: the setup wipes it and refuses any other name. */
-export const DATABASE = 'oyosend_e2e_testing';
+export const DATABASE = process.env.E2E_DATABASE ?? 'oyosend_e2e_testing';
 
 export const appEnv: Record<string, string> = {
     // The demo seeder only runs locally; these tests use its workspaces and logins.
@@ -17,6 +18,8 @@ export const appEnv: Record<string, string> = {
     APP_DOMAIN: 'localhost',
     APP_URL: `http://localhost:${PORT}`,
     DB_DATABASE: DATABASE,
+    // A developer's .env may switch this off; the admin flows are about the enforced behaviour.
+    PLATFORM_REQUIRE_2FA: 'true',
     SESSION_DRIVER: 'database',
     CACHE_STORE: 'database',
     // Mail is written at once, into the log the tests read links from.

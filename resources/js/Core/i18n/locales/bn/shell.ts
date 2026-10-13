@@ -130,6 +130,8 @@ const shell: MessageSchema['shell'] = {
         invoices: 'ইনভয়েস',
         platformAudit: 'অডিট লগ',
         platformSettings: 'সেটিংস',
+        platformAi: 'এআই প্রোভাইডার',
+        platformMessaging: 'মেসেজিং প্রোভাইডার',
         openMenu: 'মেনু খুলুন',
         closeMenu: 'মেনু বন্ধ করুন',
         primary: 'প্রধান মেনু',

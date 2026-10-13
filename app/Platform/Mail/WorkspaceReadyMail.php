@@ -30,6 +30,14 @@ final class WorkspaceReadyMail extends Mailable implements RequiresTenantContext
     use Queueable;
     use SerializesModels;
 
+    public int $tries = 3;
+
+    /** Seconds; equal to the Horizon supervisor's worker timeout for this queue. */
+    public int $timeout = 60;
+
+    /** @var list<int> Seconds between attempts. */
+    public array $backoff = [30, 120];
+
     /**
      * @param  bool  $needsPassword  The account was created for them and has no password they know.
      */

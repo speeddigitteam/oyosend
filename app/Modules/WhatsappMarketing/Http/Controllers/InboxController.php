@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\WhatsappMarketing\Http\Controllers;
 
 use App\Core\Access\RecordAccess;
+use App\Core\Communication\Support\PhoneNumber;
 use App\Core\Contacts\Http\Controllers\ContactController;
 use App\Core\Contacts\Models\Contact;
 use App\Core\Support\Like;
@@ -53,44 +54,22 @@ final class InboxController
             'unread' => ['nullable', 'boolean'],
             'search' => ['nullable', 'string', 'max:100'],
             'contact_search' => ['nullable', 'string', 'max:100'],
+            'view' => ['nullable', Rule::in(['list', 'kanban'])],
         ]);
+        $view = $filters['view'] ?? 'list';
         $status = $filters['status'] ?? 'open';
         $search = trim((string) ($filters['search'] ?? ''));
         $assignee = $filters['assignee'] ?? null;
 
         $base = fn () => $this->access->constrain(Conversation::query(), $actor, Permissions::CONVERSATIONS_VIEW);
 
-        $list = $base()
-            ->with(Presenter::CONVERSATION_RELATIONS)
-            ->when($status !== 'all', fn ($query) => $query->where('status', $status))
-            ->when($assignee === 'me', fn ($query) => $query->where('owner_id', $membership->id))
-            ->when($assignee === 'unassigned', fn ($query) => $query->whereNull('owner_id'))
-            ->when($assignee !== null && ! in_array($assignee, ['me', 'unassigned'], true), fn ($query) => $query->where('owner_id', $assignee))
-            ->when(isset($filters['tag']), fn ($query) => $query->whereJsonContains('tags', $filters['tag']))
-            ->when(($filters['unread'] ?? false) === true, fn ($query) => $query->where('unread_count', '>', 0))
-            ->when($search !== '', function ($query) use ($search): void {
-                $like = Like::contains($search);
-                $query->where(function ($match) use ($like): void {
-                    $match->where('phone', 'like', $like)
-                        ->orWhere('profile_name', 'like', $like)
-                        ->orWhereIn('contact_id', Contact::query()
-                            ->where(fn ($contact) => $contact->where('first_name', 'like', $like)->orWhere('last_name', 'like', $like))
-                            ->select('id'));
-                });
-            })
-            ->orderByDesc('last_message_at')
-            ->orderByDesc('id')
-            ->paginate(25)
-            ->withQueryString()
-            ->through(fn (Conversation $conversation): array => $this->presenter->conversation($conversation));
-
         $open = fn () => $base()->where('status', ConversationStatus::Open->value);
         $contactSearch = trim((string) ($filters['contact_search'] ?? ''));
         $canStart = $actor->can(Permissions::CONVERSATIONS_REPLY);
 
-        return Inertia::render('Modules/WhatsappMarketing/Pages/Inbox/Index', [
-            'conversations' => $list,
+        $shared = [
             'filters' => [
+                'view' => $view,
                 'status' => $status,
                 'assignee' => $assignee,
                 'tag' => $filters['tag'] ?? null,
@@ -118,6 +97,85 @@ final class InboxController
                     ->all()
                 : [],
             'templates' => $canStart ? $this->approvedTemplates() : [],
+        ];
+
+        if ($view === 'kanban') {
+            $applySearch = function ($query) use ($search, $filters): void {
+                if ($search !== '') {
+                    $like = Like::contains($search);
+                    $query->where(function ($match) use ($like): void {
+                        $match->where('phone', 'like', $like)
+                            ->orWhere('profile_name', 'like', $like)
+                            ->orWhereIn('contact_id', Contact::query()
+                                ->where(fn ($contact) => $contact->where('first_name', 'like', $like)->orWhere('last_name', 'like', $like))
+                                ->select('id'));
+                    });
+                }
+                if (isset($filters['tag'])) {
+                    $query->whereJsonContains('tags', $filters['tag']);
+                }
+            };
+
+            $kanbanBase = fn () => $base()
+                ->with(Presenter::CONVERSATION_RELATIONS)
+                ->tap($applySearch)
+                ->orderByDesc('last_message_at')
+                ->orderByDesc('id');
+
+            return Inertia::render('Modules/WhatsappMarketing/Pages/Inbox/Index', [
+                ...$shared,
+                'conversations' => null,
+                'kanbanColumns' => [
+                    [
+                        'key' => 'unassigned',
+                        'count' => $base()->tap($applySearch)->where('status', 'open')->whereNull('owner_id')->count(),
+                        'items' => $kanbanBase()->where('status', 'open')->whereNull('owner_id')->limit(50)->get()
+                            ->map(fn (Conversation $conversation): array => $this->presenter->conversation($conversation))->all(),
+                    ],
+                    [
+                        'key' => 'active',
+                        'count' => $base()->tap($applySearch)->where('status', 'open')->whereNotNull('owner_id')->count(),
+                        'items' => $kanbanBase()->where('status', 'open')->whereNotNull('owner_id')->limit(50)->get()
+                            ->map(fn (Conversation $conversation): array => $this->presenter->conversation($conversation))->all(),
+                    ],
+                    [
+                        'key' => 'closed',
+                        'count' => $base()->tap($applySearch)->where('status', 'closed')->count(),
+                        'items' => $kanbanBase()->where('status', 'closed')->limit(25)->get()
+                            ->map(fn (Conversation $conversation): array => $this->presenter->conversation($conversation))->all(),
+                    ],
+                ],
+            ]);
+        }
+
+        $list = $base()
+            ->with(Presenter::CONVERSATION_RELATIONS)
+            ->when($status !== 'all', fn ($query) => $query->where('status', $status))
+            ->when($assignee === 'me', fn ($query) => $query->where('owner_id', $membership->id))
+            ->when($assignee === 'unassigned', fn ($query) => $query->whereNull('owner_id'))
+            ->when($assignee !== null && ! in_array($assignee, ['me', 'unassigned'], true), fn ($query) => $query->where('owner_id', $assignee))
+            ->when(isset($filters['tag']), fn ($query) => $query->whereJsonContains('tags', $filters['tag']))
+            ->when(($filters['unread'] ?? false) === true, fn ($query) => $query->where('unread_count', '>', 0))
+            ->when($search !== '', function ($query) use ($search): void {
+                $like = Like::contains($search);
+                $query->where(function ($match) use ($like): void {
+                    $match->where('phone', 'like', $like)
+                        ->orWhere('profile_name', 'like', $like)
+                        ->orWhereIn('contact_id', Contact::query()
+                            ->where(fn ($contact) => $contact->where('first_name', 'like', $like)->orWhere('last_name', 'like', $like))
+                            ->select('id'));
+                });
+            })
+            ->orderByDesc('last_message_at')
+            ->orderByDesc('id')
+            ->paginate(25)
+            ->withQueryString()
+            ->through(fn (Conversation $conversation): array => $this->presenter->conversation($conversation));
+
+        return Inertia::render('Modules/WhatsappMarketing/Pages/Inbox/Index', [
+            ...$shared,
+            'conversations' => $list,
+            'kanbanColumns' => [],
         ]);
     }
 
@@ -138,10 +196,10 @@ final class InboxController
         $phoneContacts = [];
 
         if ($conversation->contact_id === null && $can(Permissions::CONVERSATIONS_MANAGE)) {
-            $digits = ltrim($conversation->phone, '+');
+            $digits = PhoneNumber::digitVariants($conversation->phone);
             $strip = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '(', ''), ')', ''), '+', '')";
             $phoneContacts = $this->records->constrain(Contact::query(), $actor, ContactController::VIEW)
-                ->whereNotNull('phone')->whereRaw($strip.' = ?', [$digits])
+                ->whereNotNull('phone')->whereRaw($strip.' in ('.implode(',', array_fill(0, count($digits), '?')).')', $digits)
                 ->limit(5)->get(['id', 'first_name', 'last_name', 'phone'])
                 ->map(fn (Contact $contact): array => $this->presenter->contact($contact))->all();
         }

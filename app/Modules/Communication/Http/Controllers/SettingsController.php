@@ -39,6 +39,8 @@ final class SettingsController
             'channels' => array_map(fn (Channel $channel): array => $this->connections->describe($channel), Channel::cases()),
             // Names only. A value is never sent to the browser.
             'credentialRefs' => $this->credentials->available(),
+            // Operator-managed accounts show their name instead of the reference.
+            'credentialLabels' => $this->credentials->accountLabels(),
             // Guidance, not a verification: custom sender domains are set up by the operator.
             'senderGuidance' => [
                 'platformSender' => (string) config('mail.from.address'),

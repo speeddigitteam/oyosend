@@ -54,6 +54,7 @@ const props = defineProps<{
     };
     reasons: Record<string, number>;
     recipients: Paginated<Recipient>;
+    hiddenRecipients?: number;
     stateFilter: string | null;
     channel: ChannelInfo;
     can: { manage: boolean; send: boolean };
@@ -246,6 +247,9 @@ const reasonColumns = computed<Column[]>(() => [
         <template #actions>
             <Select :model-value="stateFilter ?? ''" :options="stateOptions" :label="t('whatsapp.campaign.state')" @update:model-value="filterState" />
         </template>
+        <p v-if="(hiddenRecipients ?? 0) > 0" class="border-b border-line px-5 py-3 text-[0.8125rem] text-ink-muted" data-testid="hidden-recipients">
+            {{ t('whatsapp.campaign.hiddenRecipients', { count: format.number(hiddenRecipients ?? 0) }) }}
+        </p>
         <DataTable :columns="columns" :rows="recipients.data" row-key="id" :caption="t('whatsapp.campaign.recipients')">
             <template #cell-name="{ row }">
                 <p class="text-ink wrap-anywhere">{{ row.name ?? t('whatsapp.common.none') }}</p>

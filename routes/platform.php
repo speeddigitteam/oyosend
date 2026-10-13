@@ -1,6 +1,8 @@
 <?php
 
 use App\Core\Http\Controllers\LocaleController;
+use App\Modules\Ai\Http\Controllers\Platform\ProviderAccountController as AiProviderAccountController;
+use App\Modules\Communication\Http\Controllers\Platform\ProviderAccountController;
 use App\Platform\Http\Controllers\AuditLogController;
 use App\Platform\Http\Controllers\Auth\LoginController;
 use App\Platform\Http\Controllers\Auth\TwoFactorChallengeController;
@@ -110,6 +112,22 @@ Route::middleware('auth:platform')->group(function () {
         Route::middleware('can:platform.settings.manage')->group(function () {
             Route::get('settings', [SettingsController::class, 'edit'])->name('settings.edit');
             Route::put('settings', [SettingsController::class, 'update'])->name('settings.update');
+
+            // Messaging provider accounts (email, SMS, WhatsApp). The controller belongs to the communication
+            // module because the adapters do; secrets are write-only (docs/adr/0013).
+            Route::get('messaging', [ProviderAccountController::class, 'index'])->name('messaging.index');
+            Route::post('messaging', [ProviderAccountController::class, 'store'])->name('messaging.store');
+            Route::put('messaging/{account}', [ProviderAccountController::class, 'update'])->name('messaging.update');
+            Route::delete('messaging/{account}', [ProviderAccountController::class, 'destroy'])->name('messaging.destroy');
+            Route::post('messaging/{account}/test', [ProviderAccountController::class, 'test'])->name('messaging.test');
+
+            // AI provider accounts. The controller belongs to the ai module; the API key is write-only.
+            Route::get('ai/providers', [AiProviderAccountController::class, 'index'])->name('ai.index');
+            Route::post('ai/providers', [AiProviderAccountController::class, 'store'])->name('ai.store');
+            Route::put('ai/providers/{account}', [AiProviderAccountController::class, 'update'])->name('ai.update');
+            Route::delete('ai/providers/{account}', [AiProviderAccountController::class, 'destroy'])->name('ai.destroy');
+            Route::post('ai/providers/{account}/test', [AiProviderAccountController::class, 'test'])->name('ai.test');
+            Route::post('ai/providers/{account}/default', [AiProviderAccountController::class, 'makeDefault'])->name('ai.default');
         });
     });
 });

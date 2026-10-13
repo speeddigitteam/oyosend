@@ -84,6 +84,43 @@ describe('Projects frontend', () => {
         expect(wrapper.text()).toContain('Prepare launch');
     });
 
+    it('changes a task status by dropping its card on another column', async () => {
+        const wrapper = track(mount(TaskBoard, { props: { tasks: [task({ editable: true })], projectId: 'project-1' } }));
+        const target = wrapper.get('section[aria-labelledby="task-column-in_progress"]');
+
+        await wrapper.get('button[draggable="true"]').trigger('dragstart');
+        await target.trigger('dragover');
+        await target.trigger('drop');
+
+        expect(inertia.router.patch).toHaveBeenCalledWith('/projects.tasks.status?project=project-1&task=task-1', { status: 'in_progress' }, expect.objectContaining({ preserveScroll: true }));
+    });
+
+    it('keeps closed and view-only tasks where they are', async () => {
+        const wrapper = track(mount(TaskBoard, { props: { tasks: [task({ status: 'completed', editable: true }), task({ id: 'task-2', title: 'Read only', editable: false })], projectId: 'project-1' } }));
+        const target = wrapper.get('section[aria-labelledby="task-column-review"]');
+
+        expect(wrapper.findAll('button[draggable="true"]')).toHaveLength(0);
+        for (const card of wrapper.findAll('button[draggable="false"]')) {
+            await card.trigger('dragstart');
+            await target.trigger('drop');
+        }
+
+        expect(inertia.router.patch).not.toHaveBeenCalled();
+    });
+
+    it('shows why the server refused a dropped task', async () => {
+        inertia.router.patch.mockImplementationOnce((_url: string, _data: unknown, options: { onError: (errors: Record<string, string>) => void; onFinish: () => void }) => {
+            options.onError({ status: 'Complete this task’s dependencies first.' });
+            options.onFinish();
+        });
+        const wrapper = track(mount(TaskBoard, { props: { tasks: [task({ editable: true })], projectId: 'project-1' } }));
+
+        await wrapper.get('button[draggable="true"]').trigger('dragstart');
+        await wrapper.get('section[aria-labelledby="task-column-completed"]').trigger('drop');
+
+        expect(wrapper.get('[role="alert"]').text()).toBe('Complete this task’s dependencies first.');
+    });
+
     it('exposes a dependency-free accessible Gantt range', () => {
         const wrapper = track(mount(TaskGantt, { props: { tasks: [task()] } }));
         expect(wrapper.get('button[aria-label]').attributes('aria-label')).toContain('Prepare launch');

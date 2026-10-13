@@ -39,6 +39,7 @@ interface MemberRow {
 const props = defineProps<{
     list: { id: string; name: string; description: string | null; memberCount: number; cap: number };
     members: Paginated<MemberRow>;
+    hiddenMembers?: number;
     candidates: ContactMatch[];
     search: string;
     canManage: boolean;
@@ -168,6 +169,9 @@ const columns = computed<Column[]>(() => [
 
     <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <Card flush :title="t('whatsapp.lists.membersTitle', { count: format.number(list.memberCount), cap: format.number(list.cap) })">
+            <p v-if="(hiddenMembers ?? 0) > 0" class="border-b border-line px-5 py-3 text-[0.8125rem] text-ink-muted" data-testid="hidden-members">
+                {{ t('whatsapp.lists.hiddenMembers', { count: format.number(hiddenMembers ?? 0) }) }}
+            </p>
             <DataTable :columns="columns" :rows="members.data" row-key="id" :caption="t('whatsapp.lists.membersCaption')">
                 <template #cell-name="{ row }"><span class="text-ink wrap-anywhere">{{ row.name ?? t('whatsapp.common.none') }}</span></template>
                 <template #cell-phone="{ row }">

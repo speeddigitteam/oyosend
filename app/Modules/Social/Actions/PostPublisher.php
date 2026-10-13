@@ -103,6 +103,11 @@ final class PostPublisher
         $claimed = PostTarget::query()
             ->whereKey($target->id)
             ->where('status', TargetStatus::Pending->value)
+            // Re-check what made it due: a member may have unscheduled, rejected, edited or rescheduled the
+            // post since the ids were read, and what is published must still be what was approved.
+            ->whereNotNull('next_attempt_at')
+            ->where('next_attempt_at', '<=', now())
+            ->whereHas('post', fn ($query) => $query->whereIn('status', [PostStatus::Scheduled->value, PostStatus::Publishing->value]))
             ->update(['status' => TargetStatus::Publishing->value, 'claimed_at' => now(), 'attempts' => DB::raw('attempts + 1')]);
 
         if ($claimed !== 1) {

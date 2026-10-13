@@ -10,7 +10,9 @@ use App\Modules\Communication\Channels\CredentialResolver;
 use App\Modules\Communication\Channels\ProviderRegistry;
 use App\Modules\Communication\Enums\Channel;
 use App\Modules\Communication\Enums\ConfigurationState;
+use App\Modules\Communication\Models\AccountClaim;
 use App\Modules\Communication\Models\ChannelConnection;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -107,8 +109,8 @@ final class ChannelConnections
             ?? throw ValidationException::withMessages(['provider' => __('Choose one of the available providers.')]);
 
         $settings = $this->settingsFor($provider, (array) ($input['settings'] ?? []));
-        $credentialRef = $this->reference($input['credential_ref'] ?? null, 'credential_ref');
-        $webhookRef = $this->reference($input['webhook_secret_ref'] ?? null, 'webhook_secret_ref');
+        $credentialRef = $this->reference($input['credential_ref'] ?? null, 'credential_ref', $channel, $provider->key());
+        $webhookRef = $this->reference($input['webhook_secret_ref'] ?? null, 'webhook_secret_ref', $channel, $provider->key());
         $rate = $input['rate_limit_per_minute'] ?? null;
 
         if ($rate !== null && ((int) $rate < 1 || (int) $rate > $this->ceiling($channel))) {
@@ -127,6 +129,8 @@ final class ChannelConnections
                 'rate_limit_per_minute' => $rate === null ? null : (int) $rate,
             ])->save();
 
+            $this->claimAccounts($connection, $provider, $settings);
+
             $this->audit->record('communication.channel.saved', $connection, [
                 'channel' => $channel->value,
                 'provider' => $provider->key(),
@@ -134,7 +138,46 @@ final class ChannelConnections
             ]);
 
             return $connection;
-        });
+        }, 3); // a deadlock between two saves is retried, not shown to the person
+    }
+
+    /**
+     * A provider account (a WhatsApp phone number id) is usable by one workspace only. A shared access-token
+     * reference is available to every workspace its operator allows, so without this a workspace could name
+     * another workspace's number and send from it. The claim is a platform-wide unique index
+     * (`communication_account_claims`): the first workspace to save the account holds it, and a second one is
+     * refused. Nothing is read across workspaces: the database's own uniqueness answers.
+     *
+     * @param  array<string, scalar>  $settings
+     */
+    private function claimAccounts(ChannelConnection $connection, ChannelProvider $provider, array $settings): void
+    {
+        // Serialise saves of one connection on its own row, and skip the DELETE when it holds no claim: a
+        // DELETE over an empty index range takes a gap lock that two concurrent first saves turn into a deadlock.
+        ChannelConnection::query()->whereKey($connection->id)->lockForUpdate()->value('id');
+
+        if (AccountClaim::query()->where('connection_id', $connection->id)->exists()) {
+            AccountClaim::query()->where('connection_id', $connection->id)->delete();
+        }
+
+        foreach ($provider->fields() as $field) {
+            $value = $settings[$field['key']] ?? null;
+
+            if (($field['account'] ?? false) !== true || $value === null || $value === '') {
+                continue;
+            }
+
+            try {
+                DB::transaction(static fn () => AccountClaim::query()->create([
+                    'connection_id' => $connection->id,
+                    'provider' => $provider->key(),
+                    'account_key' => $field['key'],
+                    'account_value' => (string) $value,
+                ]));
+            } catch (UniqueConstraintViolationException) {
+                throw ValidationException::withMessages(['settings.'.$field['key'] => __('This account is already connected to another workspace.')]);
+            }
+        }
     }
 
     /** The most messages per minute a workspace can set for the channel (the platform's value). */
@@ -159,7 +202,8 @@ final class ChannelConnections
 
         // A provider that needs no secret (platform mail, a test double) is configured on its own;
         // one with a reference needs the reference to resolve for this workspace.
-        if ($connection->credential_ref !== null && ! $this->credentials->isAvailable($connection->credential_ref)) {
+        if ($connection->credential_ref !== null
+            && ! $this->credentials->isUsableWith($connection->credential_ref, $connection->channel, $connection->provider)) {
             return ConfigurationState::NotConfigured;
         }
 
@@ -203,13 +247,15 @@ final class ChannelConnections
         return $clean;
     }
 
-    private function reference(mixed $value, string $field): ?string
+    private function reference(mixed $value, string $field, Channel $channel, string $provider): ?string
     {
         if ($value === null || $value === '') {
             return null;
         }
 
-        if (! is_string($value) || ! in_array($value, $this->credentials->available(), true)) {
+        // A platform account answers only to the provider it was created for (CredentialResolver).
+        if (! is_string($value) || ! in_array($value, $this->credentials->available(), true)
+            || ! $this->credentials->isUsableWith($value, $channel, $provider)) {
             throw ValidationException::withMessages([$field => __('Choose one of the credential references your operator made available.')]);
         }
 

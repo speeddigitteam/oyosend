@@ -100,7 +100,7 @@ final class AudienceController
             'suppressions' => $suppressions,
             'filters' => ['search' => $search, 'status' => $filters['status'] ?? null, 'channel' => $filters['channel'] ?? null],
             'contacts' => $actor->can(self::CONSENT) ? $this->support->contactOptions($actor) : [],
-            'methods' => array_values(array_diff(ConsentManager::METHODS, ['unsubscribe_link', 'complaint'])),
+            'methods' => array_values(array_diff(ConsentManager::METHODS, ['unsubscribe_link', 'keyword', 'button', 'complaint'])),
             'channels' => Channel::values(),
             'scopes' => array_map(static fn (SuppressionScope $scope): string => $scope->value, SuppressionScope::cases()),
             'canManageConsent' => $actor->can(self::CONSENT),

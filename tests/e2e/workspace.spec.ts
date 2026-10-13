@@ -28,12 +28,13 @@ test.describe('signing in to a workspace', () => {
         await sidebar(page).getByRole('link', { name: 'App Store', exact: true }).click();
 
         await expect(page.getByRole('heading', { name: 'App Store', level: 1 })).toBeVisible();
-        await expect(page.getByText('CRM & Sales', { exact: true })).toBeVisible();
-        await expect(page.getByText('Project Management', { exact: true })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'CRM & Sales', level: 2 })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Project Management', level: 2 })).toBeVisible();
         await expect(page.getByText('No optional apps are compiled into this build yet')).toHaveCount(0);
         await page.getByRole('link', { name: 'My apps', exact: true }).click();
         await expect(page.getByRole('heading', { name: 'My apps', level: 1 })).toBeVisible();
-        await expect(page.getByText('No apps installed yet')).toBeVisible();
+        // Apps the base plan includes are listed here; nothing has been bought separately.
+        await expect(page.getByText('Included in your plan').first()).toBeVisible();
 
         noErrors();
     });
@@ -78,6 +79,13 @@ test.describe('signing in to a workspace', () => {
     test('the interface follows the language a person chooses', async ({ page }) => {
         await signIn(page, 'acme', 'manager@acme.test');
 
+        // The choice is saved to the account, so a previous run may have left it on Bengali.
+        if ((await page.locator('html').getAttribute('lang')) === 'bn') {
+            await page.getByRole('button', { name: 'ভাষা' }).click();
+            await page.getByRole('menuitem', { name: /English/ }).click();
+            await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+        }
+
         await page.getByRole('button', { name: 'Language' }).click();
         await page.getByRole('menuitem', { name: /বাংলা/ }).click();
 
@@ -85,5 +93,10 @@ test.describe('signing in to a workspace', () => {
         await expect(sidebar(page, 'প্রধান মেনু').getByRole('link', { name: 'কন্টাক্ট', exact: true })).toBeVisible();
         await expect(page.locator('html')).toHaveAttribute('lang', 'bn');
         await expect(page.getByRole('heading', { level: 1 })).not.toContainText('Good');
+
+        // Leave the account as it was found, so the test can run again.
+        await page.getByRole('button', { name: 'ভাষা' }).click();
+        await page.getByRole('menuitem', { name: /English/ }).click();
+        await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     });
 });

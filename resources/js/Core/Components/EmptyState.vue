@@ -20,7 +20,8 @@ defineProps<{
         >
             <slot name="icon" />
         </div>
-        <h3 class="font-sans text-sm font-semibold tracking-normal text-ink">{{ title }}</h3>
+        <!-- h3 sits under a card's h2 title; a full-size empty state follows the page h1 directly, so h2. -->
+        <component :is="compact ? 'h3' : 'h2'" class="font-sans text-sm font-semibold tracking-normal text-ink">{{ title }}</component>
         <p v-if="description" class="mt-1 max-w-sm text-[0.8125rem] text-ink-subtle">{{ description }}</p>
         <div v-if="$slots.default" class="mt-5 flex flex-wrap items-center justify-center gap-2">
             <slot />

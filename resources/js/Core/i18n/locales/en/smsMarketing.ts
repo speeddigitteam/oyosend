@@ -183,6 +183,7 @@ export default {
         message: 'Message',
         noRecipients: 'No recipients yet',
         noRecipientsBody: 'The recipient list is built when the campaign starts.',
+        hiddenRecipients: '{count} recipients are contacts you may not see. They are in the campaign but are not listed or exported here.',
         recipients: 'Recipients',
         recipientsCaption: 'Recipients of this campaign',
         retry: 'Retry {count} failed',

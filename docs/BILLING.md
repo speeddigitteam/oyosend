@@ -34,7 +34,7 @@ invoice is verified as paid. Late recurring items enter grace and then expire; d
 | Invoices | `Core\Billing\InvoiceIssuer`, `Models\Invoice` | Number `INV-{year}-{6 digits}` from one platform-wide counter (`platform_sequences`). `lines` and `billed_to` are snapshots |
 | Settlement routing | `Core\Billing\InvoiceSettlement` | Sends base-plan invoices to `SubscriptionManager`, app purchase/renewal invoices to `AppStoreManager` |
 | Payments | `Core\Billing\PaymentProcessor`, `Models\Payment` | `begin` (online), `confirm` (asks the gateway), `recordOffline` (operator); only verified success reaches settlement |
-| Gateways | `Core\Billing\Contracts\PaymentGateway`, `Gateways\GatewayRegistry` | Registered in `CoreServiceProvider`. `SslCommerzGateway` is the only one |
+| Gateways | `Core\Billing\Contracts\PaymentGateway`, `Gateways\GatewayRegistry` | Registered in `CoreServiceProvider`. `SslCommerzGateway` and `AamarPayGateway` |
 | Entitlements | `Core\Entitlements\PlanEntitlementChecker` | Merges plan-included modules with effective App Store licences and validates dependencies |
 | Paywall | `Core\Billing\Http\Middleware\EnsureWorkspaceIsSubscribed` (`subscribed`) | On every workspace route that is part of working in the workspace |
 | Limits | `Core\Billing\UsageLimits`, `Core\Modules\LimitDefinition` | Declared in module manifests |
@@ -107,6 +107,7 @@ optional reference and note, date received. Recorded as gateway `offline` with `
 | Gateway | Status |
 |---|---|
 | SSLCommerz (`sslcommerz`) | Implemented against the published API v4 (session, order validation, transaction query). **Unverified against the sandbox** — no store credentials exist yet. Offered only when `SSLCOMMERZ_STORE_ID` and `SSLCOMMERZ_STORE_PASSWORD` are set; `SSLCOMMERZ_SANDBOX=false` switches to the live host. It needs the company's phone, address, city, postal code and country, and refuses to start a payment without them rather than send placeholders |
+| aamarPay (`aamarpay`) | Implemented against aamarPay's JSON API (session `POST /jsonpost.php`, verification `GET /api/v1/trxcheck/request.php?request_id=…&store_id=…&signature_key=…&type=json`). **UNVERIFIED against the sandbox or live API**: the request and response shapes follow the published documentation from memory of its field names and have never been exercised; no store credentials exist yet. Offered only when `AAMARPAY_STORE_ID` and `AAMARPAY_SIGNATURE_KEY` are set (environment only; `AAMARPAY_SANDBOX=false` switches to `secure.aamarpay.com`). BDT only. A payment counts only on the verification answer for our own reference (`mer_txnid`): `pay_status` `Successful` with `status_code` 2, our reference, and `amount` / `currency_merchant` (falling back to `currency`) equal to the invoice, which `PaymentProcessor::confirm()` compares. The callback payload is never read for an outcome. Not modelled: a risk hold (aamarPay's `risk_level` semantics are not known), `cus_state` / `cus_add2` (not sent), IPN (aamarPay posts to the return URL only). Needs the same five company details as SSLCommerz and refuses to start without them |
 | bKash, Nagad, Stripe | Not built. SSLCommerz's hosted checkout already carries bKash, Nagad and cards |
 
 With no gateway configured the invoice page says so and shows the offline payment instructions, if the operator

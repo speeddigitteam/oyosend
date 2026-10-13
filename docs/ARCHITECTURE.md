@@ -1,7 +1,9 @@
 # Architecture
 
-State: Phases 1–6, including the App Store, CRM, Projects and Invoicing, are implemented; the HR Management
-backend (Phase 7, part A) is built. This page describes what is
+State: the foundation, Core SaaS, App Store and the production business apps (CRM, Projects, Invoicing, HRM, Payroll,
+Talent) are implemented and signed off; the Communication platform (Phase 8) is complete. The marketing,
+Social, Automation, AI, Support and Reports apps are built but have had no independent review (see `PROGRESS.md`).
+The 16 registered modules are tabulated in `docs/MODULES.md` section 0. This page describes what is
 in the code. Anything not built is listed in [section 12](#12-not-built-yet). Decisions are in `docs/adr/`.
 
 ## 1. Shape
@@ -9,7 +11,10 @@ in the code. Anything not built is listed in [section 12](#12-not-built-yet). De
 - A modular monolith: one Laravel 13 application, one shared MySQL database, `tenant_id` on tenant-owned tables.
 - Server-side routing with Inertia 3 + Vue 3 pages. There is no public JSON API, WebSocket server or SSR yet.
   Small same-origin JSON helpers, such as scoped contact-duplicate detection, remain behind workspace auth and
-  permissions; the two payment gateway callbacks are the only stateless public endpoints.
+  permissions. The stateless public endpoints (no session, no cookies, no `web` group) are the two payment gateway
+  callbacks, the Communication provider webhooks and unsubscribe page, the Email Marketing tracking links, the
+  Workflow Automation inbound hooks, the Support satisfaction survey page, the Social OAuth redirect broker on the
+  central host and the `/health` probes; each is listed in its module doc.
 - Three areas, each on its own kind of host, each with its own middleware group, guard and Inertia layout.
 
 ## 2. Areas and hosts
@@ -34,11 +39,15 @@ Host rules live in `app/Core/Tenancy/Support/TenantHost.php`:
   never match a workspace route. An unknown label is a 404.
 - `TenantHost::url($tenant, $path)` builds absolute workspace URLs from `APP_URL`, so scheme and port are right.
 
-The gateway callbacks are the one exception to the workspace column: they run on the workspace host in the
+The stateless callbacks are the one exception to the workspace column: they run on the workspace host in the
 `tenant.callback` group (tenant resolution and a throttle, no `web` group), because a gateway returns the payer
-with a cross-site POST that carries no session cookie (ADR 0006).
+with a cross-site POST that carries no session cookie (ADR 0006). Modules add their own through
+`ModuleServiceProvider::loadTenantCallbackRoutes()` (the same group plus `entitled:{module}`). The one stateless
+route on the central host is the Social OAuth redirect broker (`GET social/oauth/callback/{platform}`, group
+`central.callback`: `EnsureCentralContext` and a throttle, no session; `docs/SOCIAL.md`).
 
-Routes with no domain constraint answer on every host: `/up` (health), `/storage/{path}` (Laravel's signed
+Routes with no domain constraint answer on every host: `/up` (framework health), `/health` and `/health/ready`
+(liveness and the gated readiness report, `docs/DEPLOYMENT.md` section 8; no session or tenant middleware), `/storage/{path}` (Laravel's signed
 URLs for the private `local` disk). Horizon is mounted on the admin host at `/horizon`. `routes/web.php` holds
 only a comment and is **not loaded**.
 
@@ -101,18 +110,31 @@ app/
     AppStore/       compiled catalogue sync, immutable versions, installations, licences, app billing/lifecycle
     Modules/        ModuleManifest, ModuleRegistry, ModuleServiceProvider, navigation, widget and limit definitions
     Entitlements/   EntitlementChecker contract + PlanEntitlementChecker
-    Automation/     trigger/action contracts, AutomationRegistry, the one core trigger
+    Automation/     trigger/action contracts, AutomationRegistry, the core triggers (member joined, contact and
+                    company created)
+    Workforce/      read contracts HRM publishes (EmployeeDirectory, EmployeeTimeSummary, EmployeeSnapshot)
+    Communication/  contracts other modules call: Notifier, InteractionRecorder and the marketing set
+                    (MarketingAudience, ChannelGateway, UnsubscribeLinks, ConsentRecorder, ChannelEventListener),
+                    their data objects, null implementations and PhoneNumber
+    Reporting/      ReportProvider contract, ReportDefinition/Column/Filter/Context/Result, ReportRegistry, CsvWriter
+    Ai/             AiTool and ProposalTool contracts, ToolContext, ToolOutput, ProposalDraft
     Events/         DomainEvent, TenantDomainEvent
     Audit/          AuditLog, AuditLogger, Auditable
     Dashboard/      DashboardBuilder and the core widgets
     Http/, Support/ Inertia middleware, SecurityHeaders, locale, Toast, error pages, Like (LIKE escaping)
     CoreServiceProvider.php   the `core` module's manifest and bindings
+  Modules/          Optional first-party apps, one folder and one provider each, listed in config/modules.php:
+                    CRM, Projects, Invoicing, Hrm, Payroll, Talent, Automation, Ai, Communication,
+                    EmailMarketing, SmsMarketing, WhatsappMarketing, Social, Support, Reports (docs/MODULES.md)
   Platform/         Super Admin panel: PlatformUser, PlatformRole, controllers, middleware, SystemHealth,
-                    Tenants/TenantManager, Impersonation/ (support access), Console/CreatePlatformAdminCommand
+                    HealthController, Tenants/TenantManager, Impersonation/ (support access),
+                    Console/{CreatePlatformAdminCommand, VerifyBackupCommand, BenchmarkCommand}
   Providers/        AppServiceProvider (framework guards), HorizonServiceProvider
 routes/             central.php, tenant.php, tenant-callbacks.php, platform.php, console.php (the schedule)
 config/             platform.php, tenancy.php, modules.php, permission.php, trustedproxy.php, horizon.php,
-                    ziggy.php (+ framework)
+                    ziggy.php, plus one file per optional app that has settings: ai.php, automation.php,
+                    communication.php, email_marketing.php, sms_marketing.php, social.php,
+                    whatsapp_marketing.php (+ framework)
 database/           migrations/, factories/, seeders/
 lang/               en/, bn/, bn.json (server-side strings: validation, mail, toasts)
 resources/js/       Core/ (components, layouts, pages, composables, i18n, types), Platform/ (pages, components);
@@ -157,6 +179,16 @@ reminders, review cycles with exact basis-point weights and calibration, goals a
 expiry, and HR analytics. It reads employees only through `EmployeeDirectory` and HRM's events and announces
 `talent.candidate.hired` for HRM (or an operator) to act on; see `docs/TALENT.md`.
 
+`app/Modules/Communication` is the Communication platform (key `communication`, depends on `core`): the member
+notification centre, the message outbox with `EmailChannel` / `SmsChannel` / `WhatsAppChannel` provider adapters,
+templates, consent and suppression, the interaction timeline and signed provider webhooks. Other apps use it only
+through `app/Core/Communication` contracts (`Notifier`, `InteractionRecorder` and the marketing set), which are always
+bound to honest null objects. A workspace connection holds a credential *reference*; the secret is an environment
+entry or an operator provider account (ADR 0013). See `docs/COMMUNICATION.md`.
+
+`app/Modules/Reports` is the Reports & Analytics app (key `reports`, depends only on `core`): it owns no business
+data and runs the `ReportProvider`s that other modules tag; see `docs/REPORTS.md` and ADR 0015.
+
 `app/Modules/Automation` is the Workflow Automation app (key `automation`, category Workflow Automation, free,
 depends only on `core`): the central engine of spec section 13. Workflows are versioned JSON graphs (a published
 version is an immutable, hashed snapshot); `TriggerBridge` follows the domain event of every registered trigger and
@@ -169,9 +201,9 @@ expressions are never evaluated: conditions use a typed operator registry and da
 See `docs/WORKFLOWS.md`.
 
 `app/Modules/Ai` is the paid AI Assistant app (key `ai`, category AI Tools, depends only on `core`): a private
-assistant chat, text-only drafting and an `ai.text.generate` workflow action over the `AiProvider` contract (one
-real Anthropic Messages adapter using a platform-level credential; a scripted fake bound only in `local` and
-`testing`). Data access goes through `App\Core\Ai\Contracts\AiTool` implementations tagged in the container, run as
+assistant chat, text-only drafting and an `ai.text.generate` workflow action over the `AiProvider` contract (an Anthropic Messages adapter and an OpenAI-compatible chat-completions adapter, both with a
+platform-level credential held either as an operator provider account in the Super Admin panel or, when none
+exists, in the environment; a scripted fake bound only in `local` and `testing`; ADR 0018). Data access goes through `App\Core\Ai\Contracts\AiTool` implementations tagged in the container, run as
 the signed-in member under `AccessChecker` / `RecordAccess`; a tool that would change data only produces a
 proposal a person confirms. Every provider call passes `AiGateway` (limits, rate limits, circuit breaker, redaction,
 idempotent token metering on the `ai` queue's `ai.tokens` limit). See `docs/AI.md`.
@@ -181,8 +213,9 @@ the `SocialPlatform` contract (OAuth state machine, encrypted tokens, refresh an
 posts with per-account variants, a calendar, an approval workflow with four-eyes, a private media library, a
 scheduled publisher with retry/backoff and per-account and per-workspace rate limits, CSV bulk scheduling and
 analytics that report only what a platform returned. Adapters exist for Facebook Pages, LinkedIn (text) and X (text)
-and are unverified against the live platforms; other platforms are listed as unavailable with the reason. See
-`docs/SOCIAL.md`.
+and are unverified against the live platforms; other platforms are listed as unavailable with the reason. OAuth
+returns can go through one central redirect URI that forwards to the workspace (`config('social.redirect_broker')`).
+See `docs/SOCIAL.md`.
 
 `app/Modules/SmsMarketing` is the SMS Marketing app (key `sms_marketing`, depends on `core` and `communication`):
 bulk and scheduled SMS campaigns to contact groups (lists of shared-contact references), templates with a fixed
@@ -191,8 +224,10 @@ limit, delivery status from the core `MarketingMessageStatusChanged` event and b
 Communication model and never talks to a provider: it sends through the core `ChannelGateway`, asks
 `MarketingAudience` and issues opt-out links with `UnsubscribeLinks`. A `RunCampaigns` job on queue `campaigns`
 (every minute, entitlement-gated, per-workspace lock) builds recipients and hands out a bounded batch with idempotent
-per-attempt keys. No SMS provider adapter exists yet, so the channel is `not_configured` and campaigns cannot be
-launched; the screens say so. See `docs/SMS_MARKETING.md`.
+per-attempt keys. SMS is sent through the Communication module's Twilio or generic HTTP adapters once an operator
+creates a provider account (ADR 0013; unverified against live providers, no delivery receipts); until a workspace
+selects one the channel is `not_configured` and campaigns cannot be launched, and the screens say so. See
+`docs/SMS_MARKETING.md`.
 `app/Modules/EmailMarketing` is the Email Marketing app (key `email_marketing`, depends on `core` and
 `communication`): lists and declarative segments over shared contacts, a block editor that renders escaped HTML and
 plain text, campaigns with scheduling, A/B subjects and click measurement, welcome/drip sequences, CSV import and
@@ -370,8 +405,15 @@ route `can:crm.leads.edit`  /  $user->can()  /  Gate::allows()
   (`app/Modules/Projects/Events`).
 - Invoicing events: `invoicing.invoice.issued`, `invoicing.invoice.paid`, `invoicing.payment.received`,
   `invoicing.payment.reversed`, `invoicing.credit_note.issued`, `invoicing.invoice.overdue`
-  (`app/Modules/Invoicing/Events`). They are the only events with listeners today: Invoicing subscribes to
-  `crm.quote.accepted` and `projects.time_entry.approved`.
+  (`app/Modules/Invoicing/Events`). Invoicing itself subscribes to `crm.quote.accepted` and
+  `projects.time_entry.approved`.
+- Cross-module listeners are registered by name in the subscriber's provider, never by importing the publisher's
+  model: Invoicing (CRM and Projects events), Payroll and Talent (HRM employee events), Email Marketing, SMS
+  Marketing and WhatsApp (the core `MarketingMessageStatusChanged`, plus Communication's unsubscribe event and the
+  `ChannelEventListener` feed for WhatsApp), and the Workflow Automation `TriggerBridge` (the `event()` class of every
+  registered trigger). Every module's own events are named in its module doc.
+- The core `communication.marketing.message_status_changed` event (`App\Core\Communication\Events`) is the one
+  event marketing apps may rely on from Communication.
 - The automation catalogue exposes three core triggers (`core.member.joined`, `core.contact.created`,
   `core.company.created`), four CRM triggers (`crm.lead.created`, `crm.lead.qualified`, `crm.deal.won`,
   `crm.activity.completed`) and four Projects triggers (`projects.project.created`, `projects.task.created`,
@@ -391,7 +433,14 @@ route `can:crm.leads.edit`  /  $user->can()  /  Gate::allows()
 - Connection: Redis (`QUEUE_CONNECTION=redis`, `REDIS_CLIENT=predis`). `config/queue.php` still falls back to
   `database` if the variable is missing.
 - Queue names, from spec section 25: `default`, `notifications`, `webhooks`, `billing`, `automation`,
-  `campaigns`, `ai`.
+  `campaigns`, `ai`. `webhooks` is worked by a supervisor but no class dispatches to it today (inbound webhooks are
+  handled in the request). Which queue each job uses: `notifications` Communication (`SendMessage`,
+  `DispatchDueMessages`, `CleanupCommunication`), Invoicing `MaintainReceivables` and `InvoiceMail`, Support
+  `CsatInvitationMail`, Email Marketing `SignupConfirmationMail`, the invitation and workspace-ready mail; `billing`
+  the two billing mails; `automation` Workflow Automation (`ExecuteRun`, `SweepRuns`), Projects, Invoicing
+  `GenerateRecurringInvoices`, HRM, Talent and Support jobs; `campaigns` the Email, SMS and WhatsApp campaign
+  runners and reconciliation; `ai` the AI retention job; `default` the Social jobs (`PublishDuePosts`,
+  `MaintainSocialAccounts`) and WhatsApp `RunMaintenance`.
 - Horizon supervisors (`config/horizon.php`): `interactive` works `notifications, webhooks, default` (60 s
   timeout); `background` works `billing, automation, campaigns, ai` (300 s timeout). The Redis queue's
   `retry_after` is 330 s and must stay above the longest timeout. Horizon needs Linux; `composer dev` runs one
@@ -419,7 +468,8 @@ route `can:crm.leads.edit`  /  $user->can()  /  Gate::allows()
 - Scheduled (`routes/console.php`): `billing:run` hourly, which handles base and app subscriptions inside each
   tenant context; `apps:run-scheduled` every minute, which dispatches only compiled jobs of entitled apps through
   a worker-time compiled-definition and entitlement check; and
-  `model:prune` daily for sign-ups that were never confirmed.
+  `model:prune` daily for sign-ups that were never confirmed; and a closure named `platform:scheduler-heartbeat`
+  every minute (not an Artisan command) that `GET /health/ready` reads (`docs/DEPLOYMENT.md` section 8, ADR 0019).
 
 ## 11. Dedicated tenant databases (summary)
 
@@ -434,15 +484,15 @@ strategy, and the gaps that must be closed before the first move, are in `docs/D
 |---|---|---|
 | Email verification for an existing account, changing an email address | — | A new account is verified by its sign-up or invitation link; there is no way to change an address |
 | Coupons, refunds, tax, usage-based charge calculation | later | See `docs/BILLING.md` section 7 |
-| A verified payment gateway | when credentials exist | SSLCommerz is implemented but has not been run against the sandbox |
+| A verified payment gateway | when credentials exist | SSLCommerz and aamarPay are implemented but have not been run against their sandboxes |
 | API tokens (Sanctum) | when first needed | Not installed; there are no API routes |
 | Integration centre (OAuth connections, webhooks) | not assigned in spec 27 | — |
-| Further optional production apps | 7+ | CRM, Projects, Invoicing and HR Management are compiled; Payroll, Talent and later apps remain phased work |
+| Further optional production apps | 13 | The 15 optional apps listed in `docs/MODULES.md` section 0 are compiled; Phase 13 is hardening (health endpoints, backup verification, benchmark, queue and index audits), not a new app |
 | Customer-facing payment gateway for invoices | owner decision | Invoicing records manual payments only; per-tenant gateway credentials cannot live in the database (CLAUDE.md), see `docs/INVOICING.md` |
 | Notification centre, message outbox, email, interaction timeline | 8 | Built as the optional `communication` app (`docs/COMMUNICATION.md`); other modules are not rewired to call its `Notifier` / `InteractionRecorder` contracts yet |
-| SMS and WhatsApp providers | 8 | Interfaces and an honest `not_configured` adapter only; no real provider |
+| SMS, email and WhatsApp providers | 8 / 9 | Adapters `twilio`, `http_sms`, `smtp`, `whatsapp_cloud` and the platform mailer, configured by operator provider accounts stored encrypted (ADR 0013) or environment references. **None of the SMS/SMTP/WhatsApp adapters has run against a live provider**; SMS delivery receipts are not consumed |
 | Realtime (Reverb) | later | Not installed; `BROADCAST_CONNECTION=log` |
-| Automation engine | 10 | Built as the optional `automation` app, backend and Vue Flow editor (`docs/WORKFLOWS.md`); notification/messaging actions and run-history retention are not built |
+| Automation engine | 10 | Built as the optional `automation` app, backend and Vue Flow editor (`docs/WORKFLOWS.md`); Communication registers `communication.message.send` (transactional templates only) and `communication.interaction.log`; run-history retention is not built, and nothing listens to `automation.run.failed` / `automation.approval.requested` to notify anyone |
 | General file manager | — | `TenantStorage` backs workspace logos and CRM/Projects private attachments; no general browser exists |
 | Global data search | — | Scout installed (`database` driver), no searchable model; Ctrl/Cmd+K is navigation only. Contacts are searched with `LIKE` on their own page |
 | Custom domains | future | `tenant_domains.type` exists, no routing |

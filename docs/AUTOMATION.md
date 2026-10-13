@@ -1,6 +1,6 @@
 # Automation
 
-State: Phase 10 backend. The contracts and registry below are consumed by the **Workflow Automation app**
+State: Phase 10 (backend and visual editor). The contracts and registry below are consumed by the **Workflow Automation app**
 (`app/Modules/Automation`, module key `automation`; full description in `docs/WORKFLOWS.md`), which stores versioned
 JSON workflows, matches domain events to published workflows, runs them one persisted step at a time under the
 member who published them, and re-checks permission and entitlement before every step. The visual editor (Vue Flow,
@@ -15,7 +15,7 @@ only calls the registered contracts.
 | Action contract | `app/Core/Automation/Contracts/ActionDefinition.php` |
 | Registry | `app/Core/Automation/AutomationRegistry.php` (singleton) |
 | Domain event contract | `app/Core/Events/DomainEvent.php`, base class `TenantDomainEvent` |
-| Core trigger | `app/Core/Automation/Triggers/MemberJoinedTrigger.php` (`core.member.joined`) |
+| Core triggers | `app/Core/Automation/Triggers`: `core.member.joined`, `core.contact.created`, `core.company.created` |
 | CRM triggers | Lead created, lead qualified, deal won and activity completed under `app/Modules/CRM/Automation/Triggers` |
 | CRM actions | Assign a lead, move a deal stage and create a follow-up activity under `app/Modules/CRM/Automation/Actions` |
 | CRM action receipts | `crm_automation_action_receipts`, a tenant/action/idempotency-key unique result store used by mutating CRM actions |
@@ -47,8 +47,9 @@ only calls the registered contracts.
 | Engine | `app/Modules/Automation` (`TriggerBridge`, `RunStarter`, `RunExecutor`, `Sweeper`, `GraphValidator`); tables `automation_*`; see `docs/WORKFLOWS.md` |
 | Queue | `automation`, worked by Horizon's `background` supervisor; entitled Projects task maintenance dispatches here every minute; `ExecuteRun` and the per-minute `SweepRuns` of the Workflow Automation app run here too |
 
-Definitions are metadata and callable contracts, not workflows. Registering CRM or Projects actions does not schedule or
-execute them by itself; the Phase 10 engine remains responsible for workflow persistence, orchestration and runs. The
+Definitions are metadata and callable contracts, not workflows. Registering an action does not schedule or
+execute it by itself; the Workflow Automation app (`docs/WORKFLOWS.md`) is responsible for workflow persistence,
+orchestration and runs and calls only registered definitions. The
 separate Projects maintenance job on the same queue creates due recurrences and emits reminder events; it does not execute
 automation definitions.
 

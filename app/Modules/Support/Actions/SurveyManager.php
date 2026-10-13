@@ -31,6 +31,12 @@ final class SurveyManager
     /** @var array<string, string> Plain tokens issued during this request, keyed by ticket id. */
     private array $issued = [];
 
+    /** @var array<string, true> Ticket ids whose invitation was queued by email during this request. */
+    private array $emailed = [];
+
+    /** An agent may ask for a new survey of one ticket once per this many minutes. */
+    public const int MANUAL_COOLDOWN_MINUTES = 10;
+
     public function __construct(
         private readonly SupportSettings $settings,
         private readonly TicketHistory $history,
@@ -41,6 +47,27 @@ final class SurveyManager
     public static function hash(string $token): string
     {
         return hash('sha256', $token);
+    }
+
+    /**
+     * An agent's explicit request (works even with CSAT switched off): at most one new invitation per ticket
+     * per cooldown, and always audited as a forced request. Must run inside the caller's transaction, with
+     * the ticket locked.
+     */
+    public function requestManually(Ticket $ticket, ?TenantMembership $actor): ?string
+    {
+        $recent = CsatSurvey::query()
+            ->where('ticket_id', $ticket->id)
+            ->where('created_at', '>', CarbonImmutable::now()->subMinutes(self::MANUAL_COOLDOWN_MINUTES))
+            ->exists();
+
+        if ($recent) {
+            throw ValidationException::withMessages(['ticket' => __('A survey was requested for this ticket a moment ago. Try again in a few minutes.')]);
+        }
+
+        $this->audit->record('support.csat.forced', $ticket, ['number' => $ticket->number, 'csat_enabled' => $this->settings->current()->csat_enabled]);
+
+        return $this->request($ticket, $actor, force: true);
     }
 
     /**
@@ -72,6 +99,7 @@ final class SurveyManager
         $this->history->record($ticket, TicketEventKind::SurveyRequested, $actor, ['survey_id' => $survey->id]);
         $this->audit->record('support.csat.requested', $ticket, ['number' => $ticket->number, 'survey_id' => $survey->id]);
         $this->issued[$ticket->id] = $token;
+        unset($this->emailed[$ticket->id]);
 
         $email = $ticket->requester_email
             ?? ($ticket->contact_id === null ? null : Contact::query()->whereKey($ticket->contact_id)->value('email'));
@@ -80,6 +108,7 @@ final class SurveyManager
             Mail::to($email)
                 ->locale($this->context->require()->locale)
                 ->queue(new CsatInvitationMail($ticket->id, $ticket->number, $token));
+            $this->emailed[$ticket->id] = true;
         }
 
         return $token;
@@ -92,6 +121,12 @@ final class SurveyManager
         unset($this->issued[$ticketId]);
 
         return $token;
+    }
+
+    /** Whether the invitation issued for the ticket during this request went out by email. */
+    public function wasEmailed(string $ticketId): bool
+    {
+        return isset($this->emailed[$ticketId]);
     }
 
     /** The pending, unexpired survey of a token, or null. */

@@ -29,6 +29,11 @@ return [
     // A delivery claimed by a worker that never reported back is released after this many minutes.
     'stuck_after_minutes' => 15,
 
+    // A delivery the platform refused for a plan limit is handed over again under a new key; after this many
+    // refusals it is marked failed. A sequence enrolment waits `limit_backoff_minutes` between tries.
+    'limit_retry_max' => 24,
+    'limit_backoff_minutes' => 60,
+
     // Most members a test send may address, and how often.
     'test_send_max_recipients' => 5,
 

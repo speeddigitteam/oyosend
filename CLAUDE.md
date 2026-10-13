@@ -3,11 +3,12 @@
 Multi-tenant business SaaS, modular monolith. Spec: `MASTER_PROMPT.md` (sections 0, 3, 27–31 matter most).
 **Read before coding:** this file, `PROGRESS.md`, then `docs/ARCHITECTURE.md`, `docs/SECURITY.md`,
 `docs/MODULES.md`, `docs/DATABASE.md`, `docs/TESTING.md`, `resources/js/README.md`; `docs/BILLING.md` before
-touching billing. The code is the source of truth; if a doc and the code disagree, fix the doc and say so.
+touching billing; the module's own page (`docs/INDEX.md` lists every page and ADR) before touching an app. The code is the source of truth; if a doc and the code disagree, fix the doc and say so.
 
 State: Phases 1–8 are complete and signed off. Phase 9 Marketing Apps (Email, SMS, WhatsApp, Social) and the
 Automation, AI, Support and Reports modules are built but unreviewed (see `PROGRESS.md`); Phase 13 production
-hardening is not started. CRM, Projects, Invoicing, HRM, Payroll and Talent are production optional apps. One phase per session; stop at the end of the phase and report.
+hardening has begun (health probes, queue/index audits, backup verification, benchmark; ADR 0019) and is not
+signed off. 16 modules and 251 permissions are registered (`docs/MODULES.md`). CRM, Projects, Invoicing, HRM, Payroll and Talent are production optional apps. One phase per session; stop at the end of the phase and report.
 
 ## Stack
 
@@ -20,7 +21,7 @@ Not installed until needed: Sanctum (API tokens), Reverb (realtime), Meilisearch
 
 | Decision | Resolution in this repo |
 |---|---|
-| Modular monolith, one shared MySQL DB, `tenant_id` on tenant-owned tables | `app/Core` + `app/Platform`; `app/Modules/` starts with the first optional module |
+| Modular monolith, one shared MySQL DB, `tenant_id` on tenant-owned tables | `app/Core` + `app/Platform`; 15 optional apps in `app/Modules/`, each one provider listed in `config/modules.php`. Platform-wide tables with no `tenant_id` are the documented exceptions (`communication_provider_accounts`, `communication_account_claims`, `ai_provider_accounts`; `docs/DATABASE.md` section 2) |
 | Tenant = subdomain `{tenant}.APP_DOMAIN`; central site on the root; custom domains later | `TenantHost` + `InitializeTenancy`, hostname only. `tenant_domains.type` reserves `custom`; not routed |
 | Local dev on `*.localhost` | Yes. Natively `php artisan serve` on `:8000` |
 | Super Admin: own guard, own host `admin.APP_DOMAIN`, own layout, `platform_users` table | `platform` guard, `routes/platform.php`, `App\Platform`, `PlatformLayout`; 2FA mandatory |
@@ -28,6 +29,8 @@ Not installed until needed: Sanctum (API tokens), Reverb (realtime), Meilisearch
 | `stancl/tenancy` single-DB if it supports Laravel 13 | Used (3.10.1), with **our own** fail-closed scope, cache prefixing, storage API — ADR 0001 |
 | `spatie/laravel-permission` teams mode | Used (team = tenant) for schema and assignment; **checks go through our `AccessChecker`** — ADR 0002; scopes — ADR 0007 |
 | Scout, `database` driver first, Meilisearch later | Installed; no searchable model yet |
+| Credentials in the environment, never the database | Held for payment gateways, Social platform apps and `APP_KEY`. One owner-approved exception: operator **messaging** provider accounts, encrypted and write-only (ADR 0013). Operator **AI** provider accounts exist in code but were not covered by that approval: open decision in ADR 0018 |
+| Communication through providers behind interfaces, honest `not_configured` | Marketing apps send only through `App\Core\Communication` contracts (ADR 0014); no adapter has been run against a live provider |
 | Backend tests: Pest | Pest 5 on a real MySQL database `oyosend_testing` |
 | Frontend tests: Vitest; Playwright from Phase 2 | Vitest in `tests/js`. Playwright: see `PROGRESS.md` |
 | Local env: Laravel Sail | `compose.yaml` committed but **unverified** (no Docker here); verified natively on Laragon — ADR 0004 |
@@ -44,12 +47,15 @@ Billing model (ADR 0006): invoice-driven; nothing is charged automatically. Sign
 
 ```
 app/Core/{Tenancy,Identity,Access,Organization,Contacts,Settings,Registration,Billing,AppStore,Modules,Entitlements,
-          Automation,Events,Audit,Dashboard,Workforce,Http,Support}
-app/Core/CoreServiceProvider.php     the `core` module: manifest, bindings, Gate::before, gateways
-app/Platform/                        Super Admin panel (the only code that reads across tenants)
-app/Modules/<Module>/                optional apps (`CRM`, `Projects`, `Invoicing`, `Hrm`, `Payroll` and `Talent` are production modules)
+          Automation,Events,Audit,Dashboard,Workforce,Communication,Reporting,Ai,Http,Support}
+app/Core/CoreServiceProvider.php     the `core` module: manifest, bindings, Gate::before, gateways, null contracts
+app/Platform/                        Super Admin panel (the only code that reads across tenants), health probes, `ops:*`
+app/Modules/<Module>/                15 optional apps: `CRM`, `Projects`, `Invoicing`, `Hrm`, `Payroll`, `Talent` (production);
+                                     `Automation`, `Ai`, `Communication`, `EmailMarketing`, `SmsMarketing`, `WhatsappMarketing`,
+                                     `Social`, `Support`, `Reports` (built, unreviewed). Table: `docs/MODULES.md`
 routes/{central,tenant,tenant-callbacks,platform,console}.php     routes/web.php is NOT loaded
-config/{platform,tenancy,modules,permission,trustedproxy,horizon,ziggy}.php
+config/{platform,tenancy,modules,permission,trustedproxy,horizon,ziggy}.php, plus one file per app with settings:
+       {ai,automation,communication,email_marketing,sms_marketing,social,whatsapp_marketing}.php
 database/{migrations,factories,seeders}          lang/{en,bn}, lang/bn.json (server-side strings)
 resources/js/{Core,Platform,Modules/<Module>}    page name = path under resources/js
 resources/css/app.css                design tokens (Tailwind 4 @theme)
@@ -58,8 +64,10 @@ docs/, docs/adr/                     documentation and decisions
 ```
 
 Three areas: central (`APP_DOMAIN`, groups `web`+`central`, sign-up only), workspace (`{tenant}.APP_DOMAIN`,
-`web`+`tenant`, guard `web`), Super Admin (`admin.APP_DOMAIN`, `web`+`platform`, guard `platform`). Plus the two
-stateless payment callbacks on the workspace host (group `tenant.callback`).
+`web`+`tenant`, guard `web`), Super Admin (`admin.APP_DOMAIN`, `web`+`platform`, guard `platform`). Plus stateless
+callbacks with no session and no `web` group: the payment callbacks and each module's webhooks, tracking links and
+token pages on the workspace host (group `tenant.callback`, via `loadTenantCallbackRoutes()`), the Social OAuth
+redirect broker on the central host (group `central.callback`) and `GET /health`, `GET /health/ready`.
 
 ## Commands
 
@@ -75,7 +83,9 @@ stateless payment callbacks on the workspace host (group `tenant.callback`).
 | `php artisan apps:sync [--prune]` | sync compiled optional manifests into immutable catalogue versions; every deploy (`db:seed` also performs the non-pruning sync) |
 | `php artisan platform:create-admin {email}` | create a Super Admin panel account; interactive, asks for the password |
 | `php artisan billing:run [--tenant=slug]` | advances base and app subscriptions; scheduled hourly, safe to run twice |
-| `php artisan apps:run-scheduled` | dispatch due optional-module jobs only for entitled tenants |
+| `php artisan apps:run-scheduled [--tenant=slug]` | dispatch due optional-module jobs only for entitled tenants; scheduled every minute |
+| `php artisan ops:verify-backup {dump} [--source=] [--database=*_restore_check] [--keep]` | restore a mysqldump into a scratch database it creates, check core tables, drop it; never touches the application database |
+| `php artisan ops:benchmark [--rows=] [--cleanup]` | seed and time key list queries with `EXPLAIN`; refuses production and any database not named `*testing` |
 
 A task is done only when `composer check`, `npm run typecheck` and `npm run test` pass. CI
 (`.github/workflows/ci.yml`) runs the same checks but has never run on GitHub yet. On Windows Git Bash start
@@ -94,7 +104,8 @@ Vitest from `D:/…`, not `/d/…`. The suite runs `migrate:fresh`: never run it
 - Tenant files only through `TenantStorage`. `Cache::` and rate limits are per tenant inside a tenant;
   platform-wide data goes to `app('cache.central')`.
 - Queued jobs, mailables, notifications and listeners for a tenant implement `RequiresTenantContext`.
-  Queues: `default`, `notifications`, `webhooks`, `billing`, `automation`, `campaigns`, `ai`.
+  Queues: `default`, `notifications`, `webhooks`, `billing`, `automation`, `campaigns`, `ai`. Every queued class declares
+  queue, tries, timeout (under its supervisor's), backoff and tenant context (`QueueDefinitionsTest` enforces it).
 
 **Authorization**
 - Permissions are declared in a module manifest, named `{module}.{resource}.{action}`, synced with
@@ -146,6 +157,26 @@ Vitest from `D:/…`, not `/d/…`. The suite runs `migrate:fresh`: never run it
   stay within one project and are cycle-checked.
 - Optional modules integrate only through events or documented contracts. Projects must not import CRM,
   Invoicing or HRM models.
+- **Marketing and messaging apps send only through `App\Core\Communication` contracts** (`ChannelGateway`,
+  `MarketingAudience`, `UnsubscribeLinks`, `ConsentRecorder`, `ChannelEventListener`; ADR 0014). They import no
+  Communication model, hold no provider credential, and show `not_configured` honestly. Consent and suppression are
+  decided by the platform at queue time and again at send time; `ConsentRecorder` only withdraws consent.
+- **Reports are published through `App\Core\Reporting`** (ADR 0015). A module that has reports registers
+  `ReportProvider`s with `$this->app->tag(..., ReportProvider::TAG)` in its own provider; a provider is read-only,
+  declares its columns, filters and permission, narrows with `RecordAccess` when the permission is scopable, and
+  returns `null` for "not reported". New modules with reportable data register at least one.
+- **Workflows are declarative data** that run as the member who last published them, re-checked before every step
+  (ADR 0017). An automation action must be idempotent per key (receipt table), must not read a signed-in user, and
+  must not approve money, hire, resolve, merge or opt anyone in. Never add a node or action that evaluates tenant
+  input.
+- **AI never changes data on its own** (ADR 0018): a changing tool is a `ProposalTool` and a person confirms. No
+  tool may touch money or access control. Every provider call goes through `AiGateway`.
+- A platform-wide table without `tenant_id` needs an explicit exception in `docs/DATABASE.md` section 2 and a reason
+  (ADR 0016 is the pattern: unique index without `tenant_id`, owned through a tenant-owned row).
+- **Migrations (pre-release only).** Nothing has been deployed to a production database, so a migration that has
+  never run anywhere but disposable development and test databases may be edited in place. That ends with the first
+  production deploy: from then on every schema change is a new, reversible migration and an applied one is never
+  edited or renamed. Say in the PROGRESS entry when a migration was edited in place.
 
 **Frontend** (details: `resources/js/README.md`)
 - Pages in `resources/js/{Core,Platform,Modules/<M>}/Pages`, rendered by path; type every prop.
@@ -164,7 +195,8 @@ Vitest from `D:/…`, not `/d/…`. The suite runs `migrate:fresh`: never run it
 - A workspace route for signed-out visitors must be added to `PUBLIC_WORKSPACE_ROUTES` in `RoutePipelineTest`.
 
 **Docs**
-- Keep `docs/` in step with the code in the same change. Major decision → `docs/adr/NNNN-title.md`.
+- Keep `docs/` in step with the code in the same change. Major decision → `docs/adr/NNNN-title.md`; new pages are
+  linked from `docs/INDEX.md`.
 - New dependency → check Laravel 13 support and licence first, record why in an ADR or `PROGRESS.md`.
 - Update `PROGRESS.md` at the end of every session.
 
@@ -185,6 +217,9 @@ Vitest from `D:/…`, not `/d/…`. The suite runs `migrate:fresh`: never run it
 - Never activate a paid app except through verified `InvoiceSettlement`; never upload/install/execute tenant code.
 - Never give the payment callback routes a session, cookies or the `web` group, and never trust their payload.
 - Never store gateway credentials in the database, show them, log them or put them in an exception message.
+  The one exception (ADR 0013): messaging provider accounts (`communication_provider_accounts`) an operator types
+  in the Super Admin panel are stored encrypted and write-only; payment gateways stay environment-only. AI keys,
+  Social platform credentials and `APP_KEY` are not covered by it (ADR 0018 records the open AI decision).
 - Never call `Storage::disk()` with a hand-built tenant path, and never put tenant data in `cache.central` or
   platform data in the tenant-prefixed `Cache::`.
 - Never set `SESSION_DOMAIN` to a parent domain. Sessions are host-only.

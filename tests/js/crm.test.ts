@@ -43,6 +43,7 @@ vi.mock('@/Core/lib/route', () => ({
     isCurrentRoute: () => false,
 }));
 
+import DealBoard from '@/Modules/CRM/Components/DealBoard.vue';
 import PipelineWidget from '@/Modules/CRM/Components/PipelineWidget.vue';
 import DealFormDialog from '@/Modules/CRM/Components/DealFormDialog.vue';
 import LeadFormDialog from '@/Modules/CRM/Components/LeadFormDialog.vue';
@@ -192,5 +193,62 @@ describe('CRM frontend', () => {
         expect((control('Contact').element as HTMLSelectElement).value).toBe('contact-1');
         expect((control('Company').element as HTMLSelectElement).value).toBe('company-1');
         expect((control('Currency').element as HTMLInputElement).value).toBe('USD');
+    });
+});
+
+describe('CRM deal board', () => {
+    const modalStub = defineComponent({ template: '<div><slot /><slot name="footer" /></div>' });
+    const boardPipeline: Pipeline = { id: 'pipeline-1', name: 'Sales', stages: [
+        { id: 'stage-new', name: 'New', probability: 10, position: 1, won: false, lost: false },
+        { id: 'stage-proposal', name: 'Proposal', probability: 60, position: 2, won: false, lost: false },
+        { id: 'stage-won', name: 'Won', probability: 100, position: 3, won: true, lost: false },
+        { id: 'stage-lost', name: 'Lost', probability: 0, position: 4, won: false, lost: true },
+    ] };
+    const boardDeal = (overrides: Partial<Deal> = {}): Deal => ({
+        id: 'deal-1', title: 'Fleet renewal', status: 'open', amount: 2500000, currency: 'BDT', expectedCloseDate: null, wonAt: null, lostAt: null, lostReason: null, description: null,
+        pipeline: { id: 'pipeline-1', name: 'Sales' }, stage: { id: 'stage-new', name: 'New' }, lead: null, contact: null, company: { id: 'company-1', name: 'Acme' }, owner: null,
+        editable: true, assignable: true, createdAt: '2026-10-10T00:00:00Z', ...overrides,
+    });
+    const mountBoard = (deals: Deal[]) => track(mount(DealBoard, { props: { pipelines: [boardPipeline], boardDeals: deals, selectedPipelineId: 'pipeline-1' }, global: { stubs: { Modal: modalStub } } }));
+    const dropOn = async (wrapper: VueWrapper, stageId: string): Promise<void> => {
+        const column = wrapper.get(`section[aria-labelledby="deal-col-${stageId}"]`);
+        await column.trigger('dragover');
+        await column.trigger('drop');
+    };
+
+    it('moves a dragged deal to an open stage through the stage route', async () => {
+        const wrapper = mountBoard([boardDeal()]);
+
+        expect(wrapper.findAll('h3').map((item) => item.text())).toEqual(['New', 'Proposal', 'Won', 'Lost']);
+        await wrapper.get('a[draggable="true"]').trigger('dragstart');
+        await dropOn(wrapper, 'stage-proposal');
+
+        expect(inertia.visits).toEqual([{ method: 'post', url: '/crm.deals.stage?deal=deal-1', data: { stage_id: 'stage-proposal', note: null } }]);
+    });
+
+    it('asks before a drop closes a deal and sends the note as the lost reason', async () => {
+        const wrapper = mountBoard([boardDeal()]);
+
+        await wrapper.get('a[draggable="true"]').trigger('dragstart');
+        await dropOn(wrapper, 'stage-lost');
+
+        expect(inertia.visits).toEqual([]);
+        expect(wrapper.text()).toContain('Moving this deal to Lost closes it.');
+        expect(wrapper.text()).toContain('this note is saved as the reason');
+        await wrapper.get('textarea').setValue('Chose a cheaper supplier');
+        await wrapper.get('form#crm-board-close-form').trigger('submit');
+
+        expect(inertia.visits).toEqual([{ method: 'post', url: '/crm.deals.stage?deal=deal-1', data: { stage_id: 'stage-lost', note: 'Chose a cheaper supplier' } }]);
+    });
+
+    it('does not let a view-only deal be dragged', async () => {
+        const wrapper = mountBoard([boardDeal({ editable: false })]);
+        const card = wrapper.get('a[href="/crm.deals.show?deal=deal-1"]');
+
+        expect(card.attributes('draggable')).toBe('false');
+        await card.trigger('dragstart');
+        await dropOn(wrapper, 'stage-proposal');
+
+        expect(inertia.visits).toEqual([]);
     });
 });

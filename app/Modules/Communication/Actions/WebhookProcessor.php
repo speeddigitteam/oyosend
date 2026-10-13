@@ -21,7 +21,10 @@ use App\Modules\Communication\Models\Message;
 use App\Modules\Communication\Models\WebhookEvent;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Applies verified provider events. Each (provider, event id) is applied once.
@@ -34,38 +37,109 @@ final class WebhookProcessor
         private readonly ConsentManager $consents,
         private readonly TimelineRecorder $timeline,
         private readonly ChannelEventRelay $relay,
+        private readonly ContactLocator $locator,
     ) {}
 
     /**
      * @param  list<ProviderEvent>  $events
      * @return int How many events changed something (duplicates and unknown messages do not count).
+     *
+     * @throws ChannelEventListenerFailed when at least one event failed and may still be retried; the
+     *                                    events after it in the payload were still processed
      */
     public function process(ChannelProvider $provider, array $events): int
     {
         $applied = 0;
+        $retry = false;
 
         foreach ($events as $event) {
-            if (! $this->firstTime($provider, $event)) {
-                continue;
-            }
+            try {
+                // The dedupe row, the applied change and the hand-over to apps commit together: when any of
+                // them fails the row rolls back and the provider's retry is applied afresh. Listeners that
+                // queue work must do it after commit, or a rolled-back event would still run it.
+                $applied += DB::transaction(function () use ($provider, $event): int {
+                    if (! $this->firstTime($provider, $event)) {
+                        return 0;
+                    }
 
-            $applied += $this->apply($provider, $event) ? 1 : 0;
-            $this->relay->forward($provider, $event);
+                    $changed = $this->apply($provider, $event);
+                    $this->relay->forward($provider, $event);
+
+                    return $changed ? 1 : 0;
+                });
+            } catch (Throwable $exception) {
+                // One bad event must not block the rest of the payload, and must not be retried forever.
+                if (! $this->giveUp($provider, $event, $exception)) {
+                    $retry = true;
+                }
+            }
+        }
+
+        if ($retry) {
+            throw new ChannelEventListenerFailed;
         }
 
         return $applied;
     }
 
-    private function firstTime(ChannelProvider $provider, ProviderEvent $event): bool
+    /**
+     * Counts a failure of one event (per tenant, provider and event id). After `communication.webhook_max_failures`
+     * the event is recorded as `failed` and answered as handled, so the provider stops redelivering a poison
+     * message. Only classes are logged: the event may carry a customer's text.
+     */
+    private function giveUp(ChannelProvider $provider, ProviderEvent $event, Throwable $exception): bool
     {
+        $limit = max(1, (int) config('communication.webhook_max_failures', 5));
+        $key = 'communication:webhook-failures:'.$provider->key().':'.sha1($event->eventId);
+
+        Cache::add($key, 0, CarbonImmutable::now()->addDay());
+        $failures = (int) Cache::increment($key);
+
+        $context = [
+            'provider' => $provider->key(),
+            'event_type' => $event->type->value,
+            'exception' => $exception::class,
+            'failures' => $failures,
+        ];
+
+        if ($failures < $limit) {
+            Log::warning('A provider event could not be applied; the provider will redeliver it.', $context);
+
+            return false;
+        }
+
         try {
             WebhookEvent::query()->create([
                 'provider' => $provider->key(),
                 'event_id' => mb_substr($event->eventId, 0, 190),
                 'type' => $event->type->value,
+                'status' => 'failed',
                 'provider_message_id' => $event->providerMessageId === null ? null : mb_substr($event->providerMessageId, 0, 190),
                 'received_at' => CarbonImmutable::now(),
             ]);
+        } catch (UniqueConstraintViolationException) {
+            // Already recorded by a concurrent delivery.
+        }
+
+        Cache::forget($key);
+        Log::error('A provider event was given up on after repeated failures.', $context);
+
+        return true;
+    }
+
+    private function firstTime(ChannelProvider $provider, ProviderEvent $event): bool
+    {
+        // A savepoint: a duplicate must not poison the surrounding transaction.
+        try {
+            DB::transaction(static function () use ($provider, $event): void {
+                WebhookEvent::query()->create([
+                    'provider' => $provider->key(),
+                    'event_id' => mb_substr($event->eventId, 0, 190),
+                    'type' => $event->type->value,
+                    'provider_message_id' => $event->providerMessageId === null ? null : mb_substr($event->providerMessageId, 0, 190),
+                    'received_at' => CarbonImmutable::now(),
+                ]);
+            });
         } catch (UniqueConstraintViolationException) {
             return false;
         }
@@ -181,7 +255,7 @@ final class WebhookProcessor
             return false;
         }
 
-        $contact = $this->contactFor($channel, $address);
+        $contact = $this->locator->find($channel, $address);
 
         if ($contact === null) {
             return false;
@@ -198,17 +272,5 @@ final class WebhookProcessor
             sourceType: 'provider_event',
             dedupeKey: 'inbound:'.$provider->key().':'.mb_substr($event->eventId, 0, 120),
         )) !== null;
-    }
-
-    private function contactFor(Channel $channel, string $address): ?Contact
-    {
-        if ($channel === Channel::Email) {
-            return Contact::query()->where('email', $address)->first();
-        }
-
-        $digits = ltrim($address, '+');
-        $strip = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '(', ''), ')', ''), '+', '')";
-
-        return Contact::query()->whereNotNull('phone')->whereRaw($strip.' = ?', [$digits])->first();
     }
 }

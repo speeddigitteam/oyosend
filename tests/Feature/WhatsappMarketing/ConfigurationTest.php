@@ -111,7 +111,7 @@ it('shows lists with each member\'s opt-in answer and number validity, from the 
     $optedIn = $this->waContact($this->tenant, ['first_name' => 'Opted', 'phone' => '+8801711000021']);
     $this->waOptIn($this->tenant, $optedIn);
     $silent = $this->waContact($this->tenant, ['first_name' => 'Silent', 'phone' => '+8801711000022']);
-    $local = $this->waContact($this->tenant, ['first_name' => 'Local', 'phone' => '01711000023']);
+    $local = $this->waContact($this->tenant, ['first_name' => 'Local', 'phone' => '0212345678']);
     $list = $this->waList($this->tenant, [$optedIn, $silent, $local]);
 
     ($this->as)()->get($this->waUrl($this->tenant, "/lists/{$list->id}"))
@@ -165,7 +165,7 @@ it('saves settings, never takes a credential and rejects a national number as th
     ])->assertSessionHasNoErrors();
 
     ($this->as)()->put($this->waUrl($this->tenant, '/settings'), [
-        'business_name' => 'Acme Ltd', 'display_phone' => '01700000000', 'auto_assign' => true,
+        'business_name' => 'Acme Ltd', 'display_phone' => '0212345678', 'auto_assign' => true,
         'auto_create_contacts' => false, 'bots_enabled' => true,
     ])->assertSessionHasErrors('display_phone');
 

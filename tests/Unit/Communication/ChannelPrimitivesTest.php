@@ -18,7 +18,7 @@ it('normalizes addresses per channel', function () {
     expect(Channel::Email->normalize('  Rahim@Example.COM '))->toBe('rahim@example.com')
         ->and(Channel::Email->normalize('not an email'))->toBeNull()
         ->and(Channel::Sms->normalize('+880 1711-000000'))->toBe('+8801711000000')
-        ->and(Channel::Sms->normalize('0171-1000000'))->toBe('01711000000')
+        ->and(Channel::Sms->normalize('0171-1000000'))->toBe('+8801711000000')
         ->and(Channel::Whatsapp->normalize('12'))->toBeNull();
 });
 

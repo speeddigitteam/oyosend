@@ -1196,6 +1196,8 @@ describe('billing mail', function () {
             $job = DB::table('jobs')->sole();
             $payload = json_decode($job->payload, true);
             unset($payload['tenant_id']);
+            // The mail declares its own tries; a missing tenant is not worth retrying, so fail it on the first.
+            $payload['maxTries'] = 1;
             DB::table('jobs')->where('id', $job->id)->update(['payload' => json_encode($payload)]);
 
             $globex = $this->createTenant('globex');

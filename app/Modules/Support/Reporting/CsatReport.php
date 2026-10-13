@@ -39,7 +39,7 @@ final class CsatReport implements ReportProvider
 
     public function run(ReportContext $context): ReportResult
     {
-        $csat = $this->reports->overview($context->from, $context->to, $context->string('queue_id'))['csat'];
+        $csat = $this->reports->overview($context->from, $context->to, $context->string('queue_id'), ['csat'])['csat'];
         $total = $csat['responses'];
         $rows = [];
 

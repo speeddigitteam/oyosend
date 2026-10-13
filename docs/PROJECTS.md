@@ -32,7 +32,8 @@ templates copy task blueprints into a new project without keeping mutable links 
 subtasks, ordered checklists, multiple assignees and watchers, milestones, sprints, reminders and recurrence.
 
 The same task data drives list, Kanban, calendar and Gantt views. Moving a task is a normal server-authorized
-status/order update; calendar, Gantt and reminder inputs use the workspace timezone and are persisted in UTC.
+status/order update; on the Kanban board an editable open task is dragged to another column, completed and
+cancelled cards cannot be dragged because they cannot be reopened, and a refused move shows the server's reason; calendar, Gantt and reminder inputs use the workspace timezone and are persisted in UTC.
 Recurring schedules advance in the workspace's local calendar so daily and weekly wall times survive daylight-
 saving changes, and each generated occurrence carries its correspondingly shifted reminder. Task dependencies are project-local and
 cycle-checked before insertion. Completing work writes activity history and emits the module's domain event only

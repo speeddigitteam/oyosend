@@ -12,7 +12,10 @@ use App\Core\Ai\ToolContext;
 use App\Core\Ai\ToolOutput;
 use App\Core\Contacts\ContactDirectory;
 use App\Core\Contacts\Models\Contact;
+use App\Modules\Ai\Support\ChangeValue;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /** Proposes changes to fields of an existing contact. Nothing is written until a person confirms. */
 final class ContactProposeUpdateTool implements ProposalTool
@@ -89,6 +92,32 @@ final class ContactProposeUpdateTool implements ProposalTool
                 [$contact->id],
             ),
         );
+    }
+
+    public function changes(ToolContext $context, array $payload): array
+    {
+        try {
+            $contact = $this->contact((string) ($payload['id'] ?? ''), $context);
+        } catch (ModelNotFoundException|HttpException) {
+            return [];
+        }
+
+        $attributes = is_array($payload['attributes'] ?? null) ? $payload['attributes'] : [];
+        $rows = [];
+
+        foreach (ContactInput::FIELDS as $field) {
+            if (! array_key_exists($field, $attributes)) {
+                continue;
+            }
+
+            $rows[] = [
+                'field' => $field,
+                'old' => ChangeValue::display($contact->getAttribute($field)),
+                'new' => ChangeValue::display($attributes[$field]),
+            ];
+        }
+
+        return $rows;
     }
 
     public function apply(ToolContext $context, array $payload): array

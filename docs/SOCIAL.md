@@ -41,11 +41,21 @@ Each carries its reason (app review/audit, public media URL, resumable upload...
 Configuration (operator level, never in the database; `config/social.php`): `SOCIAL_FACEBOOK_CLIENT_ID`,
 `SOCIAL_FACEBOOK_CLIENT_SECRET`, `SOCIAL_FACEBOOK_API_VERSION` (default `v23.0`), `SOCIAL_LINKEDIN_CLIENT_ID`,
 `SOCIAL_LINKEDIN_CLIENT_SECRET`, `SOCIAL_LINKEDIN_API_VERSION` (`LinkedIn-Version` header, `YYYYMM`, default
-`202510`), `SOCIAL_X_CLIENT_ID`, `SOCIAL_X_CLIENT_SECRET`. API versions are retired by the platforms: review them on
-a schedule. **Redirect URIs**: the callback is on the workspace host
-(`https://{workspace}.APP_DOMAIN/social/accounts/callback/{platform}`); the connected-accounts page lists the exact
-URI per platform. Most platforms require each redirect URI to be registered, which does not scale to many
-workspaces; a central redirect broker is an owner decision (below).
+`202510`), `SOCIAL_X_CLIENT_ID`, `SOCIAL_X_CLIENT_SECRET`, `SOCIAL_REDIRECT_BROKER` (default `true`). API versions are retired by
+the platforms: review them on a schedule.
+
+**Redirect URIs and the central broker.** Most platforms require every redirect URI to be registered, which does not
+scale to one URI per workspace. With `SOCIAL_REDIRECT_BROKER=true` the `redirect_uri` sent to the platform is one
+central URI, `https://APP_DOMAIN/social/oauth/callback/{platform}` (route `central.social.oauth.callback`, group
+`central.callback`: no session, no cookies, throttled; `Support\OAuthBroker`, `OAuthBrokerController`). The
+platform-visible `state` is an envelope `{slug}.{expiry}.{nonce}.{mac}.{inner}`: `inner` is the session-bound random
+state, and the MAC (HMAC-SHA-256 with a key derived from `APP_KEY`) covers slug, platform, expiry, nonce and inner, so
+the envelope cannot be forged, re-aimed at another workspace or platform, or have its inner value swapped; it lives
+10 minutes. The broker verifies it, requires that the workspace exists and is accessible, builds the host from
+`APP_DOMAIN` and that slug (never from request input), and redirects the same `code` / `state` / `error*` query to
+the workspace's own callback, which still does the real session-bound state check and the token exchange. Every
+failure is a bare 404. With the broker off, each platform app must register the per-workspace URI
+(`https://{workspace}.APP_DOMAIN/social/accounts/callback/{platform}`; the connected-accounts page lists it).
 
 Adding a platform: implement `SocialPlatform`, list it in `config('social.adapters')`, add its credentials to
 `config/social.php`, document the calls and approvals here, and test it with `Http::fake`. If the API cannot be
@@ -107,7 +117,10 @@ State machine (`SocialAccount.status`, `AccountStatus`):
   3. rate limits: per account per hour (workspace setting `account_hourly_limit`, default 10) and per workspace
      per minute (`social.publishing.tenant_per_minute`); a limited target is deferred without spending an attempt;
   4. claims the target with an atomic compare-and-set (`pending` -> `publishing`, `attempts + 1`), so overlapping
-     runs and workers publish nothing twice; a target that already has an `external_id` is never published again;
+     runs and workers publish nothing twice; a target that already has an `external_id` is never published again.
+     The same UPDATE re-checks that the target is still due (`next_attempt_at` set and not in the future) and that
+     its post is still `scheduled` / `publishing`: a post that was unscheduled, rejected, edited or rescheduled after
+     the due ids were read is not claimed, so what is published is what was approved;
   5. obtains fresh credentials, loads media lazily from `TenantStorage`, calls `publish()`;
   6. success: stores `external_id` / `external_url`, logs the attempt, rolls the post up; the platform's id is the
      proof of publication.
@@ -209,5 +222,5 @@ and `entitled:social`. Pages are Inertia components `Modules/Social/Pages/...`:
 ## Planned / not built
 
 Instagram, YouTube, TikTok and Pinterest adapters; media and company-page publishing for LinkedIn; media for X;
-reading and answering audience comments (`comments` capability is false everywhere); a central OAuth redirect broker;
-inbox and listening. See the owner decisions in `PROGRESS.md`.
+reading and answering audience comments (`comments` capability is false everywhere); inbox and listening. The
+redirect broker above is built and unverified against a live platform. See the owner decisions in `PROGRESS.md`.

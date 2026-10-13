@@ -14,6 +14,7 @@ use App\Modules\EmailMarketing\Actions\SubscriberManager;
 use App\Modules\EmailMarketing\Enums\ConsentMethod;
 use App\Modules\EmailMarketing\Enums\SubscriptionStatus;
 use App\Modules\EmailMarketing\Models\Subscription;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -41,11 +42,16 @@ final class SubscriberController
             'q' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $members = Subscription::query()
-            ->with(['contact', 'list'])
-            ->whereHas('contact')
+        // A member is a person's name and address: each one only for someone who may see that contact.
+        $visible = $this->records->constrain(Contact::query(), $actor, 'core.contacts.view')->select('id');
+        $scoped = fn (): Builder => Subscription::query()
             ->when($filters['status'] ?? null, fn ($query, string $status) => $query->where('status', $status))
-            ->when($filters['list_id'] ?? null, fn ($query, string $id) => $query->where('list_id', $id))
+            ->when($filters['list_id'] ?? null, fn ($query, string $id) => $query->where('list_id', $id));
+        $hidden = $scoped()->count() - $scoped()->whereIn('contact_id', $visible)->count();
+
+        $members = $scoped()
+            ->with(['contact', 'list'])
+            ->whereIn('contact_id', $visible)
             ->when($filters['q'] ?? null, fn ($query, string $term) => $query->whereHas('contact', function ($match) use ($term): void {
                 $match->where('email', 'like', Like::contains($term))
                     ->orWhere('first_name', 'like', Like::contains($term))
@@ -59,6 +65,7 @@ final class SubscriberController
 
         return Inertia::render('Modules/EmailMarketing/Pages/Subscribers/Index', [
             'members' => $members->through(fn (Subscription $member): array => $this->presenter->subscription($member, $decisions[$member->contact_id] ?? null)),
+            'hiddenMembers' => max(0, $hidden),
             'filters' => ['status' => $filters['status'] ?? null, 'list_id' => $filters['list_id'] ?? null, 'q' => $filters['q'] ?? null],
             'statuses' => array_map(static fn (SubscriptionStatus $status): string => $status->value, SubscriptionStatus::cases()),
             'lists' => $this->support->listOptions(false),

@@ -8,10 +8,8 @@ use App\Core\Communication\Contracts\ChannelEventListener;
 use App\Core\Communication\Data\ChannelEvent;
 use App\Core\Communication\Data\ChannelEventType;
 use App\Core\Communication\Data\MarketingChannel;
-use App\Core\Contacts\Models\Contact;
 use App\Modules\Communication\Channels\Contracts\ChannelProvider;
 use App\Modules\Communication\Channels\Data\ProviderEvent;
-use App\Modules\Communication\Enums\Channel;
 use App\Modules\Communication\Enums\ProviderEventType;
 use App\Modules\Communication\Models\Message;
 use Carbon\CarbonImmutable;
@@ -22,12 +20,17 @@ use Throwable;
 /**
  * Hands a verified, first-seen provider event to the apps that registered a
  * {@see ChannelEventListener} (inbound messages, read receipts, template status). The platform has already applied
- * the event to its own tables. A listener's exception is contained: it is logged without content and never
- * breaks delivery tracking or another listener.
+ * the event to its own tables. A listener's exception is logged without content and never stops another
+ * listener. For an inbound message it is then re-thrown as {@see ChannelEventListenerFailed}, which the
+ * processor's transaction turns into "not received" so the provider redelivers it; for any other event it is
+ * contained.
  */
 final class ChannelEventRelay
 {
-    public function __construct(private readonly Container $container) {}
+    public function __construct(
+        private readonly Container $container,
+        private readonly ContactLocator $locator,
+    ) {}
 
     public function forward(ChannelProvider $provider, ProviderEvent $event): void
     {
@@ -52,7 +55,7 @@ final class ChannelEventRelay
             providerMessageId: $event->providerMessageId,
             messageId: $message?->id,
             address: $address ?? $message?->recipient,
-            contactId: $message->contact_id ?? ($event->type === ProviderEventType::Inbound ? $this->contactId($channel, $address) : null),
+            contactId: $message->contact_id ?? ($event->type === ProviderEventType::Inbound ? $this->locator->idFor($channel, $address) : null),
             text: $event->text,
             occurredAt: CarbonImmutable::now(),
             module: is_string($message?->meta[MarketingGateway::META_MODULE] ?? null) ? $message->meta[MarketingGateway::META_MODULE] : null,
@@ -64,6 +67,8 @@ final class ChannelEventRelay
             ],
         );
 
+        $failed = false;
+
         foreach ($listeners as $listener) {
             try {
                 $listener->handle($channelEvent);
@@ -74,22 +79,15 @@ final class ChannelEventRelay
                     'exception' => $exception::class,
                     'event_type' => $event->type->value,
                 ]);
+                $failed = true;
             }
         }
-    }
 
-    private function contactId(Channel $channel, ?string $address): ?string
-    {
-        if ($address === null || $channel === Channel::Email) {
-            return $channel === Channel::Email && $address !== null
-                ? Contact::query()->where('email', $address)->value('id')
-                : null;
+        // An inbound message exists nowhere else: losing it is not acceptable, so the provider must retry
+        // (the webhook answers 5xx and the dedupe row rolls back). Receipts and template status are
+        // best-effort: a retry loop on them would only block delivery tracking.
+        if ($failed && $event->type === ProviderEventType::Inbound) {
+            throw new ChannelEventListenerFailed;
         }
-
-        $strip = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '(', ''), ')', ''), '+', '')";
-
-        $id = Contact::query()->whereNotNull('phone')->whereRaw($strip.' = ?', [ltrim($address, '+')])->value('id');
-
-        return is_string($id) ? $id : null;
     }
 }

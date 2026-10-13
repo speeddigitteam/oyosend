@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Core\Billing\CurrentSubscription;
 use App\Core\Communication\Contracts\UnsubscribeLinks;
 use App\Core\Communication\Data\MarketingChannel;
 use App\Core\Communication\Events\MarketingMessageStatusChanged;
@@ -240,6 +241,53 @@ it('pauses the campaign, keeps the delivery pending and resumes without double-s
     });
 
     Mail::assertNothingSent();
+
+    // The operator raises the limit and resumes: the same delivery goes out under a fresh gateway key.
+    $plan->forceFill(['limits' => ['communication.messages' => 1000]])->save();
+    app(CurrentSubscription::class)->forget();
+    $this->inTenant($this->tenant, fn () => app(CampaignManager::class)->resume(Campaign::query()->findOrFail($campaign->id)));
+    $this->emRun($this->tenant);
+
+    $this->inTenant($this->tenant, function () use ($campaign): void {
+        $delivery = Delivery::query()->where('campaign_id', $campaign->id)->sole();
+
+        expect(Campaign::query()->find($campaign->id)->status)->toBe(CampaignStatus::Sent)
+            ->and($delivery->status->wasSent() || $delivery->status === DeliveryStatus::Queued)->toBeTrue()
+            ->and($delivery->send_epoch)->toBe(1)
+            ->and($delivery->message_id)->not->toBeNull();
+    });
+
+    // Running again hands nothing over twice.
+    $this->emRun($this->tenant);
+    $this->inTenant($this->tenant, fn () => expect(Message::query()->where('idempotency_key', 'like', 'email_marketing:campaign:%')->where('status', '!=', 'failed')->count())->toBe(1));
+});
+
+it('stops offering a delivery that the plan limit refused on every try', function () {
+    config(['email_marketing.limit_retry_max' => 2]);
+    $contact = $this->emContact($this->tenant);
+    $this->emSubscribe($this->tenant, $this->list, $contact);
+    $plan = $this->createFreePlan(['key' => 'em-msg-zero', 'modules' => ['email_marketing', 'communication'], 'limits' => ['communication.messages' => 0]]);
+    $this->subscribe($this->tenant, $plan, withTrial: false);
+    $campaign = $this->emCampaign($this->tenant, $this->list);
+    $this->inTenant($this->tenant, fn () => app(CampaignManager::class)->schedule($campaign, null));
+
+    foreach ([1, 2, 3] as $round) {
+        $this->emRun($this->tenant);
+        $this->inTenant($this->tenant, function () use ($campaign): void {
+            $fresh = Campaign::query()->find($campaign->id);
+
+            if ($fresh->status === CampaignStatus::Paused) {
+                app(CampaignManager::class)->resume($fresh);
+            }
+        });
+    }
+
+    $this->emRun($this->tenant);
+
+    $this->inTenant($this->tenant, function () use ($campaign): void {
+        $delivery = Delivery::query()->where('campaign_id', $campaign->id)->sole();
+        expect($delivery->status)->toBe(DeliveryStatus::Failed)->and($delivery->reason)->toBe('limit_reached');
+    });
 });
 
 it('mirrors the platform delivery status onto the delivery and a bounce onto the membership', function () {

@@ -12,6 +12,8 @@ use App\Core\Identity\Models\User;
 use App\Core\Tenancy\Models\Tenant;
 use App\Core\Tenancy\TenantContext;
 use App\Core\Tenancy\TenantProvisioner;
+use App\Modules\Communication\Enums\Channel;
+use App\Modules\Communication\Models\ProviderAccount;
 use App\Platform\Enums\PlatformRole;
 use App\Platform\Models\PlatformUser;
 use Illuminate\Database\Seeder;
@@ -38,6 +40,8 @@ class DemoSeeder extends Seeder
             ['email' => 'admin@oyosend.test'],
             ['name' => 'Platform Admin', 'password' => self::PASSWORD, 'role' => PlatformRole::SuperAdmin],
         );
+
+        $this->emailProviders();
 
         $plans = $this->plans();
 
@@ -137,6 +141,36 @@ class DemoSeeder extends Seeder
         }
 
         return $plans;
+    }
+
+    /**
+     * Two demo SMTP accounts for the Super Admin "Messaging providers" page. The first points at a local mail
+     * catcher (Mailpit on 127.0.0.1:1025, no login) and works only while one is running; the second is a
+     * disabled template whose host and password are placeholders to be replaced with real ones.
+     */
+    private function emailProviders(): void
+    {
+        ProviderAccount::query()->firstOrCreate(
+            ['channel' => Channel::Email->value, 'name' => 'Demo SMTP - local Mailpit'],
+            [
+                'provider' => 'smtp',
+                'is_enabled' => true,
+                'settings' => ['host' => '127.0.0.1', 'port' => 1025, 'encryption' => 'starttls', 'from_address' => 'demo@oyosend.test', 'from_name' => 'Oyosend Demo'],
+                'secrets' => ['secret' => 'demo-no-login'],
+                'tenant_ids' => null,
+            ],
+        );
+
+        ProviderAccount::query()->firstOrCreate(
+            ['channel' => Channel::Email->value, 'name' => 'Demo SMTP - sandbox (replace credentials)'],
+            [
+                'provider' => 'smtp',
+                'is_enabled' => false,
+                'settings' => ['host' => 'sandbox.smtp.mailtrap.io', 'port' => 2525, 'encryption' => 'starttls', 'username' => 'replace-me', 'from_address' => 'demo@oyosend.test', 'from_name' => 'Oyosend Demo'],
+                'secrets' => ['secret' => 'replace-me'],
+                'tenant_ids' => null,
+            ],
+        );
     }
 
     private function user(string $name, string $email): User

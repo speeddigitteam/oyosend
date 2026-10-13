@@ -225,8 +225,8 @@ describe('assistant show', () => {
             },
         ],
         proposals: [
-            { id: 'p1', tool: 'contacts_propose_create', summary: 'Create contact Jo', status: 'pending' as const, pending: true, expiresAt: '2026-10-11T08:00:00Z', decidedAt: null },
-            { id: 'p2', tool: 'contacts_propose_update', summary: 'Rename contact', status: 'rejected' as const, pending: false, expiresAt: '2026-10-11T08:00:00Z', decidedAt: '2026-10-10T09:00:00Z' },
+            { id: 'p1', tool: 'contacts_propose_create', summary: 'Create contact Jo', changes: [{ field: 'first_name', old: null, new: 'Jo' }, { field: 'job_title', old: 'Buyer', new: '<b>CEO</b>' }], status: 'pending' as const, pending: true, expiresAt: '2026-10-11T08:00:00Z', decidedAt: null },
+            { id: 'p2', tool: 'contacts_propose_update', summary: 'Rename contact', changes: [], status: 'rejected' as const, pending: false, expiresAt: '2026-10-11T08:00:00Z', decidedAt: '2026-10-10T09:00:00Z' },
         ],
         availability: ready,
         canConfirm: true,
@@ -245,6 +245,18 @@ describe('assistant show', () => {
         expect(proposals.text()).toContain('Create contact Jo');
         expect(proposals.text()).toContain('Apply change');
         expect(proposals.findAll('button')).toHaveLength(2);
+    });
+
+    it('shows the old and new values a pending proposal would write, as plain text', () => {
+        const wrapper = mount(AssistantShow, { props, global: stubs });
+        const changes = wrapper.get('[data-testid="proposal-changes"]');
+
+        expect(changes.text()).toContain('First name');
+        expect(changes.text()).toContain('New: Jo');
+        expect(changes.text()).toContain('Now: Buyer');
+        expect(changes.text()).toContain('New: <b>CEO</b>');
+        expect(changes.find('b').exists()).toBe(false);
+        expect(wrapper.findAll('[data-testid="proposal-changes"]')).toHaveLength(1);
     });
 
     it('hides the apply control without the confirm permission', () => {

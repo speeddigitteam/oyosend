@@ -30,6 +30,9 @@ final class ExecuteRun implements RequiresTenantContext, ShouldQueue
 
     public int $timeout = 120;
 
+    /** @var list<int> Seconds between attempts. */
+    public array $backoff = [30, 120];
+
     public function __construct(public readonly string $runId)
     {
         $this->onQueue('automation');

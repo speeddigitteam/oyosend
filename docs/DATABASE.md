@@ -1,8 +1,9 @@
 # Database
 
-State: Phase 5 Projects schema is implemented. Sections 1–3d describe the schema in `database/migrations/` and
-the CRM/Projects module migration directories. Section 4 outlines later tables. Section 5 is the dedicated-database strategy
-the spec asks for (3.4); **only its routing seam exists today.**
+State: the schema of every registered module is implemented (about 260 tables once migrated). Sections 1–3 describe
+`database/migrations/` and each module's migration directory (`app/Modules/<M>/Database/Migrations`); section 4
+outlines tables that are still unbuilt. Section 5 is the dedicated-database strategy the spec asks for (3.4);
+**only its routing seam exists today.** A table is documented here only if it exists in a migration.
 
 One MySQL 8 database, `utf8mb4` / `utf8mb4_unicode_ci`, strict mode. The application clock is UTC
 (`config/app.php`); a tenant's timezone is applied when values are displayed.
@@ -19,8 +20,8 @@ One MySQL 8 database, `utf8mb4` / `utf8mb4_unicode_ci`, strict mode. The applica
 | Enums | Short `VARCHAR` cast to a PHP enum (`status`, `role`, `scope`). No MySQL `ENUM` |
 | Polymorphic columns | Store the morph alias (`user`, `role`), never a class name. `Relation::requireMorphMap()` is on; aliases come from module manifests |
 | Soft deletes | Only where a record must be recoverable. Today: `tenants`, `contacts`, `companies` |
-| Secrets | Encrypted casts (`two_factor_secret`, recovery codes, `app_installations.settings`) or a one-way hash (`invitations.token_hash`, registration token/password, `impersonations.token_hash`). Never plain |
-| Migrations | Reversible (`down()` on every one). `DB::prohibitDestructiveCommands()` is on in production |
+| Secrets | Encrypted casts (`two_factor_secret`, recovery codes, `app_installations.settings`, `social_accounts` tokens, `automation_workflows.webhook_secret`, `automation_webhook_endpoints.secret`, `ai_proposals.payload`, `communication_provider_accounts.secrets`, `ai_provider_accounts.secrets`) or a one-way hash (`invitations.token_hash`, registration token/password, `impersonations.token_hash`, unsubscribe and survey tokens). Never plain |
+| Migrations | Reversible (`down()` on every one). `DB::prohibitDestructiveCommands()` is on in production. **A migration that has been committed is never edited**: databases that already ran it would never get the change. A schema change is a new, additive migration with a later timestamp, guarded with `Schema::hasColumn()` / `hasTable()` so a fresh install and an already-migrated database both end in the same shape (examples: `support_tickets.resolution_first_breached_at`, `email_marketing_deliveries.send_epoch`) |
 | Raw queries | `DB::table()` bypasses both the tenant scope and the connection resolver. It must filter by `tenant_id` itself and is acceptable only for central tables |
 | Search filters | User text goes into `LIKE` only through `App\Core\Support\Like` (`contains()`, `escape()`), so `%` and `_` are matched as typed |
 
@@ -57,6 +58,9 @@ enforces it among the rows that are not deleted.
 | `platform_sequences`, `platform_settings` | Central | — / `PlatformSettings` | Not tenant data |
 | `workspace_registrations` | Central | `WorkspaceRegistration` | A sign-up before any tenant exists |
 | `impersonations` | Central, keyed by `tenant_id` | `Impersonation` | Platform's record of support sessions; read by the panel and by the redeeming workspace |
+| `communication_provider_accounts` | Central, **no `tenant_id`** | `ProviderAccount` | `UsesCentralConnection`; operator-owned messaging accounts, `tenant_ids` is an allow-list (section 3i, ADR 0013) |
+| `communication_account_claims` | Central, **no `tenant_id`** | `AccountClaim` | `connection_id` points at a tenant-owned connection; platform-wide uniqueness (section 3i, ADR 0016) |
+| `ai_provider_accounts` | Central, **no `tenant_id`** | `AiProviderAccount` | Operator-owned AI provider accounts; never read for a workspace (section 3h.0) |
 | `audit_logs` | Tenant-scoped on read; `tenant_id` null for platform events; default connection | `AuditLog` | `ScopedToTenant` |
 | `cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs` | Framework | — | — |
 
@@ -568,6 +572,22 @@ All tenant-owned (`tenant_id` first in every unique index). No credential or pro
 
 Token usage is kept in the shared `usage_records` (`meter = ai.tokens`, idempotency key per provider call). See `docs/AI.md`.
 
+`ai_provider_accounts` (`2026_10_25_000200`) is **platform-owned**: central connection, no `tenant_id`, model
+`AiProviderAccount`, written only from the Super Admin panel (`platform.ai.*`).
+
+| Column | Notes |
+|---|---|
+| `id` | ULID |
+| `driver` | `anthropic` or `openai_compatible` (`AiDriver`) |
+| `name` | `UNIQUE`; shown only in the panel |
+| `model`, `base_url` | The model id; the endpoint (required for `openai_compatible`, optional for `anthropic`) |
+| `is_enabled`, `is_default` | One enabled account is the platform default; index `(is_default, is_enabled)` |
+| `secrets` | `longText`, `encrypted:array`, hidden: key `api_key`. Write-only |
+| `last_test_status`, `last_test_reason`, `last_tested_at` | Outcome of "test connection": `ok` or `failed` with a safe reason code, never provider text |
+
+A workspace never sees or chooses an account. It holds an encrypted secret in the database, which ADR 0013 expressly
+did not cover (it names AI keys as staying in the environment): see ADR 0018 for the open decision.
+
 ## 3h.1. Customer Support tables
 
 Migration `app/Modules/Support/Database/Migrations/2026_10_13_000100_create_support_tables.php`, loaded by
@@ -603,6 +623,45 @@ tables are tenant-owned (`tenant_id` first in every unique index). Documented in
 
 Foreign keys to `contacts`, `companies` and `tenant_memberships` are `nullOnDelete` (consent and tokens of a
 contact cascade). Contact merges are handled by `CommunicationContactMergeReference`.
+
+### communication_provider_accounts - `2026_10_12_000300`
+
+**Platform-owned, not tenant-owned**: central connection, no `tenant_id`, model `ProviderAccount`
+(`UsesCentralConnection`). Operator-created messaging provider accounts (ADR 0013); written only from the Super
+Admin panel.
+
+| Column | Notes |
+|---|---|
+| `id` | ULID primary key. A workspace's `credential_ref` is `acct_` + the lowercased id |
+| `channel`, `provider` | `email` / `sms` / `whatsapp`; the adapter key the account was created for (`smtp`, `twilio`, `http_sms`, `whatsapp_cloud`). The account answers only to that provider |
+| `name` | Label shown in the workspace's credential dropdown. `UNIQUE(channel, name)` |
+| `is_enabled` | Disabled accounts resolve to nothing |
+| `settings` | JSON, non-secret (host, sender, endpoint, sender id) |
+| `secrets` | `longText`, **encrypted** (`encrypted:array` cast with `APP_KEY`), hidden from serialization. Keys: `secret`, `webhook_secret`, `verify_token`. Never selected for a page |
+| `tenant_ids` | JSON, null = every workspace; otherwise the workspace ids allowed to use it |
+
+Index `(channel, is_enabled)`. This is the only table that stores messaging secrets, and the only exception to
+"credentials stay in the environment" that ADR 0013 records; payment gateway credentials are never stored. (The AI
+provider accounts table below is a second secret-bearing central table; see its note.)
+
+### communication_account_claims - `2026_10_12_000200`
+
+**Platform-wide, not tenant-owned**: no `tenant_id`, model `AccountClaim` (no tenant scope). A registry that lets a
+provider account value (a WhatsApp `phone_number_id`) be connected by one workspace only, which a tenant-first unique
+index cannot express (ADR 0016).
+
+| Column | Notes |
+|---|---|
+| `id` | ULID |
+| `connection_id` | FK to `communication_channel_connections` (`cascadeOnDelete`): the owning connection. It is the only tenant link |
+| `provider`, `account_key`, `account_value` | What is claimed: provider key, the field name (`phone_number_id`), the value |
+| unique | `(provider, account_key, account_value)` (`communication_account_claims_account_unique`), deliberately without `tenant_id`; index `connection_id` |
+
+Written only by `ChannelConnections::save()` (inside the connection's transaction; a second claim of the same value is
+a `UniqueConstraintViolationException` turned into the form error "This account is already connected to another
+workspace"); the connection's old claims are replaced on every save and removed with it (cascade). It is read and
+deleted through `connection_id`, never listed across tenants. It is an intentional exception to "unique indexes lead
+with `tenant_id`"; `TenantIndexesTest` does not see it because the table has no `tenant_id` column.
 
 ## 3j. Phase 10 Workflow Automation tables
 

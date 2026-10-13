@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Communication\Enums;
 
+use App\Core\Communication\Support\PhoneNumber;
+
 /** An outbound message channel. */
 enum Channel: string
 {
@@ -13,7 +15,8 @@ enum Channel: string
 
     /**
      * The address in the form it is compared and suppressed in, or null when it is not an address
-     * of this channel. Email is lower-cased; phone numbers keep digits and a leading plus.
+     * of this channel. Email is lower-cased; phone numbers are canonical E.164 ({@see PhoneNumber}), so
+     * `01712345678`, `8801712345678` and `+8801712345678` are one address.
      */
     public function normalize(string $address): ?string
     {
@@ -25,10 +28,7 @@ enum Channel: string
             return strlen($address) <= 190 && filter_var($address, FILTER_VALIDATE_EMAIL) !== false ? $address : null;
         }
 
-        $plus = str_starts_with($address, '+') ? '+' : '';
-        $digits = preg_replace('/\D+/', '', $address) ?? '';
-
-        return strlen($digits) >= 7 && strlen($digits) <= 15 ? $plus.$digits : null;
+        return PhoneNumber::normalize($address);
     }
 
     /** Whether messages of this channel carry a subject line. */

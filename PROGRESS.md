@@ -10,7 +10,8 @@ Rules for working in this repository are in `CLAUDE.md`; the product specificati
 Phase 9 (Marketing Apps: Email Marketing, SMS Marketing, WhatsApp Business, Social Media) is built and passes every
 automated gate but has had no independent review and no browser pass. Phases 10 (Automation engine), 11 (AI
 Assistant) and 12 (Support Desk, Reports & Analytics) exist in the tree on the same terms. Phase 13 (production
-hardening, load testing, backup/restore verification) has not been started.**
+hardening) has begun: health probes, queue and index audits, backup verification and a benchmark exist and were run
+on one Windows machine; it is not signed off (see the 2026-10-13 section at the end).**
 
 Modules built after Phase 8 and not yet reviewed or signed off: `app/Modules/{Social,Support,Automation,Ai,Reports,
 EmailMarketing,SmsMarketing,WhatsappMarketing}` with `docs/{SOCIAL,SUPPORT,WORKFLOWS,AI,REPORTS,EMAIL_MARKETING,
@@ -79,6 +80,7 @@ applications and catalogue entries. App Store tests retain a separate
 | Boundaries | `crm.quote.accepted` carries immutable itemized order snapshots for Phase 6; module data is retained when entitlement is removed |
 | Access and UI | 24 declared permissions, record scopes, entitlement-gated routes/navigation/widgets/definitions, and complete English/Bengali Inertia surfaces |
 | Automation catalogue | Four triggers (lead created/qualified, deal won, activity completed) and three actions (assign lead, move stage, create follow-up) registered for the future Phase 10 engine; mutating actions persist tenant/action/key receipts so retries return the original output without repeating work |
+| Deal pipeline board | `Deals/Index` has a list/board toggle; board view loads all open deals for the selected pipeline (`boardDeals`, max 200, via `DealController::index` when `view=board`) and renders `DealBoard.vue` with HTML5 drag-and-drop — dropping a card calls `POST /crm/deals/{deal}/stage`; only `deal.editable` cards are draggable; a drop on a won/lost stage opens a confirmation with an optional note (the lost reason) because it closes the deal; refused moves show the server error. Tests: `tests/Feature/CRM/CrmDealBoardTest.php`, `tests/js/crm.test.ts` (CRM deal board). Not yet tried in a real browser: the Acme demo workspace has no pipeline or deals |
 
 ### Phase 5 — Project Management
 
@@ -86,7 +88,7 @@ applications and catalogue entries. App Store tests retain a separate
 |---|---|
 | Project setup | Categories, reusable task templates, scoped projects, owners and internal membership; shared core contacts/companies are client identity and `TenantMembership` is team identity |
 | Work planning | Tasks/subtasks, ordered checklists, assignment, watchers, priorities, milestones, sprints, reminders, recurrence and cycle-safe project-local dependencies |
-| Views and UI | List, Kanban, calendar and custom Gantt projections over one task model; responsive bilingual project, time, expense, approval, reporting, dashboard and settings surfaces |
+| Views and UI | List, Kanban board (drag-and-drop status change via `PATCH /projects/{project}/tasks/{task}/status`; completed/cancelled cards are not draggable since they cannot be reopened; refused moves show the server error), calendar and custom Gantt projections over one task model; responsive bilingual project, time, expense, approval, reporting, dashboard and settings surfaces |
 | Collaboration | Comments, explicit mentions, private attachments, activity history and revocable hashed-token client access with client-visible work boundaries |
 | Time and resources | Integer-minute timers/timesheets, submitted/approved workflow, workload and allocation summaries using workspace memberships |
 | Budget and delivery | Integer minor-unit budgets, rates and expenses; project profitability facts, approval workflows and portfolio/project reporting |
@@ -380,6 +382,16 @@ notifications without importing their models. The normal seeder includes Project
 synchronizes both production apps into the catalogue. Stop for review; do not begin Phase 6 Invoicing in this
 session.
 
+### aamarPay gateway — 2026-10-12
+
+Added `Core\Billing\Gateways\AamarPayGateway` (`aamarpay`, BDT only), registered beside SSLCommerz in
+`CoreServiceProvider`, with credentials from `config/platform.php` `gateways.aamarpay` (`AAMARPAY_STORE_ID`,
+`AAMARPAY_SIGNATURE_KEY`, `AAMARPAY_SANDBOX`, default true). Environment only; offered only when configured. A payment
+counts only on aamarPay's verification API answer for our own reference. Tests: `tests/Feature/Billing/AamarPayGatewayTest.php`
+(Http::fake only). **Unverified against the aamarPay sandbox or live API**; see `docs/BILLING.md` section 5.
+Not done: storing gateway credentials in the database from the Super Admin panel (a requested scope change
+was not implemented in this session; the environment-only rule still stands).
+
 ### Phase 8 final — 2026-10-12
 
 Run natively on Laragon/Windows, one process per database (an earlier attempt with eight agents migrating at once
@@ -438,6 +450,23 @@ route-model binding order.
   hand-offs, receivables reports, print-ready documents, queued email), bilingual UI, `docs/INVOICING.md`. Also
   shipped: collapsible per-app sidebar groups, translated App Store text, plan-included apps in My Apps. Gateway
   payments deliberately not built. Phase 7 was not started.
+- **2026-10-12** - Messaging provider accounts (owner-approved change to a locked rule, ADR 0013). Built: operator
+  provider accounts in the Super Admin panel (**Messaging providers**, `platform.settings.manage`) stored in the
+  central table `communication_provider_accounts` with `secrets` encrypted (`encrypted:array`), write-only and
+  referenced by workspaces as `acct_{id}`; `CredentialResolver` resolves them next to environment entries (a
+  platform account answers only to the provider it was created for and to workspaces in `tenant_ids`); new
+  adapters `smtp` (email), `twilio` and `http_sms` (SMS) beside `whatsapp_cloud`; `PlatformAccountProvider`
+  (`accountFields()`, `supportsTestSend()`); test send for email and SMS; workspaces pick an account in
+  Communication > Settings > Channels. Rule carved out: CLAUDE.md "never store gateway credentials in the
+  database" now excepts these accounts only; payment gateways, AI and Social credentials remain environment-only.
+  Docs updated: ADR 0013, COMMUNICATION, INTEGRATIONS, SMS_MARKETING, WHATSAPP, SECURITY, ARCHITECTURE, DATABASE.
+  **Unverified:** Twilio, the generic HTTP gateway and SMTP are covered by faked tests only, never run against a
+  live provider; the WhatsApp Cloud adapter is still unrun against Meta. **Remains:** SMS delivery receipts
+  (Twilio status callbacks, gateway DLR) are not consumed, so SMS stays `sent`; no provider balance call; no
+  gateway-specific Bangladeshi adapter (owner to name the gateway); no per-workspace own account; no per-account
+  usage report or health check; secret rotation is a manual edit; `APP_KEY` custody now protects messaging
+  secrets too. The panel, adapters and tests were written in parallel by other engineers, so confirm this entry
+  against the code once they land.
 
 ## Phase 9 and later modules: what was added (2026-10-13)
 
@@ -459,3 +488,80 @@ Owner decisions waiting: SMS gateway choice and transactional-send contract; HTM
 outbox/mailer); a `ConsentRecorder` contract (public sign-up forms); whether STOP replies opt out directly; central
 OAuth redirect broker for Social; AI prices and `ANTHROPIC_API_KEY`; native Bengali review of all machine-written
 strings; Playwright runs; Sail/Docker/CI never executed.
+
+## Operator AI provider accounts (2026-10-12)
+
+- **Super Admin > AI providers** (`platform.ai.*`, `Platform/Pages/Ai/Providers`, behind `platform.settings.manage`):
+  the operator adds several AI provider accounts (Anthropic, OpenAI-compatible chat-completions), each with name,
+  model, optional endpoint, enable/disable, one platform default and a "test connection" (one 8-token call, stored
+  as `ok` or a safe reason code). Extends ADR 0013; documented in `docs/AI.md` section 9 and `docs/SECURITY.md` 5d.6.
+- **Storage**: `ai_provider_accounts` (central connection), key in `secrets` with `encrypted:array`, hidden,
+  write-only (empty on edit keeps it), never in props, audit rows, logs or exception messages.
+- **Resolution**: `ProviderManager` uses the enabled default account; accounts that exist without an enabled default
+  give an honest `not_configured`; with no account the environment (`config/ai.php`) behaves exactly as before.
+  Guardrails and the circuit breaker are unchanged; the breaker is reset when an account changes.
+- **Tests**: `tests/Feature/Ai/ProviderAccountsTest.php`. Adapters run only against `Http::fake`; **not verified
+  against any live Anthropic, OpenAI, Azure, OpenRouter or Ollama endpoint**, and the OpenAI-compatible adapter
+  sends `max_tokens` (some newer OpenAI models want `max_completion_tokens`). Bengali strings are machine-written
+  and need native review. No composer dependency was added.
+
+## WhatsApp Inbox Kanban board (2026-10-12)
+
+Added a Kanban board view to the WhatsApp Business Inbox (`whatsapp_marketing.inbox.index`). A List / Board toggle
+appears above the filter bar; `?view=kanban` is the URL parameter. The board shows three columns fixed by workflow
+position: **Unassigned** (open, no owner), **In progress** (open, has owner), **Closed** — each up to 50/50/25 items.
+Search and tag filters still apply across columns in board mode; status/assignee/unread are replaced by the columns
+themselves and hidden when the board is active.
+
+Changed files: `InboxController::index()` (validates `view`, branches on `kanban` to build columns without running
+the paginated list query), `Components/types.ts` (`KanbanColumn` type), `en/whatsapp.ts` and `bn/whatsapp.ts`
+(new `inbox.viewList`, `inbox.viewBoard`, `inbox.col.*`, `inbox.boardMore` keys), `Pages/Inbox/Index.vue`
+(view toggle, conditional filter bar, kanban board layout).
+
+Gates: `vue-tsc` — no errors; Vitest — 692 passed; Larastan on `InboxController` — no errors.
+
+## Phases 9-13 verification session (2026-10-13)
+
+What was done: independent adversarial reviews of Social/Automation/AI, Support/Reports and
+Communication/Email/SMS/WhatsApp (no HIGH issue in the first two; two HIGH consent bypasses in the third), a
+regression review of the fixes, a browser QA pass over every new app (62 URLs per workspace, 1440 and 360 px, both
+themes, English and Bengali), an accessibility pass, a Playwright run (41 specs) and the Phase 13 hardening work.
+Every verified finding was fixed with a test; the lists are in the module docs and ADRs 0014-0019.
+
+| Check | Command | Result |
+|---|---|---|
+| Code style | `vendor/bin/pint --test` | passed |
+| Static analysis | `composer analyse` (Larastan level 6, 1,4xx files) | no errors |
+| Backend tests | `vendor/bin/pest` on a dedicated database | 3,885 passed, 0 failed, 43,985 assertions, 31 min |
+| Type check | `npm run typecheck` | no errors |
+| Frontend tests | `npm run test` | 33 files, 698 tests passed |
+| Production build | `npm run build` | built |
+| End-to-end | Playwright (`tests/e2e`, 41 specs) | passed on a freshly built database; three older specs fail when the database is reused (they need a fresh build; setup does that) |
+
+Pre-release schema note: two migrations that had already been committed were edited in place and then restored;
+the two columns now ship as new guarded additive migrations. Migrations never run on any production database may be
+edited in place (CLAUDE.md); that ends with the first deploy.
+
+### Honest limits (nothing here was run against a live service or in production)
+- No provider adapter was exercised live: SSLCommerz, SMTP, Twilio/HTTP SMS, WhatsApp Cloud API, Facebook,
+  LinkedIn, X, Anthropic/OpenAI-compatible. SMS has no adapter unless an operator configures one.
+- Not run: GitHub Actions CI, Sail/Docker, Horizon (Windows has no pcntl), Nginx/TLS/HSTS, the CSP in enforce mode,
+  `route:cache`, S3 storage, multi-tenant load and queue contention, production-size backups and PITR.
+- Bengali is machine-written and has had no native review; uncertain terms are listed in the reviews.
+- The AI page was not exercised by Playwright (Business plan has no AI).
+- Reviews were by agents, not by a human; none of the Phase 9-12 modules is signed off.
+
+### Needs the owner's input (new)
+1. **Operator AI provider accounts store an encrypted key in the database** (`ai_provider_accounts`). ADR 0013
+   covers messaging accounts only; ADR 0018 records AI as an open decision. Approve (amend ADR 0013) or remove.
+2. Which SMS gateway(s) to support (each needs its documented API and signed webhooks).
+3. Real HTML email (needs `htmlBody` through the contract, outbox and mailer).
+4. Whether a confirmed double opt-in may lift a contact's platform unsubscribe (currently refused); whether a lapsed
+   workspace keeps its confirmation links; whether the confirmation mail should use the outbox.
+5. Whether bare "stop"/"unsubscribe"/"বন্ধ" WhatsApp messages opt out directly (they do now, exact match only).
+6. The eight unique indexes that do not lead with `tenant_id` (`invoices.number`, `tenant_domains.domain`, token
+   hashes, ...) are documented exceptions; confirm.
+7. `automation.runs.start` holders choose the payload of a manual workflow; runs act as the publisher with `all` scope.
+8. No operator UI to release a communication account claim; `automation.run.failed` and
+   `automation.approval.requested` have no listener; the `webhooks` queue is supervised but nothing dispatches to it.
+9. Final app prices (placeholders) and `ANTHROPIC_API_KEY`.

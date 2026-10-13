@@ -50,6 +50,11 @@ final class TicketWorkflowController
             $this->assertMayChangeStatus($actor, $ticket, $status);
         }
 
+        // Logging a customer reply on a resolved or closed ticket reopens it: the same right as reopening.
+        if ($kind === MessageKind::CustomerReply && $ticket->status->isFinished()) {
+            $this->assertMayChangeStatus($actor, $ticket, TicketStatus::Open);
+        }
+
         $this->tickets->addMessage($ticket, $kind, (string) $input['body'], $membership, $request->file('attachments', []), $status);
         $this->flashSurvey($ticket);
         Toast::success($kind === MessageKind::InternalNote ? __('Note added.') : __('Reply sent.'));
@@ -157,7 +162,7 @@ final class TicketWorkflowController
                 throw ValidationException::withMessages(['ticket' => __('A survey can only be requested for a resolved or closed ticket.')]);
             }
 
-            $this->surveys->request($locked->load('contact:id,email'), $this->support->membership($actor), force: true);
+            $this->surveys->requestManually($locked->load('contact:id,email'), $this->support->membership($actor));
         });
         $this->flashSurvey($ticket);
         Toast::success(__('Satisfaction survey requested.'));
@@ -175,12 +180,13 @@ final class TicketWorkflowController
         }
     }
 
-    /** Shows the single-use survey link to the agent once, as a flash (the plain token is never stored). */
+    /** Shows the single-use survey link to the agent once, as a flash, only when no email carries it (the plain token is never stored). */
     private function flashSurvey(Ticket $ticket): void
     {
         $token = $this->surveys->takeIssuedToken($ticket->id);
 
-        if ($token !== null) {
+        // An emailed invitation is never shown to the agent: they could answer the survey for the customer.
+        if ($token !== null && ! $this->surveys->wasEmailed($ticket->id)) {
             Inertia::flash('surveyInvitation', [
                 'ticketId' => $ticket->id,
                 'url' => route('support.csat.show', ['token' => $token]),

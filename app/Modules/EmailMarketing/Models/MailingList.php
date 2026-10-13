@@ -20,6 +20,9 @@ use Illuminate\Support\Carbon;
  * @property string $name
  * @property string|null $description
  * @property ListStatus $status
+ * @property bool $signup_enabled
+ * @property bool $signup_embed
+ * @property string|null $signup_token
  * @property Carbon|null $created_at
  */
 class MailingList extends Model
@@ -39,7 +42,7 @@ class MailingList extends Model
     /** @return array<string, string> */
     protected function casts(): array
     {
-        return ['status' => ListStatus::class];
+        return ['status' => ListStatus::class, 'signup_enabled' => 'boolean', 'signup_embed' => 'boolean'];
     }
 
     /** @return HasMany<Subscription, $this> */

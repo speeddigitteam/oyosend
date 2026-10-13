@@ -50,6 +50,8 @@ export interface ChannelDescription {
 const props = defineProps<{
     channel: ChannelDescription;
     credentialRefs: string[];
+    /** Operator-managed accounts: reference => account name. */
+    credentialLabels?: Record<string, string>;
 }>();
 
 const { t } = useI18n();
@@ -80,7 +82,7 @@ const providerOptions = computed(() =>
 function referenceOptions(current: string): { value: string; label: string }[] {
     const names = props.credentialRefs.includes(current) || current === '' ? props.credentialRefs : [current, ...props.credentialRefs];
 
-    return [{ value: '', label: t('communication.settings.credentialNone') }, ...names.map((name) => ({ value: name, label: name }))];
+    return [{ value: '', label: t('communication.settings.credentialNone') }, ...names.map((name) => ({ value: name, label: props.credentialLabels?.[name] ?? name }))];
 }
 
 function selectOptions(field: ProviderField): { value: string; label: string }[] {

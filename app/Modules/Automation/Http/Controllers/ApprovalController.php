@@ -12,6 +12,7 @@ use App\Modules\Automation\Http\Requests\DecideApprovalRequest;
 use App\Modules\Automation\Models\Approval;
 use App\Modules\Automation\Models\Workflow;
 use App\Modules\Automation\Support\Actor;
+use App\Modules\Automation\Support\Permissions;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -35,12 +36,18 @@ final class ApprovalController
             ->filter(fn (Approval $approval): bool => $this->approvals->refusal($approval, $membership) === null)
             ->values();
 
+        // History is limited to what concerns the viewer, unless they manage runs (and so see all of them):
+        // an approval's title, message and comment may carry another team's data.
+        $sees = $this->actor->can($request, Permissions::RUNS_MANAGE);
         $history = Approval::query()
             ->where('status', '!=', ApprovalStatus::Pending->value)
             ->orderByDesc('decided_at')
             ->orderByDesc('id')
-            ->limit(25)
-            ->get();
+            ->limit($sees ? 25 : 200)
+            ->get()
+            ->filter(fn (Approval $approval): bool => $sees || $this->approvals->involves($approval, $membership))
+            ->take(25)
+            ->values();
 
         $all = $pending->concat($history);
         $names = Presenter::names([

@@ -30,6 +30,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $reason
  * @property string|null $message_id
  * @property int $attempts
+ * @property int $send_epoch
  * @property Carbon|null $sent_at
  * @property Carbon|null $delivered_at
  * @property Carbon|null $failed_at
@@ -49,12 +50,12 @@ class Delivery extends Model
     /** @var list<string> */
     protected $fillable = [
         'campaign_id', 'sequence_id', 'step_id', 'enrollment_id', 'contact_id', 'subscription_id', 'send_key', 'variant',
-        'status', 'reason', 'message_id', 'attempts', 'sent_at', 'delivered_at', 'failed_at', 'viewed_at', 'view_count',
+        'status', 'reason', 'message_id', 'attempts', 'send_epoch', 'sent_at', 'delivered_at', 'failed_at', 'viewed_at', 'view_count',
         'clicked_at', 'click_count',
     ];
 
     /** @var array<string, mixed> */
-    protected $attributes = ['variant' => 'a', 'attempts' => 0, 'view_count' => 0, 'click_count' => 0];
+    protected $attributes = ['variant' => 'a', 'attempts' => 0, 'send_epoch' => 0, 'view_count' => 0, 'click_count' => 0];
 
     /** @return array<string, string> */
     protected function casts(): array
@@ -62,6 +63,7 @@ class Delivery extends Model
         return [
             'status' => DeliveryStatus::class,
             'attempts' => 'integer',
+            'send_epoch' => 'integer',
             'sent_at' => 'datetime',
             'delivered_at' => 'datetime',
             'failed_at' => 'datetime',

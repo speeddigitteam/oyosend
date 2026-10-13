@@ -7,10 +7,12 @@ return [
     | AI Assistant (module `ai`)
     |--------------------------------------------------------------------------
     |
-    | The credential is PLATFORM-level: one key, held by the operator in the
-    | environment. It is never stored in the database, never taken from a
-    | tenant or from the request, and never logged or shown. Without it the
-    | provider reports `not_configured` and nothing is simulated.
+    | The credential is PLATFORM-level. The operator manages provider accounts
+    | in the Super Admin panel (keys stored encrypted, write-only); the key
+    | below is the fallback used only while no account exists. A key is never
+    | taken from a tenant or from the request, and never logged or shown.
+    | Without a credential the provider reports `not_configured` and nothing
+    | is simulated.
     |
     | `default` is `anthropic` or `fake`. `fake` is honoured only in the
     | `local` and `testing` environments; anywhere else it is `not_configured`.

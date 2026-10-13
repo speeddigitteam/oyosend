@@ -13,14 +13,15 @@ and `ChannelGateway`.
 
 | Built | Not built (and why) |
 |---|---|
-| Lists, segments (declarative), CSV import/export | A public sign-up form or double opt-in page: needs a core contract that lets a marketing app record consent (section 13) |
+| Lists, segments (declarative), CSV import/export | Recording the confirmed opt-in in Communication: `ConsentRecorder` only withdraws consent (section 13) |
+| Public sign-up form per list with double opt-in (section 14) |
 | Block editor (heading, text, image, button, divider, spacer), preview, templates | Drag-and-drop layout and columns; custom HTML (by design: no free HTML is accepted) |
 | Campaigns: draft, schedule, send now, pause, resume, cancel, duplicate, test send | Sending the HTML version: the platform mailer sends plain text only (section 5) |
 | A/B subject test with a deterministic split and a measured winner | Open tracking: there is no pixel to place in plain text, so opens are not measured, and the app says so |
 | Click measurement through a signed redirect; web-version page | Per-link click breakdown (only first click time and count per recipient are stored) |
 | Welcome / drip sequences driven by the minute runner | Branching, goal exits and "send if" conditions |
 | Reports page, two report providers, dashboard widget, automation trigger and action | Revenue attribution |
-| Consent, suppression, bounce and unsubscribe mirrored from the platform | Writing consent into Communication |
+| Consent, suppression, bounce and unsubscribe mirrored from the platform | Writing consent (opt-in) into Communication |
 
 ## 2. Data model
 
@@ -32,7 +33,8 @@ All tables are tenant-owned (`tenant_id`, ULID ids, every unique index leads wit
   `properties` map (keys `^[a-z][a-z0-9_]{0,31}$`, values up to 190 characters, at most 10).
 - `MailingList` (active or archived), `Segment` (all/any of up to 10 rules), `Template`, `Campaign` (owner,
   department and branch for record scopes), `Delivery` (one row per planned email), `Sequence`, `SequenceStep`,
-  `Enrollment`, `ImportRun` (counts and errors only), `Setting`, `AutomationActionReceipt`.
+  `Enrollment`, `ImportRun` (counts and errors only), `Setting`, `AutomationActionReceipt`, `SignupRequest` (a sign-up waiting for
+  its confirmation link, section 14).
 - `Delivery.send_key` is unique per workspace: `campaign:{campaignId}:{contactId}` or
   `sequence:{enrollmentId}:{stepId}`. It is also the idempotency key given to the gateway.
 - `Delivery.message_id` is a plain column holding the communication message id; this module's tables never
@@ -95,7 +97,11 @@ Guarantees:
 - **Bounded.** Chunk size, per-pass budget and the lock bound every pass; a large list takes several minutes by design.
 - **Pauses, never fails silently.** A platform "plan message limit reached" (`failed`/`limit_reached`), or an
   unavailable channel or module, releases the delivery to `pending`, pauses the campaign with `paused_reason` and
-  stops the pass. A person resumes it.
+  stops the pass. A person resumes it. The platform keeps a refused message under its key for good, so a
+  limit refusal raises `Delivery.send_epoch` and the next hand-over uses `{send_key}:e{epoch}`; after
+  `email_marketing.limit_retry_max` (24) refusals the delivery is `failed` (`limit_reached`). In a sequence pass the
+  enrolment waits `limit_backoff_minutes` (60) and the pass continues with the other enrolments (a missing channel
+  still stops the pass).
 - **Unsubscribe link.** `UnsubscribeLinks::issue()` is called for each recipient and the link is written into the
   body; without one (no address) the delivery is `skipped` (`no_unsubscribe_link`). The platform also adds its own
   link and `List-Unsubscribe` headers.
@@ -197,8 +203,10 @@ Permissions (`email_marketing.{resource}.{action}`; new permissions are granted 
 (sensitive), `reports.view`, `settings.manage` (sensitive). Campaigns use `HasRecordOwner`: list, show, edit, delete
 and the send actions narrow by `RecordAccess` (a campaign outside the scope is a 404).
 
-Subscriber pages show a contact's name and address under `email_marketing.subscribers.view`, like Communication's
-audience page; they are not narrowed by the viewer's `core.contacts.view` scope.
+A person's name and address (campaign recipients, list members, the subscribers page and the CSV exports of both)
+are shown only for contacts the viewer may see under their `core.contacts.view` scope; the rest are counted
+("N ... are contacts you may not see") and never listed or exported. Campaign figures, reports and segment counts
+are aggregates and stay complete.
 
 Limits: `email_marketing.campaigns_per_month` (metered), `email_marketing.subscribers` (gauge).
 
@@ -239,8 +247,11 @@ Workspace routes sit under `/email-marketing`, carry `auth:web`, `auth.session`,
 | `email_marketing.sequences.activate` / `.pause` | POST `sequences/{sequence}/{activate|pause}` | `sequences.activate` |
 | `email_marketing.reports.index` | GET `reports` (`days` 7/30/90/365) | `reports.view` |
 | `email_marketing.settings.index` / `.update` | GET, PUT `settings` | `settings.manage` |
+| `email_marketing.lists.signup` | PUT `lists/{list}/signup` (`enabled`, `embed`, `rotate`) | `lists.manage` |
 | `email_marketing.track.click` | GET `email-marketing/t/c/{token}` (callback group) | signed token |
 | `email_marketing.web.show` | GET `email-marketing/v/{token}` (callback group) | signed token |
+| `email_marketing.signup.show` / `.store` | GET, POST `email-marketing/join/{form}` (callback group; POST `throttle:30,1`) | none (public) |
+| `email_marketing.signup.confirm.show` / `.confirm.store` | GET, POST `email-marketing/join/confirm/{token}` (callback group; POST `throttle:20,1`) | single-use token |
 
 Pages (`Modules/EmailMarketing/Pages/...`): `Campaigns/{Index, Form, Show}`, `Templates/{Index, Form}`,
 `Lists/{Index, Show}`, `Subscribers/Index`, `Imports/Index`, `Sequences/{Index, Form, Show}`, `Reports/Index`,
@@ -253,17 +264,83 @@ Pages (`Modules/EmailMarketing/Pages/...`): `Campaigns/{Index, Form, Show}`, `Te
 1. **HTML in the email.** The platform mailer sends plain text. Decide whether to add an optional `htmlBody` to
    `MarketingMessage`, `OutboundRequest` and `OutboundMail` (needs a column on `communication_messages`). Until then
    the HTML version is the web-version page, and opens cannot be measured.
-2. **Recording consent from a marketing app.** There is no core contract for it, so a member moves from `pending`
-   to sendable only after consent is also recorded in Communication (Audience page). Decide whether to add a
-   `ConsentRecorder` contract so that list evidence can create the platform consent in one step, and a public
-   sign-up form with double opt-in on top of it.
+2. **Opt-in consent from a marketing app.** Decided: a confirmed public sign-up records the platform's marketing
+   opt-in through `ConsentRecorder::recordOptIn()` (section 14), so the confirmed address is sendable at once. The
+   contract never overrides a platform decision: any marketing or all-scope suppression of the address (unsubscribe,
+   bounce, complaint, manual), or an opt-out recorded as a complaint, makes it refuse, and the confirmation page
+   says the address cannot be added. Imports and manual adds still never record platform consent (Audience page).
 3. **Existing members and a new sequence.** Only people who become subscribed after activation are enrolled.
 4. **Click counts** include automated scanners; per-link breakdown is not stored.
 5. **Postal address** is required before sending (a compliance choice, easy to relax).
 6. Bounce management beyond the platform's suppression list, and list hygiene tooling, are not built.
 
-## 14. Tests
+## 14. Public sign-up form (double opt-in)
 
-`tests/Feature/EmailMarketing`, `tests/Unit/EmailMarketing`, helper `tests/Support/InteractsWithEmailMarketing.php`
+Each list can have one public form, off by default (`signup_enabled`, `signup_embed`, `signup_token` on
+`email_marketing_lists`; managed on the list page by `email_marketing.lists.manage`: switch, copyable link, embed
+snippet, "replace the link", and the counts of confirmed and waiting sign-ups).
+
+**Route group.** `email-marketing/join/{form}` and `email-marketing/join/confirm/{token}` are stateless
+`tenant.callback` routes with `entitled:email_marketing` (loaded by `loadTenantCallbackRoutes()`): tenant from the
+hostname only, no session, cookie or CSRF, server-rendered Blade (`Resources/views/signup/page.blade.php`, no
+script, no external resource), `Referrer-Policy: no-referrer`, `Cache-Control: no-store`, CSP
+`default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'` and `X-Frame-Options: DENY` with
+`frame-ancestors 'none'`. Only when the list's **embed** option is on (default off) is the form page (never the
+confirmation pages) served without `X-Frame-Options` and with `frame-ancestors *`.
+
+**Form token.** 32 random hex characters, unique per workspace. It is a path segment, not a credential: it only
+selects the list. "Replace the link" mints a new one and the old URL becomes a 404. The form is served only while it
+is on **and** the list is active.
+
+**Bot defences.** A hidden `website_url` field (filled: the normal "check your inbox" page, nothing recorded); a
+signed time trap `t` (HMAC over tenant, list and issue time; refused when missing, forged, from another
+workspace's form, younger than 3 seconds or older than 24 hours); `throttle:5,1` per visitor and host; 20
+submissions per visitor per hour per workspace (`email_marketing.signup.per_hour`); and at most one confirmation
+per address per list per 60 minutes (a cache lock plus a database check). Names refuse `<`, `>`, `@` and `://`.
+
+**Flow.**
+
+1. `POST` validates and creates only a `SignupRequest` (address, optional name, SHA-256 of a 256-bit token, expiry
+   3 days) and queues one `SignupConfirmationMail`. **No contact and no membership exist yet**, so a stranger
+   cannot fill the contact directory or the plan's subscriber limit with other people's addresses. The answer is
+   the same page for a new, known, subscribed, suppressed or recently asked address. No mail is queued when the
+   address already belongs to a subscribed, bounced or complained member of the list, or to a contact the platform
+   suppresses (hard bounce, complaint).
+2. The mail links to `GET join/confirm/{token}`, which only shows a **Confirm subscription** button (a mail scanner
+   that opens the link subscribes nobody).
+3. `POST join/confirm/{token}`, in one transaction: finds the request by hash (single use, unexpired, form still
+   on), finds the contact by address or creates it through `ContactDirectory` (an existing contact is reused and
+   its name is never overwritten), refuses and rolls back if the platform holds a suppression or an opt-out for the
+   address or the membership bounced or complained, then subscribes the member through `SubscriberManager::add()`
+   (source `form`, method `website_form`, evidence "Double opt-in on the public sign-up form: requested, confirmed,
+   form id, user agent hash"; no IP is stored), records the platform marketing consent through
+   `ConsentRecorder::recordOptIn(contactId, email, 'double_opt_in', "Double opt-in via form {form id} confirmed
+   {UTC timestamp}; user agent hash {hash}")` and deletes the request. The consent is the platform's `form` method
+   with that evidence, so Audience then answers `allowed`. If `recordOptIn` refuses (a suppression, or the
+   Communication app is not available) the whole transaction rolls back: no contact, membership or consent is
+   left, and the visitor sees "We could not add this address". Replayed, expired, unknown,
+   foreign-workspace and disabled-form links are one bare 404 page. A plan limit refusal rolls back, answers 503
+   and keeps the link.
+
+**Resubscribing.** Submitting the form never changes an existing membership. A member who unsubscribed on the list
+(list state only) is reopened solely by the POST on a fresh link, with new evidence, by whoever owns the mailbox. A
+person who unsubscribed or opted out in the platform stays blocked (section 13, item 2).
+
+**The confirmation email** is not marketing and goes through Laravel's mailer as a queued, encrypted, after-commit
+mailable (like the support satisfaction invitation), not through `ChannelGateway`: email through the gateway is
+always `marketing`, and the outbox refuses marketing mail to an address without consent, which is exactly the
+state of this address. It therefore bypasses the platform outbox: it is not in the Communication message log, not
+counted by `communication.messages` and not subject to quiet hours; the limits above are its only brake.
+
+**Entitlement.** The routes answer 404 while the workspace is not entitled to the app (no new sign-ups and no
+confirmations; pending requests are kept and work again if the app returns, until they expire). Unlike
+Communication's unsubscribe page this is deliberate: nothing can be sent without the app anyway.
+
+**Retention.** A request holds an address until it is confirmed or expires; `RunEmailMarketing` deletes requests a
+day after expiry.
+
+## 15. Tests
+
+`tests/Feature/EmailMarketing` (the sign-up form is `PublicSignupTest.php`), `tests/Unit/EmailMarketing`, helper `tests/Support/InteractsWithEmailMarketing.php`
 (builds on `InteractsWithCommunication`: `emTenant`, `emMember`, `emList`, `emSubscribe`, `emCampaign`, `emRun`);
 frontend in `tests/js/emailMarketing.test.ts`. See `docs/TESTING.md`.

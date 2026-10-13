@@ -17,9 +17,17 @@ use App\Core\Communication\Data\ChannelEvent;
  *
  *  - check its own entitlement (the platform's webhook route only requires `communication`);
  *  - be idempotent and fast (the platform de-duplicates by provider event id, but a crash can replay);
- *  - never throw for an event it does not care about. Exceptions are caught and logged without content, so
- *    one app can never break delivery tracking for another;
+ *  - never throw for an event it does not care about. An exception is caught and logged without content, so
+ *    one app can never break another's delivery tracking. The one exception: when a listener throws for an
+ *    INBOUND message the webhook answers 5xx and nothing of the event is kept, so the provider redelivers it
+ *    (an inbound message exists nowhere else). Receipts and template status are never retried that way;
+ *  - queue follow-up work only after commit (`dispatch(...)->afterCommit()`): the event is applied inside one
+ *    transaction that rolls back when any listener fails, and the redelivery runs every listener again, so work
+ *    queued eagerly would run once per attempt;
  *  - treat `text` and `details` as untrusted input.
+ *
+ * The webhook processes every event of a payload even when one fails. After `communication.webhook_max_failures`
+ * failed deliveries of the same event it is recorded as failed and not retried again.
  */
 interface ChannelEventListener
 {

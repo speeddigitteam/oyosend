@@ -6,8 +6,12 @@ namespace App\Modules\WhatsappMarketing\Actions;
 
 use App\Core\Billing\UsageLimits;
 use App\Core\Billing\UsageMeter;
+use App\Modules\WhatsappMarketing\Enums\Direction;
+use App\Modules\WhatsappMarketing\Enums\MessageStatus;
+use App\Modules\WhatsappMarketing\Enums\MessageType;
 use App\Modules\WhatsappMarketing\Enums\WindowOrigin;
 use App\Modules\WhatsappMarketing\Models\Conversation;
+use App\Modules\WhatsappMarketing\Models\Message;
 use App\Modules\WhatsappMarketing\Models\Window;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -75,11 +79,35 @@ final class WindowTracker
 
     /**
      * Whether a template to this conversation may start now: a running window is free, a new one needs room
-     * in the plan's monthly limit.
+     * in the plan's monthly limit. A window is counted when the provider accepts the template, so templates
+     * that are queued but not yet accepted are reserved here: a campaign cannot queue thousands more
+     * conversations than the plan has left.
      */
     public function canStartBusinessWindow(Conversation $conversation): bool
     {
-        return $this->current($conversation) !== null || $this->limits->allows(self::LIMIT);
+        if ($this->current($conversation) !== null) {
+            return true;
+        }
+
+        return $this->limits->allows(self::LIMIT, 1 + $this->reservedWindows($conversation));
+    }
+
+    /**
+     * Conversations other than this one with a queued template and no running window: each will open (and
+     * count) one window once the provider accepts it.
+     */
+    private function reservedWindows(Conversation $except): int
+    {
+        return Message::query()
+            ->where('direction', Direction::Outbound->value)
+            ->where('type', MessageType::Template->value)
+            ->where('status', MessageStatus::Queued->value)
+            ->where('conversation_id', '!=', $except->id)
+            ->whereNotIn('conversation_id', Window::query()
+                ->where('expires_at', '>', CarbonImmutable::now())
+                ->select('conversation_id'))
+            ->distinct()
+            ->count('conversation_id');
     }
 
     private function open(Conversation $conversation, WindowOrigin $origin, CarbonInterface $at, ?string $category): Window

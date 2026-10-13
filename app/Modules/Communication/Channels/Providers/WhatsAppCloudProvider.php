@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Communication\Channels\Providers;
 
+use App\Modules\Communication\Channels\Contracts\PlatformAccountProvider;
 use App\Modules\Communication\Channels\Contracts\VerifiesWebhookSubscription;
 use App\Modules\Communication\Channels\Contracts\WhatsAppChannel;
 use App\Modules\Communication\Channels\Data\ChannelCredentials;
@@ -38,7 +39,7 @@ use Throwable;
  * NOT TESTED AGAINST LIVE META: it is covered by HTTP-faked tests only. Using it for real needs the operator's
  * Meta app, a verified business, a registered phone number, approved templates and app review (docs/WHATSAPP.md).
  */
-final class WhatsAppCloudProvider implements VerifiesWebhookSubscription, WhatsAppChannel
+final class WhatsAppCloudProvider implements PlatformAccountProvider, VerifiesWebhookSubscription, WhatsAppChannel
 {
     public const string KEY = 'whatsapp_cloud';
 
@@ -67,10 +68,26 @@ final class WhatsAppCloudProvider implements VerifiesWebhookSubscription, WhatsA
     public function fields(): array
     {
         return [
-            ['key' => 'phone_number_id', 'label' => 'Phone number ID', 'type' => 'text', 'required' => true, 'maxLength' => 32],
+            ['key' => 'phone_number_id', 'label' => 'Phone number ID', 'type' => 'text', 'required' => true, 'maxLength' => 32, 'account' => true],
             ['key' => 'business_account_id', 'label' => 'WhatsApp Business Account ID', 'type' => 'text', 'required' => false, 'maxLength' => 32],
             ['key' => 'graph_api_version', 'label' => 'Graph API version', 'type' => 'text', 'required' => false, 'maxLength' => 8],
         ];
+    }
+
+    public function accountFields(): array
+    {
+        // The phone number id stays the workspace's (one workspace per number); the operator's account holds
+        // the credentials of the Meta app that owns the numbers.
+        return [
+            ['key' => 'secret', 'label' => 'System user access token', 'type' => 'secret', 'required' => true],
+            ['key' => 'webhook_secret', 'label' => 'App secret (webhook signature)', 'type' => 'secret', 'required' => false],
+            ['key' => 'verify_token', 'label' => 'Webhook verify token', 'type' => 'secret', 'required' => false],
+        ];
+    }
+
+    public function supportsTestSend(): bool
+    {
+        return false;
     }
 
     public function supportsWebhooks(): bool

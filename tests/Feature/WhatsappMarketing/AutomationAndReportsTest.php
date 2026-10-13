@@ -70,7 +70,7 @@ it('stores a blocked output, not an exception, for a contact without an opt-in',
 
 it('refuses with a stored output for an unknown contact, a bad template or a number without a country code', function () {
     $run = fn (array $input, string $key) => $this->inTenant($this->tenant, fn () => app(SendTemplateAction::class)->execute($input, $key));
-    $local = $this->waContact($this->tenant, ['phone' => '01711000099']);
+    $local = $this->waContact($this->tenant, ['phone' => '0212345678']);
 
     expect($run(['contact_id' => '01HZZZZZZZZZZZZZZZZZZZZZZZ', 'template_id' => $this->template->id], 'k1')['reason'])->toBe('unknown_contact')
         ->and($run(['contact_id' => $this->contact->id, 'template_id' => '01HZZZZZZZZZZZZZZZZZZZZZZZ'], 'k2')['reason'])->toBe('unknown_template')

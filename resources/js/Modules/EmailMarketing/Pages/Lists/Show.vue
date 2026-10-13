@@ -17,19 +17,22 @@ import { route } from '@/Core/lib/route';
 import EmailBadge from '../../Components/EmailBadge.vue';
 import MemberTable from '../../Components/MemberTable.vue';
 import SegmentDialog from '../../Components/SegmentDialog.vue';
-import type { ListRow, MemberRow, Paginated, SegmentRow, SubscriptionStatus } from '../../Components/types';
+import SignupPanel from '../../Components/SignupPanel.vue';
+import type { ListRow, MemberRow, Paginated, SegmentRow, SignupSummary, SubscriptionStatus } from '../../Components/types';
 
 defineOptions({ layout: TenantLayout });
 
 const props = defineProps<{
     list: ListRow;
     members: Paginated<MemberRow>;
+    hiddenMembers?: number;
     segments: SegmentRow[];
     filters: { status: string | null; segment: string | null; q: string | null };
     statuses: SubscriptionStatus[];
     consentMethods: string[];
     segmentFields: string[];
     segmentOperators: Record<string, string[]>;
+    signup?: SignupSummary | null;
     canManage: boolean;
     canManageSubscribers: boolean;
     canExport: boolean;
@@ -193,6 +196,8 @@ const tiles = computed(() =>
         </div>
     </dl>
 
+    <SignupPanel v-if="canManage && signup" :list-id="list.id" :list-active="list.status === 'active'" :signup="signup" />
+
     <Card :title="t('emailMarketing.segments.title')" :description="t('emailMarketing.segments.intro')" class="mb-3">
         <template v-if="canManage" #actions>
             <Button size="sm" @click="openSegment(null)">{{ t('emailMarketing.segments.add') }}</Button>
@@ -221,6 +226,9 @@ const tiles = computed(() =>
             <Button type="submit" size="sm">{{ t('emailMarketing.common.apply') }}</Button>
             <Button v-if="filtered" type="button" size="sm" variant="ghost" @click="clear">{{ t('emailMarketing.common.clearFilters') }}</Button>
         </form>
+        <p v-if="(hiddenMembers ?? 0) > 0" class="border-b border-line px-5 py-3 text-[0.8125rem] text-ink-muted" data-testid="hidden-members">
+            {{ t('emailMarketing.members.hidden', { count: format.number(hiddenMembers ?? 0) }) }}
+        </p>
         <MemberTable :members="members.data" :consent-methods="consentMethods" :can-manage="canManageSubscribers" :filtered="filtered" />
         <Pagination :meta="members" />
     </Card>

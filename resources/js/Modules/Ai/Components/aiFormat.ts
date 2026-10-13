@@ -21,6 +21,11 @@ export function barWidth(value: number, max: number): number {
     return max <= 0 ? 0 : Math.max(value > 0 ? 2 : 0, Math.round((value / max) * 100));
 }
 
+/** Locale key of a changed field's label; unknown fields fall back to the raw field name in the page. */
+export function proposalFieldKey(field: string): string {
+    return `ai.proposal.field.${field}`;
+}
+
 export function proposalTone(status: ProposalState): 'ok' | 'warn' | 'danger' | 'neutral' {
     switch (status) {
         case 'confirmed':

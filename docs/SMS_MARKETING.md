@@ -6,11 +6,14 @@ bulk and scheduled SMS campaigns to contact groups, keeps message templates, rec
 status and reports usage. Tables are prefixed `sms_marketing_`; routes sit under `/sms-marketing`; the frontend is
 `resources/js/Modules/SmsMarketing`.
 
-State of the build: **backend and Vue pages are built.** **No SMS provider adapter exists in this repository**, so in
-production the SMS channel is `not_configured`: campaigns can be drafted, groups built, templates written and cost
-estimated, but a campaign cannot be launched, and every screen says so. The app never talks to a provider itself and
-holds no provider credential. A real adapter belongs to the Communication module's provider registry (see
-`docs/COMMUNICATION.md` section 12 and "Owner decisions" below). Nothing is simulated outside `testing` / `local`,
+State of the build: **backend and Vue pages are built.** The Communication module ships two SMS adapters,
+**Twilio** (`twilio`) and a **generic HTTP gateway** (`http_sms`), configured by the operator as provider accounts
+in the Super Admin panel (ADR 0013, `docs/COMMUNICATION.md` section 3). **Neither has been run against a live
+provider; they are covered by faked tests only**, and delivery receipts are not consumed (messages stay `sent`,
+reports label them "Sent, no receipt"). Until the operator creates an account and the workspace selects it in
+Communication > Settings > Channels, the SMS channel is `not_configured`: campaigns can be drafted, groups built,
+templates written and cost estimated, but a campaign cannot be launched, and every screen says so. The app never
+talks to a provider itself and holds no provider credential. Nothing is simulated outside `testing` / `local`,
 where the Communication module's in-memory test provider is available and is labelled "Test provider" in the UI.
 
 A workspace needs an effective plan or App Store entitlement for `sms_marketing` **and** `communication`; without
@@ -37,7 +40,8 @@ stale "yes" can never cause a send.
 - **Group**: a named list of references to shared contacts (`sms_marketing_group_members.contact_id`). Never a copy:
   a changed number or an opt-out is seen at send time. Deleting a group keeps the contacts.
   A viewer sees (and exports) a group's members only for contacts they may see under `core.contacts.view`; the
-  rest are counted ("N members are contacts you may not see"), never listed.
+  rest are counted ("N members are contacts you may not see"), never listed. A campaign's recipient list and its
+  CSV export follow the same rule (`hiddenRecipients`); campaign counters stay complete.
 - **Template**: a message text with variables, purpose `marketing` or `transactional`.
 - **Campaign**: a text (copied from a template or written) sent to the contacts of one or more groups. Status:
   `draft`, `scheduled`, `sending`, `completed`, `cancelled`. A running campaign may carry a `hold_reason`.
@@ -264,7 +268,8 @@ channelAvailable, channelTestDouble, nextScheduledFor}`.
 
 `config/sms_marketing.php` (no credentials): `max_segments`, `max_body_length`, `max_audience`, `batch_ceiling`,
 `defaults`, `bounds`, `max_attempts`, `retry_backoff_minutes`, `reconcile_after_minutes`, `import`,
-`permanent_failure_codes`. Provider credentials stay in `config/communication.php` (`credentials`) and are resolved
+`permanent_failure_codes`. Provider credentials are the Communication module's: an operator provider account
+(encrypted in the database, ADR 0013) or an entry of `config/communication.php` (`credentials`). They are resolved
 by the platform, never by this app.
 
 ## 15. Tests
@@ -279,12 +284,14 @@ reconciliation, plan limits, CSV, merge, automation, reports) and `tests/js/smsM
 
 ## 16. Not built, and owner decisions
 
-- **No SMS provider adapter.** A Bangladeshi or international gateway adapter implements `SmsChannel` and is
-  registered in `ProviderRegistry` in the Communication module; it needs the provider's documented API, a credential
-  reference in `config/communication.credentials` and verified webhook signatures. Which provider(s) and the
-  contract with them are the owner's call. Until then the channel is `not_configured`. A generic HTTP adapter was
-  deliberately **not** added: without a real provider's documented request, authentication and receipt formats it
-  would only be a guess presented as a feature.
+- **SMS adapters are unverified against live providers.** `twilio` and `http_sms` exist (Communication module,
+  configured as provider accounts), tested with fakes only. Which Bangladeshi or international gateway the owner
+  contracts with, and that gateway's request, authentication and success format, still have to be confirmed by
+  sending a real message; the generic adapter expresses one request per message with a configurable success text
+  and cannot cover a gateway that needs signed bodies, OAuth, batches or XML. A gateway-specific adapter belongs in
+  the Communication module's `ProviderRegistry`.
+- **SMS delivery receipts are not consumed** (Twilio status callbacks, gateway DLR URLs). Delivery rate stays
+  "Not reported" until an adapter parses them.
 - **Transactional SMS (OTP and notices) is not sent by this app.** It needs a core contract for non-marketing
   sends (the Communication composer and its automation action can already send a transactional template to a
   contact).

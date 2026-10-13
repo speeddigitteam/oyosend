@@ -25,7 +25,10 @@ lists with `RecordAccess` and return 404 for an out-of-scope bound record.
 3. Qualify the lead, or convert it by opening a deal. Conversion retains the shared customer links.
 4. Move a deal through stages. Every move writes immutable stage history and a unified timeline entry; terminal
    stages set won/lost state and timestamps. A won or lost deal cannot be reopened or commercially edited, so
-   lifecycle value is recognized once.
+   lifecycle value is recognized once. Deals can be moved from the deal page or by dragging a card on the deal
+   board (`/crm/deals?view=board`), which shows up to 200 open deals of one pipeline, scoped like the list. Both
+   use the same stage route. Dropping on a won or lost stage asks for confirmation first, and the note becomes
+   the lost reason.
 5. Schedule calls, meetings, tasks and follow-ups against the lead, deal, contact or company. Activities support
    reminders, priorities, assignment, completion and cancellation. Tenant-local inputs are stored as UTC.
 

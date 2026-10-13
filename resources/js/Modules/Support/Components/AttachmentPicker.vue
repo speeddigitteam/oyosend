@@ -29,7 +29,7 @@ function remove(index: number): void {
 <template>
     <div class="grid gap-2">
         <div class="flex flex-wrap items-center gap-2">
-            <input :id="inputId" ref="input" type="file" multiple class="sr-only" @change="choose" />
+            <input :id="inputId" ref="input" type="file" multiple class="sr-only" tabindex="-1" :aria-label="t('support.attachments.add')" @change="choose" />
             <Button size="sm" variant="ghost" :disabled="files.length >= max" @click="input?.click()">
                 <template #icon><Paperclip class="size-4" aria-hidden="true" /></template>
                 {{ t('support.attachments.add') }}

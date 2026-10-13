@@ -54,6 +54,11 @@ final class DeliverySender
 
         $delivery->refresh();
 
+        if ($delivery->send_epoch >= max(1, (int) config('email_marketing.limit_retry_max', 24))) {
+            // The plan limit refused this email on every try: stop offering it.
+            return $this->finish($delivery, DeliveryStatus::Failed, 'limit_reached', failed: true);
+        }
+
         $subscription = $delivery->subscription_id === null ? null : Subscription::query()->find($delivery->subscription_id);
 
         if ($subscription === null || $subscription->status !== SubscriptionStatus::Subscribed) {
@@ -89,7 +94,7 @@ final class DeliverySender
 
         $receipt = $this->gateway->send(new MarketingMessage(
             module: self::MODULE,
-            idempotencyKey: $delivery->send_key,
+            idempotencyKey: $delivery->send_epoch > 0 ? $delivery->send_key.':e'.$delivery->send_epoch : $delivery->send_key,
             channel: MarketingChannel::Email,
             contactId: $contact->id,
             subject: $email->subject,
@@ -129,7 +134,7 @@ final class DeliverySender
         }
 
         if ($state === DeliveryState::Failed && $receipt->reason === 'limit_reached') {
-            return $this->release($delivery, 'limit_reached');
+            return $this->release($delivery, 'limit_reached', newEpoch: true);
         }
 
         $status = match ($state) {
@@ -163,11 +168,12 @@ final class DeliverySender
         return new SendResult($status);
     }
 
-    private function finish(Delivery $delivery, DeliveryStatus $status, ?string $reason): SendResult
+    private function finish(Delivery $delivery, DeliveryStatus $status, ?string $reason, bool $failed = false): SendResult
     {
         Delivery::query()->whereKey($delivery->id)->where('status', DeliveryStatus::Sending->value)->update([
             'status' => $status->value,
             'reason' => $reason,
+            'failed_at' => $failed ? CarbonImmutable::now() : null,
             'updated_at' => CarbonImmutable::now(),
         ]);
 
@@ -175,11 +181,12 @@ final class DeliverySender
     }
 
     /** Put the delivery back so a later run sends it, and ask the caller to stop. */
-    private function release(Delivery $delivery, string $reason): SendResult
+    private function release(Delivery $delivery, string $reason, bool $newEpoch = false): SendResult
     {
         Delivery::query()->whereKey($delivery->id)->where('status', DeliveryStatus::Sending->value)->update([
             'status' => DeliveryStatus::Pending->value,
             'attempts' => max(0, $delivery->attempts - 1),
+            'send_epoch' => $newEpoch ? $delivery->send_epoch + 1 : $delivery->send_epoch,
             'updated_at' => CarbonImmutable::now(),
         ]);
 

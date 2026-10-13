@@ -89,6 +89,13 @@ final class SequenceRunner
             $result = $this->sender->send($delivery, $step);
 
             if ($result->paused()) {
+                if ($result->pause === 'limit_reached') {
+                    // This delivery waits for the plan limit; it must not hold back the other enrolments.
+                    $enrollment->forceFill(['next_due_at' => CarbonImmutable::now()->addMinutes(max(1, (int) config('email_marketing.limit_backoff_minutes', 60)))])->save();
+
+                    continue;
+                }
+
                 // Leave the enrolment due: the same delivery is picked up again when the channel is back.
                 break;
             }

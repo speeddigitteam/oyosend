@@ -15,11 +15,22 @@ use SensitiveParameter;
  */
 final class ChannelCredentials
 {
-    public function __construct(#[SensitiveParameter] private readonly string $secret) {}
+    /**
+     * @param  array<string, mixed>  $settings  Non-secret operator settings of the platform account the secret
+     *                                          came from (an SMTP host, a Twilio sender, an endpoint). Empty for
+     *                                          a secret that came from the environment.
+     */
+    public function __construct(#[SensitiveParameter] private readonly string $secret, private readonly array $settings = []) {}
 
     public function secret(): string
     {
         return $this->secret;
+    }
+
+    /** @return array<string, mixed> */
+    public function settings(): array
+    {
+        return $this->settings;
     }
 
     /** @return array<string, never> */

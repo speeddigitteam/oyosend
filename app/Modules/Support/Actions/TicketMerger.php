@@ -65,7 +65,9 @@ final class TicketMerger
                 throw ValidationException::withMessages(['target_id' => __('Reopen the target ticket before merging into it.')]);
             }
 
-            if (! $confirmed && ! $this->sameRequester($from, $into)) {
+            $sameRequester = $this->sameRequester($from, $into);
+
+            if (! $confirmed && ! $sameRequester) {
                 throw ValidationException::withMessages(['confirm' => __('These tickets have different requesters. Confirm to merge them anyway.')]);
             }
 
@@ -95,7 +97,11 @@ final class TicketMerger
             $into->requester_name ??= $from->requester_name;
             $into->requester_email ??= $from->requester_email;
 
-            if ($into->first_responded_at === null && $from->first_responded_at !== null) {
+            // A reply to somebody else's ticket is not a response to this requester: carry it over only for the
+            // same requester, and only when it is the earlier one.
+            if ($sameRequester
+                && $from->first_responded_at !== null
+                && ($into->first_responded_at === null || $from->first_responded_at->lessThan($into->first_responded_at))) {
                 $into->first_responded_at = $from->first_responded_at;
                 $into->first_response_remaining_minutes = null;
             }

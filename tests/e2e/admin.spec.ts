@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { sidebar, totp, watchForErrors } from './support/app';
-import { admin, PASSWORD } from './support/env';
+import { admin, PASSWORD, workspace as workspaceUrl } from './support/env';
 
 /*
  * The Super Admin panel on its own host, and support access: an operator
@@ -88,24 +88,24 @@ test.describe('the Super Admin panel', () => {
         await expect(page.getByText('Support session').first()).toBeVisible();
 
         // The owner's own account stays closed to the operator.
-        const profile = await page.goto('http://acme.localhost:8010/settings/security');
+        const profile = await page.goto(workspaceUrl('acme', 'settings/security'));
 
         expect(profile?.status()).toBe(403);
     });
 
     test('ends the session from the banner, back in the panel, and both sides have a record of it', async () => {
-        await page.goto('http://acme.localhost:8010/');
+        await page.goto(workspaceUrl('acme'));
         await page.getByRole('button', { name: 'End session' }).click();
 
         await page.waitForURL((url) => url.hostname === 'admin.localhost');
         await expect(page.getByRole('heading', { name: 'Acme Trading', level: 1 })).toBeVisible();
-        await expect(page.getByText('Ticket 4521: the invoice page shows an error')).toBeVisible();
+        await expect(page.getByText('Ticket 4521: the invoice page shows an error').first()).toBeVisible();
 
         // The workspace session is gone with it.
-        const workspace = await page.context().newPage();
+        const workspaceTab = await page.context().newPage();
 
-        await workspace.goto('http://acme.localhost:8010/');
-        await expect(workspace).toHaveURL(/\/login$/);
-        await workspace.close();
+        await workspaceTab.goto(workspaceUrl('acme'));
+        await expect(workspaceTab).toHaveURL(/\/login$/);
+        await workspaceTab.close();
     });
 });

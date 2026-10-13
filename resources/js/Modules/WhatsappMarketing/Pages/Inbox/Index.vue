@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router } from '@inertiajs/vue3';
-import { Clock, MessageCircle, Plus, Search } from 'lucide-vue-next';
+import { Clock, KanbanSquare, List, MessageCircle, Plus, Search } from 'lucide-vue-next';
 import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Avatar from '@/Core/Components/Avatar.vue';
@@ -18,13 +18,14 @@ import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
 import { route } from '@/Core/lib/route';
 import ChannelBanner from '../../Components/ChannelBanner.vue';
 import StartConversationDialog from '../../Components/StartConversationDialog.vue';
-import type { AgentOption, ChannelInfo, ContactMatch, ConversationSummary, Paginated, SendableTemplate } from '../../Components/types';
+import type { AgentOption, ChannelInfo, ContactMatch, ConversationSummary, KanbanColumn, Paginated, SendableTemplate } from '../../Components/types';
 import { initialsOf } from '../../Components/whatsappFormat';
 import WhatsappNav from '../../Components/WhatsappNav.vue';
 
 defineOptions({ layout: TenantLayout });
 
 interface Filters {
+    view: 'list' | 'kanban';
     status: string;
     assignee: string | null;
     tag: string | null;
@@ -33,7 +34,8 @@ interface Filters {
 }
 
 const props = defineProps<{
-    conversations: Paginated<ConversationSummary>;
+    conversations: Paginated<ConversationSummary> | null;
+    kanbanColumns: KanbanColumn[];
     filters: Filters;
     counts: { open: number; mine: number; unassigned: number; unread: number };
     agents: AgentOption[];
@@ -51,6 +53,7 @@ const draft = reactive({
     status: props.filters.status,
     assignee: props.filters.assignee ?? '',
     unread: props.filters.unread,
+    view: props.filters.view,
 });
 const starting = ref(false);
 
@@ -69,20 +72,24 @@ const assigneeOptions = computed(() => [
 const query = computed<Record<string, string>>(() => {
     const out: Record<string, string> = {};
 
-    if (draft.status !== 'open') {
-        out.status = draft.status;
+    if (draft.view !== 'list') {
+        out.view = draft.view;
     }
 
-    if (draft.assignee !== '') {
-        out.assignee = draft.assignee;
+    if (draft.view === 'list') {
+        if (draft.status !== 'open') {
+            out.status = draft.status;
+        }
+        if (draft.assignee !== '') {
+            out.assignee = draft.assignee;
+        }
+        if (draft.unread) {
+            out.unread = '1';
+        }
     }
 
     if (props.filters.tag) {
         out.tag = props.filters.tag;
-    }
-
-    if (draft.unread) {
-        out.unread = '1';
     }
 
     if (draft.search.trim() !== '') {
@@ -92,7 +99,7 @@ const query = computed<Record<string, string>>(() => {
     return out;
 });
 
-const hasFilters = computed(() => Object.keys(query.value).length > 0);
+const hasFilters = computed(() => Object.keys(query.value).filter((k) => k !== 'view').length > 0);
 
 function visit(data: Record<string, string>): void {
     router.get(route('whatsapp_marketing.inbox.index'), data, { preserveState: true, preserveScroll: true });
@@ -103,13 +110,18 @@ function apply(): void {
 }
 
 watch(
-    () => [draft.status, draft.assignee, draft.unread],
+    () => [draft.status, draft.assignee, draft.unread, draft.view],
     () => apply(),
 );
 
+function setView(v: 'list' | 'kanban'): void {
+    draft.view = v;
+}
+
 function clear(): void {
+    const currentView = draft.view;
     Object.assign(draft, { search: '', status: 'open', assignee: '', unread: false });
-    visit({});
+    visit(currentView !== 'list' ? { view: currentView } : {});
 }
 
 const tiles = computed(() => [
@@ -143,15 +155,32 @@ const tiles = computed(() => [
         </li>
     </ul>
 
+    <!-- View toggle -->
+    <div class="mb-3 flex justify-end">
+        <div class="flex gap-1 rounded-control bg-hover p-1" :aria-label="t('whatsapp.inbox.title')">
+            <Button size="sm" :variant="draft.view === 'list' ? 'secondary' : 'ghost'" :aria-pressed="draft.view === 'list'" @click="setView('list')">
+                <template #icon><List class="size-4" aria-hidden="true" /></template>
+                {{ t('whatsapp.inbox.viewList') }}
+            </Button>
+            <Button size="sm" :variant="draft.view === 'kanban' ? 'secondary' : 'ghost'" :aria-pressed="draft.view === 'kanban'" @click="setView('kanban')">
+                <template #icon><KanbanSquare class="size-4" aria-hidden="true" /></template>
+                {{ t('whatsapp.inbox.viewBoard') }}
+            </Button>
+        </div>
+    </div>
+
+    <!-- Filter bar -->
     <Card class="mb-3">
         <form class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" role="search" @submit.prevent="apply">
-            <Input v-model="draft.search" class="sm:col-span-2" :label="t('whatsapp.inbox.search')" :placeholder="t('whatsapp.inbox.searchPlaceholder')" maxlength="100">
+            <Input v-model="draft.search" :class="draft.view === 'kanban' ? 'sm:col-span-2 lg:col-span-4' : 'sm:col-span-2'" :label="t('whatsapp.inbox.search')" :placeholder="t('whatsapp.inbox.searchPlaceholder')" maxlength="100">
                 <template #leading><Search class="size-4" aria-hidden="true" /></template>
             </Input>
-            <Select v-model="draft.status" :options="statusOptions" :label="t('whatsapp.inbox.status')" />
-            <Select v-model="draft.assignee" :options="assigneeOptions" :label="t('whatsapp.inbox.assignee')" />
+            <template v-if="draft.view === 'list'">
+                <Select v-model="draft.status" :options="statusOptions" :label="t('whatsapp.inbox.status')" />
+                <Select v-model="draft.assignee" :options="assigneeOptions" :label="t('whatsapp.inbox.assignee')" />
+            </template>
             <div class="flex flex-wrap items-center gap-3 sm:col-span-2 lg:col-span-4">
-                <Checkbox v-model="draft.unread" :label="t('whatsapp.inbox.unreadOnly')" />
+                <Checkbox v-if="draft.view === 'list'" v-model="draft.unread" :label="t('whatsapp.inbox.unreadOnly')" />
                 <Button type="submit" variant="primary" size="sm">{{ t('whatsapp.common.apply') }}</Button>
                 <Button v-if="hasFilters" size="sm" variant="ghost" @click="clear">{{ t('whatsapp.common.clear') }}</Button>
                 <Badge v-if="filters.tag" tone="info">{{ t('whatsapp.inbox.tag', { tag: filters.tag }) }}</Badge>
@@ -159,12 +188,13 @@ const tiles = computed(() => [
         </form>
     </Card>
 
-    <Card flush>
-        <EmptyState v-if="conversations.data.length === 0" :title="t(hasFilters ? 'whatsapp.inbox.emptyFiltered' : 'whatsapp.inbox.empty')" :description="hasFilters ? undefined : t('whatsapp.inbox.emptyBody')">
+    <!-- List view -->
+    <Card v-if="draft.view === 'list'" flush>
+        <EmptyState v-if="conversations && conversations.data.length === 0" :title="t(hasFilters ? 'whatsapp.inbox.emptyFiltered' : 'whatsapp.inbox.empty')" :description="hasFilters ? undefined : t('whatsapp.inbox.emptyBody')">
             <template #icon><MessageCircle /></template>
             <Button v-if="canStart && !hasFilters" variant="primary" @click="starting = true">{{ t('whatsapp.inbox.start') }}</Button>
         </EmptyState>
-        <ul v-else class="divide-y divide-line" :aria-label="t('whatsapp.inbox.listLabel')">
+        <ul v-else-if="conversations" class="divide-y divide-line" :aria-label="t('whatsapp.inbox.listLabel')">
             <li v-for="conversation in conversations.data" :key="conversation.id">
                 <Link
                     :href="route('whatsapp_marketing.inbox.show', { conversation: conversation.id })"
@@ -193,8 +223,61 @@ const tiles = computed(() => [
                 </Link>
             </li>
         </ul>
-        <Pagination :meta="conversations" />
+        <Pagination v-if="conversations" :meta="conversations" />
     </Card>
+
+    <!-- Kanban view -->
+    <div v-else class="overflow-x-auto pb-4">
+        <div class="flex gap-4" :style="{ minWidth: `${kanbanColumns.length * 288 + (kanbanColumns.length - 1) * 16}px` }">
+            <div v-for="col in kanbanColumns" :key="col.key" class="w-72 shrink-0">
+                <!-- Column header -->
+                <div class="mb-2 flex items-center justify-between px-1">
+                    <h3 class="text-sm font-semibold text-ink">{{ t(`whatsapp.inbox.col.${col.key}`) }}</h3>
+                    <Badge tone="neutral" class="tabular-nums">{{ format.number(col.count) }}</Badge>
+                </div>
+                <!-- Cards -->
+                <div class="flex flex-col gap-2">
+                    <Link
+                        v-for="conv in col.items"
+                        :key="conv.id"
+                        :href="route('whatsapp_marketing.inbox.show', { conversation: conv.id })"
+                        class="glass block rounded-card px-3.5 py-3 transition-colors hover:bg-hover focus-visible:outline-2"
+                    >
+                        <div class="flex items-start gap-2.5">
+                            <Avatar :initials="initialsOf(conv.displayName) || '#'" :name="conv.phone" class="shrink-0" />
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-baseline justify-between gap-2">
+                                    <p class="truncate text-sm text-ink" :class="conv.unread > 0 ? 'font-semibold' : 'font-medium'">{{ conv.displayName }}</p>
+                                    <time v-if="conv.lastMessageAt" class="tabular-nums shrink-0 text-xs text-ink-subtle">{{ format.relative(conv.lastMessageAt) }}</time>
+                                </div>
+                                <p class="mt-0.5 truncate text-xs text-ink-muted">
+                                    <span v-if="conv.lastDirection === 'outbound'" class="text-ink-subtle">{{ t('whatsapp.inbox.you') }} </span>{{ conv.preview ?? t('whatsapp.inbox.noPreview') }}
+                                </p>
+                                <div class="mt-1.5 flex flex-wrap items-center gap-1 text-xs">
+                                    <Badge v-if="conv.unread > 0" tone="brand">{{ t('whatsapp.inbox.unreadCount', { count: format.number(conv.unread) }) }}</Badge>
+                                    <span v-if="conv.windowOpen" class="inline-flex items-center gap-0.5 text-ok">
+                                        <Clock class="size-3" aria-hidden="true" />{{ t('whatsapp.inbox.windowOpen') }}
+                                    </span>
+                                    <span v-if="conv.owner" class="text-ink-muted">{{ conv.owner.name }}</span>
+                                    <span v-else class="text-ink-subtle">{{ t('whatsapp.inbox.unassignedLabel') }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </Link>
+
+                    <!-- Empty column -->
+                    <p v-if="col.items.length === 0" class="rounded-card border border-dashed border-line px-4 py-6 text-center text-sm text-ink-muted">
+                        {{ t('whatsapp.inbox.emptyFiltered') }}
+                    </p>
+
+                    <!-- More indicator -->
+                    <p v-if="col.count > col.items.length" class="px-1 text-xs text-ink-subtle">
+                        {{ t('whatsapp.inbox.boardMore', { count: format.number(col.count - col.items.length) }) }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <StartConversationDialog v-if="canStart" v-model:open="starting" :templates="templates" :contact-matches="contactMatches" :query="query" />
 </template>

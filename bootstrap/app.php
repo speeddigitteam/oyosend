@@ -12,7 +12,10 @@ use App\Core\Tenancy\Http\Middleware\EnsureCentralContext;
 use App\Core\Tenancy\Http\Middleware\EnsureTenantIsActive;
 use App\Core\Tenancy\Http\Middleware\InitializeTenancy;
 use App\Core\Tenancy\Support\TenantHost;
+use App\Platform\Console\BenchmarkCommand;
 use App\Platform\Console\CreatePlatformAdminCommand;
+use App\Platform\Console\VerifyBackupCommand;
+use App\Platform\Http\Controllers\HealthController;
 use App\Platform\Http\Middleware\EnsurePlatformTwoFactor;
 use App\Platform\Http\Middleware\HandlePlatformInertia;
 use App\Platform\Http\Middleware\InitializePlatformContext;
@@ -32,6 +35,12 @@ return Application::configure(basePath: dirname(__DIR__))
         then: function (): void {
             $hosts = app(TenantHost::class);
 
+            // Probes for a load balancer or monitor: any host, no session, no tenant.
+            Route::get('health', [HealthController::class, 'live'])->name('health.live');
+            Route::get('health/ready', [HealthController::class, 'ready'])
+                ->middleware('throttle:60,1')
+                ->name('health.ready');
+
             // Super Admin panel: admin.APP_DOMAIN
             Route::domain($hosts->adminHost())
                 ->middleware(['web', 'platform'])
@@ -50,6 +59,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withCommands([
         CreatePlatformAdminCommand::class,
+        BenchmarkCommand::class,
+        VerifyBackupCommand::class,
     ])
     ->withMiddleware(function (Middleware $middleware): void {
         // Reverse proxies are trusted from config/trustedproxy.php (TRUSTED_PROXIES),
@@ -68,6 +79,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // else - no session, no cookies. See routes/tenant-callbacks.php.
         $middleware->group('tenant.callback', [
             InitializeTenancy::class,
+            'throttle:60,1',
+        ]);
+
+        // Central-host stateless callbacks (the Social OAuth redirect broker): no session, no cookies.
+        $middleware->group('central.callback', [
+            EnsureCentralContext::class,
             'throttle:60,1',
         ]);
 

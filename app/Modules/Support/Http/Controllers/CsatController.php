@@ -62,10 +62,10 @@ final class CsatController
             return $this->invalid();
         }
 
-        return response()->view('support.survey', [
+        return $this->hardened(response()->view('support.survey', [
             'state' => 'done',
             'workspace' => $this->context->require()->name,
-        ]);
+        ]));
     }
 
     /**
@@ -74,7 +74,7 @@ final class CsatController
      */
     private function form(CsatSurvey $survey, array $errors = [], array $old = [], int $status = 200): Response
     {
-        return response()->view('support.survey', [
+        return $this->hardened(response()->view('support.survey', [
             'state' => 'form',
             'workspace' => $this->context->require()->name,
             'number' => $survey->ticket->number,
@@ -82,15 +82,25 @@ final class CsatController
             'errors' => $errors,
             'rating' => $old['rating'] ?? null,
             'comment' => $old['comment'] ?? '',
-        ], $status);
+        ], $status));
     }
 
     private function invalid(): Response
     {
-        return response()->view('support.survey', [
+        return $this->hardened(response()->view('support.survey', [
             'state' => 'invalid',
             'workspace' => $this->context->require()->name,
-        ], 404);
+        ], 404));
+    }
+
+    /** The page carries a credential in its URL: no framing, no referrer, no caching. */
+    private function hardened(Response $response): Response
+    {
+        $response->headers->set('X-Frame-Options', 'DENY');
+        $response->headers->set('Referrer-Policy', 'no-referrer');
+        $response->headers->set('Cache-Control', 'no-store, private');
+
+        return $response;
     }
 
     private function locale(): void

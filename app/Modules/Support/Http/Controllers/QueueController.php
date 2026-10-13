@@ -26,6 +26,8 @@ use App\Modules\Support\Models\Queue;
 use App\Modules\Support\Models\QueueAgent;
 use App\Modules\Support\Models\SlaPolicy;
 use App\Modules\Support\Models\Ticket;
+use App\Modules\Support\Support\SupportPermissions;
+use App\Modules\Support\Support\TicketAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -38,6 +40,7 @@ final class QueueController
         private readonly SupportCatalogue $catalogue,
         private readonly UsageLimits $limits,
         private readonly SupportControllerSupport $support,
+        private readonly TicketAccess $access,
     ) {}
 
     public function index(Request $request): Response
@@ -126,7 +129,9 @@ final class QueueController
 
     public function storeQueue(QueueRequest $request): RedirectResponse
     {
-        $this->catalogue->saveQueue(null, $request->validated());
+        $input = $request->validated();
+        $this->assertMayChangeQueueAgents($request, null, $input);
+        $this->catalogue->saveQueue(null, $input);
         Toast::success(__('Queue saved.'));
 
         return back();
@@ -134,7 +139,9 @@ final class QueueController
 
     public function updateQueue(QueueRequest $request, Queue $queue): RedirectResponse
     {
-        $this->catalogue->saveQueue($queue, $request->validated());
+        $input = $request->validated();
+        $this->assertMayChangeQueueAgents($request, $queue, $input);
+        $this->catalogue->saveQueue($queue, $input);
         Toast::success(__('Queue saved.'));
 
         return back();
@@ -142,6 +149,7 @@ final class QueueController
 
     public function storeAgent(AgentRequest $request): RedirectResponse
     {
+        $this->assertMayManageAgents($request);
         $input = $request->validated();
         $this->catalogue->enrolAgent((string) $input['membership_id'], $input);
         Toast::success(__('Agent enrolled.'));
@@ -151,10 +159,45 @@ final class QueueController
 
     public function updateAgent(AgentRequest $request, Agent $agent): RedirectResponse
     {
+        $this->assertMayManageAgents($request);
         $this->catalogue->updateAgent($agent, $request->validated());
         Toast::success(__('Agent updated.'));
 
         return back();
+    }
+
+    /**
+     * An enrolled agent reaches the unassigned tickets of their queues with any scope they hold, so enrolling
+     * people (oneself included) widens record access. Only someone who already reaches every ticket may do it.
+     */
+    private function assertMayManageAgents(Request $request): void
+    {
+        abort_unless($this->access->hasAll($this->support->actor($request), SupportPermissions::TICKETS_ASSIGN), 403);
+    }
+
+    /**
+     * `agent_ids` on the queue form enrols or removes queue agents, which widens (or narrows) who reaches the
+     * queue's unassigned tickets. A submitted set that differs from the stored one needs the same right as
+     * managing agents; an unchanged or omitted set passes, so other queue fields stay editable.
+     *
+     * @param  array<string, mixed>  $input
+     */
+    private function assertMayChangeQueueAgents(Request $request, ?Queue $queue, array $input): void
+    {
+        if (! array_key_exists('agent_ids', $input)) {
+            return;
+        }
+
+        $submitted = array_values(array_unique(array_map('strval', (array) $input['agent_ids'])));
+        $stored = $queue === null
+            ? []
+            : QueueAgent::query()->where('queue_id', $queue->id)->pluck('agent_id')->map(fn (mixed $id): string => (string) $id)->all();
+
+        if (array_diff($submitted, $stored) === [] && array_diff($stored, $submitted) === []) {
+            return;
+        }
+
+        $this->assertMayManageAgents($request);
     }
 
     public function storeCategory(CategoryRequest $request): RedirectResponse

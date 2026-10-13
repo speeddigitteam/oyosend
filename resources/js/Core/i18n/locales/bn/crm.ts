@@ -182,6 +182,13 @@ const crm: MessageSchema['crm'] = {
         expected: 'সম্ভাব্য তারিখ {date}',
         noExpectedDate: 'সমাপ্তির তারিখ নেই',
         linkedLead: '{name} লিড থেকে',
+        listView: 'তালিকা',
+        boardView: 'বোর্ড',
+        viewLabel: 'দেখার ধরন',
+        boardEmpty: 'এই ধাপে কোনো খোলা ডিল নেই।',
+        boardNoPipeline: 'কোনো পাইপলাইন কনফিগার করা নেই। CRM সেটিংসে একটি যোগ করুন।',
+        closeWarning: 'ডিলটি {stage} ধাপে নিলে এটি বন্ধ হয়ে যাবে। বন্ধ ডিল আর অন্য ধাপে নেওয়া যায় না।',
+        lostReasonHint: 'হারানো ডিলের ক্ষেত্রে এই নোটটি কারণ হিসেবে সংরক্ষিত হবে।',
     },
     activities: {
         title: 'কার্যকলাপ',

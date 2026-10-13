@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Modules\Support\Actions\SlaConfiguration;
 use App\Modules\Support\Actions\SlaMonitor;
+use App\Modules\Support\Actions\SupportReports;
 use App\Modules\Support\Actions\SupportSettings;
 use App\Modules\Support\Actions\TicketManager;
 use App\Modules\Support\Enums\MessageKind;
@@ -84,26 +85,60 @@ it('pauses while waiting on the customer and resumes with the remaining working 
     $ticket = ($this->open)();                       // first response due 10:00 (60 min)
     $manager = fn () => app(TicketManager::class);
 
-    $this->supportAt('2026-03-09 09:40');            // 20 minutes remain
+    $this->supportAt('2026-03-09 09:40');
+    $this->inTenant($this->tenant, fn () => $manager()->addMessage($ticket, MessageKind::PublicReply, 'Looking', $this->owner));
     $this->inTenant($this->tenant, fn () => $manager()->changeStatus($ticket, TicketStatus::WaitingCustomer, $this->owner));
 
     $paused = $this->inTenant($this->tenant, fn () => Ticket::query()->findOrFail($ticket->id));
     expect($paused->sla_paused_at)->not->toBeNull()
-        ->and($paused->first_response_remaining_minutes)->toBe(20)
+        ->and($paused->first_response_remaining_minutes)->toBeNull()
         ->and($paused->resolution_remaining_minutes)->toBe(480 - 40);
 
-    // A day later (Tuesday 14:00) the customer answers: the clock resumes with the same 20 minutes.
+    // A day later (Tuesday 14:00) the customer answers: the resolution clock resumes with the same 440 minutes.
     $this->supportAt('2026-03-10 14:00');
     $this->inTenant($this->tenant, fn () => $manager()->addMessage($ticket, MessageKind::CustomerReply, 'Here you go', null));
 
     $resumed = $this->inTenant($this->tenant, fn () => Ticket::query()->findOrFail($ticket->id));
     expect($resumed->status)->toBe(TicketStatus::Open)
         ->and($resumed->sla_paused_at)->toBeNull()
-        ->and(($this->local)($resumed->first_response_due_at?->toImmutable()))->toBe('2026-03-10 14:20')
-        ->and($resumed->first_response_remaining_minutes)->toBeNull();
+        ->and($resumed->resolution_remaining_minutes)->toBeNull()
+        ->and($resumed->resolution_due_at?->greaterThan(CarbonImmutable::parse('2026-03-10 14:00', 'Asia/Dhaka')))->toBeTrue();
 
     $kinds = $this->inTenant($this->tenant, fn () => TicketEvent::query()->where('ticket_id', $ticket->id)->pluck('kind')->all());
     expect($kinds)->toContain(TicketEventKind::SlaPaused)->toContain(TicketEventKind::SlaResumed);
+});
+
+it('does not pause the clocks of a ticket that nobody has answered yet', function () {
+    $this->supportAt('2026-03-09 09:00');
+    $ticket = ($this->open)();
+    $manager = fn () => app(TicketManager::class);
+
+    $this->supportAt('2026-03-09 09:30');
+    $this->inTenant($this->tenant, fn () => $manager()->changeStatus($ticket, TicketStatus::WaitingCustomer, $this->owner));
+
+    $waiting = $this->inTenant($this->tenant, fn () => Ticket::query()->findOrFail($ticket->id));
+    expect($waiting->status)->toBe(TicketStatus::WaitingCustomer)
+        ->and($waiting->sla_paused_at)->toBeNull()
+        ->and($waiting->first_responded_at)->toBeNull();
+
+    // The monitor keeps judging the first response while the ticket sits unanswered.
+    $this->supportAt('2026-03-09 10:05');
+    expect($this->inTenant($this->tenant, fn () => app(SlaMonitor::class)->run()))->toBe(1);
+    expect($this->inTenant($this->tenant, fn () => Ticket::query()->findOrFail($ticket->id))->first_response_breached_at)->not->toBeNull();
+});
+
+it('pauses when the first reply is sent while the ticket already waits on the customer', function () {
+    $this->supportAt('2026-03-09 09:00');
+    $ticket = ($this->open)();
+    $manager = fn () => app(TicketManager::class);
+
+    $this->supportAt('2026-03-09 09:30');
+    $this->inTenant($this->tenant, fn () => $manager()->changeStatus($ticket, TicketStatus::WaitingCustomer, $this->owner));
+    $this->inTenant($this->tenant, fn () => $manager()->addMessage($ticket, MessageKind::PublicReply, 'Which version?', $this->owner));
+
+    $after = $this->inTenant($this->tenant, fn () => Ticket::query()->findOrFail($ticket->id));
+    expect($after->first_responded_at)->not->toBeNull()
+        ->and($after->sla_paused_at)->not->toBeNull();
 });
 
 it('does not pause when the policy says not to', function () {
@@ -122,6 +157,8 @@ it('judges a ticket resolved while paused on the time it had left', function () 
     $ticket = ($this->open)();
     $manager = fn () => app(TicketManager::class);
 
+    $this->supportAt('2026-03-09 09:30');
+    $this->inTenant($this->tenant, fn () => $manager()->addMessage($ticket, MessageKind::PublicReply, 'On it', $this->owner));
     $this->supportAt('2026-03-09 10:00');
     $this->inTenant($this->tenant, fn () => $manager()->changeStatus($ticket, TicketStatus::WaitingCustomer, $this->owner));
     $this->supportAt('2026-03-12 15:00');
@@ -168,6 +205,7 @@ it('does not breach a ticket that was answered in time, paused, resolved or merg
     $this->inTenant($this->tenant, function () use ($answered, $waiting, $resolved): void {
         $manager = app(TicketManager::class);
         $manager->addMessage($answered, MessageKind::PublicReply, 'On it', $this->owner);
+        $manager->addMessage($waiting, MessageKind::PublicReply, 'Which version?', $this->owner);
         $manager->changeStatus($waiting, TicketStatus::WaitingCustomer, $this->owner);
         $manager->changeStatus($resolved, TicketStatus::Resolved, $this->owner);
     });
@@ -208,6 +246,43 @@ it('restarts the resolution target when a resolved ticket is reopened', function
     expect(($this->local)($reopened->resolution_due_at?->toImmutable()))->toBe('2026-03-10 17:00')
         ->and($reopened->resolved_at)->toBeNull()
         ->and($reopened->resolution_breached_at)->toBeNull();
+});
+
+it("keeps the first cycle's missed resolution target when the ticket is reopened", function () {
+    $this->supportAt('2026-03-09 09:00');
+    $ticket = ($this->open)();                       // resolution due 17:00
+    $manager = fn () => app(TicketManager::class);
+
+    $this->supportAt('2026-03-09 17:30');
+    expect($this->inTenant($this->tenant, fn () => app(SlaMonitor::class)->run()))->toBeGreaterThanOrEqual(1);
+    $this->inTenant($this->tenant, fn () => $manager()->changeStatus($ticket, TicketStatus::Resolved, $this->owner));
+    $this->supportAt('2026-03-10 09:00');
+    $this->inTenant($this->tenant, fn () => $manager()->changeStatus($ticket, TicketStatus::Open, $this->owner));
+
+    $reopened = $this->inTenant($this->tenant, fn () => Ticket::query()->findOrFail($ticket->id));
+    expect($reopened->resolution_breached_at)->toBeNull()
+        ->and($reopened->resolution_first_breached_at)->not->toBeNull();
+
+    $report = $this->inTenant($this->tenant, fn () => app(SupportReports::class)->overview('2026-03-09', '2026-03-10'));
+    expect($report['sla']['resolution']['missed'])->toBe(1)
+        ->and($report['sla']['resolution']['met'])->toBe(0);
+});
+
+it('keeps a late resolution as missed even when the monitor never saw it', function () {
+    $this->supportAt('2026-03-09 09:00');
+    $ticket = ($this->open)();
+    $manager = fn () => app(TicketManager::class);
+
+    $this->supportAt('2026-03-09 18:00');
+    $this->inTenant($this->tenant, fn () => $manager()->changeStatus($ticket, TicketStatus::Resolved, $this->owner));
+    $this->supportAt('2026-03-10 09:00');
+    $this->inTenant($this->tenant, fn () => $manager()->changeStatus($ticket, TicketStatus::Open, $this->owner));
+
+    $report = $this->inTenant($this->tenant, fn () => app(SupportReports::class)->overview('2026-03-09', '2026-03-10', null, ['sla']));
+
+    expect($report['sla']['resolution']['missed'])->toBe(1)
+        // Sections that were not asked for stay empty and cost no scan.
+        ->and($report['volume']['created'])->toBe(0);
 });
 
 it('rejects an SLA policy with a resolution target shorter than first response', function () {

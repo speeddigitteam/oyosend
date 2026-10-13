@@ -7,6 +7,7 @@ namespace App\Modules\SmsMarketing\Http\Controllers;
 use App\Core\Access\RecordAccess;
 use App\Core\Communication\Contracts\ChannelGateway;
 use App\Core\Communication\Data\MarketingChannel;
+use App\Core\Contacts\Models\Contact;
 use App\Core\Support\Like;
 use App\Core\Support\Toast;
 use App\Modules\SmsMarketing\Actions\AudienceEstimator;
@@ -113,8 +114,14 @@ final class CampaignController
         $record = $this->support->campaign($actor, $campaign, self::VIEW);
         $filters = $request->validate(['status' => ['nullable', Rule::enum(RecipientStatus::class)]]);
 
+        // A recipient is a contact's name and number: each one only for someone who may see that contact.
+        $visible = $this->records->constrain(Contact::query(), $actor, 'core.contacts.view')->select('id');
+        $total = Recipient::query()->where('campaign_id', $record->id)->count();
+        $hidden = $total - Recipient::query()->where('campaign_id', $record->id)->whereIn('contact_id', $visible)->count();
+
         $recipients = Recipient::query()
             ->where('campaign_id', $record->id)
+            ->whereIn('contact_id', $visible)
             ->with('contact:id,first_name,last_name')
             ->when($filters['status'] ?? null, fn ($query, string $status) => $query->where('status', $status))
             ->orderBy('id')
@@ -125,6 +132,7 @@ final class CampaignController
         return Inertia::render('Modules/SmsMarketing/Pages/Campaigns/Show', [
             'campaign' => $this->presenter->campaignDetail($record, $actor),
             'recipients' => $recipients,
+            'hiddenRecipients' => max(0, $hidden),
             'filters' => ['status' => $filters['status'] ?? null],
             'statuses' => RecipientStatus::values(),
             'sample' => $this->composer->preview($record->body)->toArray(),
@@ -217,7 +225,7 @@ final class CampaignController
     {
         $actor = $this->support->actor($request);
         $record = $this->support->campaign($actor, $campaign, self::VIEW);
-        $csv = $this->csv->exportRecipients($record->id);
+        $csv = $this->csv->exportRecipients($record->id, $actor);
 
         return response()->streamDownload(static function () use ($csv): void {
             echo $csv;

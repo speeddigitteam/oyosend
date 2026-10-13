@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Core\Access\Enums\AccessScope;
+use App\Core\Contacts\Models\Contact;
 use App\Modules\SmsMarketing\Enums\CampaignStatus;
 use App\Modules\SmsMarketing\Models\Campaign;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -145,4 +146,38 @@ it('lists group members only for contacts the viewer may see, and says how many 
 
     $this->get($this->smsUrl($this->tenant, "/groups/{$this->group->id}"))->assertOk()
         ->assertInertia(fn (Assert $page) => $page->has('members.data', 1)->where('hiddenMembers', 0));
+});
+
+it('shows and exports campaign recipients only for contacts the viewer may see, and says how many are hidden', function () {
+    $mine = $this->smsContact($this->tenant, '+8801711000021', true, ['first_name' => 'Ownedname']);
+    $theirs = $this->smsContact($this->tenant, '+8801711000022', true, ['first_name' => 'Foreignname']);
+    $group = $this->smsGroup($this->tenant, [$mine->id, $theirs->id], 'Scoped');
+    $campaign = $this->smsCampaign($this->tenant, [$group->id]);
+    $this->launchNow($this->tenant, $campaign);
+    $this->runCampaigns($this->tenant);
+
+    [$user, $membership] = $this->smsMember($this->tenant, ['sms_marketing.campaigns.view', 'core.contacts.view'], ['core.contacts.view' => 'own']);
+    $this->inTenant($this->tenant, function () use ($mine, $theirs, $membership): void {
+        Contact::query()->whereKey($mine->id)->update(['owner_id' => $membership->id]);
+        Contact::query()->whereKey($theirs->id)->update(['owner_id' => null]);
+    });
+    $this->actingAsMember($this->tenant, $user);
+
+    $this->get($this->smsUrl($this->tenant, "/campaigns/{$campaign->id}"))->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('recipients.data', 1)
+            ->where('recipients.data.0.name', fn ($name) => str_contains((string) $name, 'Ownedname'))
+            ->where('hiddenRecipients', 1)
+            ->where('recipients.total', 1));
+
+    $csv = $this->get($this->smsUrl($this->tenant, "/campaigns/{$campaign->id}/export"))->assertOk()->streamedContent();
+    expect($csv)->toContain('+8801711000021')->and($csv)->not->toContain('+8801711000022')->and($csv)->not->toContain('Foreignname');
+
+    // Without any contact permission nobody is listed, and the count still tells the truth.
+    [$blind] = $this->smsMember($this->tenant, ['sms_marketing.campaigns.view']);
+    $this->actingAsMember($this->tenant, $blind);
+
+    $this->get($this->smsUrl($this->tenant, "/campaigns/{$campaign->id}"))->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->has('recipients.data', 0)->where('hiddenRecipients', 2));
+    expect($this->get($this->smsUrl($this->tenant, "/campaigns/{$campaign->id}/export"))->streamedContent())->not->toContain('+88017110000');
 });

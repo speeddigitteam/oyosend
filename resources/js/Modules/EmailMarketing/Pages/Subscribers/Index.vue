@@ -9,6 +9,7 @@ import PageHeader from '@/Core/Components/PageHeader.vue';
 import Pagination from '@/Core/Components/Pagination.vue';
 import Select from '@/Core/Components/Select.vue';
 import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
+import { useFormat } from '@/Core/composables/useFormat';
 import { route } from '@/Core/lib/route';
 import MemberTable from '../../Components/MemberTable.vue';
 import type { ListOption, MemberRow, Paginated, SubscriptionStatus } from '../../Components/types';
@@ -20,11 +21,13 @@ const props = defineProps<{
     filters: { status: string | null; list_id: string | null; q: string | null };
     statuses: SubscriptionStatus[];
     lists: ListOption[];
+    hiddenMembers?: number;
     consentMethods: string[];
     canManage: boolean;
 }>();
 
 const { t } = useI18n();
+const format = useFormat();
 
 const status = ref(props.filters.status ?? 'all');
 const list = ref(props.filters.list_id ?? '');
@@ -64,6 +67,9 @@ function clear(): void {
             <Button type="submit" size="sm">{{ t('emailMarketing.common.apply') }}</Button>
             <Button v-if="filtered" type="button" size="sm" variant="ghost" @click="clear">{{ t('emailMarketing.common.clearFilters') }}</Button>
         </form>
+        <p v-if="(hiddenMembers ?? 0) > 0" class="border-b border-line px-5 py-3 text-[0.8125rem] text-ink-muted" data-testid="hidden-members">
+            {{ t('emailMarketing.members.hidden', { count: format.number(hiddenMembers ?? 0) }) }}
+        </p>
         <MemberTable :members="members.data" :consent-methods="consentMethods" :can-manage="canManage" show-list :filtered="filtered" />
         <Pagination :meta="members" />
     </Card>

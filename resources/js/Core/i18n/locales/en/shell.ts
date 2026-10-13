@@ -128,6 +128,8 @@ export default {
         invoices: 'Invoices',
         platformAudit: 'Audit log',
         platformSettings: 'Settings',
+        platformAi: 'AI providers',
+        platformMessaging: 'Messaging providers',
         openMenu: 'Open navigation',
         closeMenu: 'Close navigation',
         primary: 'Primary',

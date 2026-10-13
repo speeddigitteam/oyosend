@@ -26,6 +26,7 @@ const props = defineProps<{
     channels: ChannelDescription[];
     /** Credential names only; a value never reaches the browser. */
     credentialRefs: string[];
+    credentialLabels?: Record<string, string>;
     senderGuidance: { platformSender: string; customDomainVerified: boolean };
 }>();
 
@@ -127,6 +128,6 @@ function save(): void {
             <h2 class="text-lg text-ink">{{ t('communication.settings.channels') }}</h2>
             <p class="mt-1 text-sm text-ink-muted">{{ t('communication.settings.channelsHint') }}</p>
         </div>
-        <ChannelCard v-for="channel in channels" :key="channel.channel" :channel="channel" :credential-refs="credentialRefs" />
+        <ChannelCard v-for="channel in channels" :key="channel.channel" :channel="channel" :credential-refs="credentialRefs" :credential-labels="credentialLabels" />
     </div>
 </template>

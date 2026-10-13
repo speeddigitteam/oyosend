@@ -8,11 +8,15 @@ use App\Core\Audit\Models\AuditLog;
 use App\Core\Contacts\Models\Contact;
 use App\Modules\Ai\Actions\ProposalManager;
 use App\Modules\Ai\Enums\ProposalStatus;
+use App\Modules\Ai\Events\ProposalConfirmed;
 use App\Modules\Ai\Models\Conversation;
 use App\Modules\Ai\Models\Message;
 use App\Modules\Ai\Models\Proposal;
+use App\Modules\Ai\Support\ChangeValue;
 use App\Modules\Ai\Support\CompletionRequest;
 use App\Modules\Ai\Support\SystemPrompt;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Validation\ValidationException;
 use Tests\Support\InteractsWithAi;
 
 uses(InteractsWithAi::class);
@@ -301,4 +305,61 @@ it('answers 404 for every AI page when the workspace is not entitled', function 
     }
 
     $this->post($this->aiUrl($plain, '/drafts'), ['kind' => 'rewrite', 'text' => 'x'])->assertNotFound();
+});
+
+it('applies a proposal once when it is confirmed twice from stale copies', function () {
+    Event::fake([ProposalConfirmed::class]);
+
+    [$member, $membership] = $this->aiMember($this->tenant, ['ai.assistant.use', 'ai.proposals.confirm', 'core.contacts.manage', 'core.contacts.view']);
+    $conversation = $this->aiConversation($this->tenant, $membership);
+    $context = new ToolContext($member, $membership);
+    $created = $this->inTenant($this->tenant, fn () => app(ProposalManager::class)->create(
+        $conversation,
+        $context,
+        'contacts_propose_create',
+        new ProposalDraft('Add', ['first_name' => 'Twice', 'email' => 'twice@example.test'], []),
+    ));
+
+    // Two tabs: both loaded the proposal while it was still pending.
+    $first = $this->inTenant($this->tenant, fn () => Proposal::query()->findOrFail($created->id));
+    $second = $this->inTenant($this->tenant, fn () => Proposal::query()->findOrFail($created->id));
+
+    $this->inTenant($this->tenant, fn () => app(ProposalManager::class)->confirm($first, $context));
+
+    expect(fn () => $this->inTenant($this->tenant, fn () => app(ProposalManager::class)->confirm($second, $context)))
+        ->toThrow(ValidationException::class);
+
+    $this->inTenant($this->tenant, function () use ($created): void {
+        expect(Contact::query()->where('email', 'twice@example.test')->count())->toBe(1)
+            ->and(AuditLog::query()->where('event', 'ai.proposal.confirmed')->count())->toBe(1)
+            ->and(Proposal::query()->findOrFail($created->id)->status)->toBe(ProposalStatus::Confirmed);
+    });
+
+    Event::assertDispatchedTimes(ProposalConfirmed::class, 1);
+});
+
+it('shows the values a pending proposal would write, and the old ones, as plain text', function () {
+    $contact = $this->aiContact($this->tenant, ['first_name' => 'Keep', 'job_title' => 'Buyer']);
+    $long = str_repeat('x', 500);
+    $this->fake->pushToolUse('contacts_propose_update', ['id' => $contact->id, 'changes' => ['job_title' => 'CEO', 'notes' => $long]])->pushText('Proposed.');
+
+    $this->actingAsOwner($this->tenant)
+        ->post($this->aiUrl($this->tenant, '/conversations'), ['content' => 'Promote Keep'])
+        ->assertRedirect();
+
+    $conversation = $this->inTenant($this->tenant, fn () => Conversation::query()->sole());
+
+    $this->get($this->aiUrl($this->tenant, "/conversations/{$conversation->id}"))
+        ->assertOk()
+        ->assertInertia(function ($page): void {
+            $page->component('Modules/Ai/Pages/Assistant/Show', false)
+                ->has('proposals.0.changes', 2)
+                ->where('proposals.0.changes.0', ['field' => 'job_title', 'old' => 'Buyer', 'new' => 'CEO'])
+                ->where('proposals.0.changes.1.field', 'notes')
+                ->where('proposals.0.changes.1.old', null);
+        });
+
+    expect(mb_strlen(ChangeValue::display($long)))->toBe(201)
+        ->and(ChangeValue::display(['array']))->toBeNull()
+        ->and(ChangeValue::display(''))->toBeNull();
 });

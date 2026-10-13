@@ -30,8 +30,8 @@ whatsapp_marketing --ChannelGateway::send()--> communication outbox --> WhatsApp
 - **The connection is the communication app's.** A WhatsApp channel connection (`communication_channel_connections`,
   provider `whatsapp_cloud`) holds the non-secret `phone_number_id` (and optional `business_account_id`,
   `graph_api_version`) plus two credential **references**. Secrets live in the environment behind
-  `config('communication.credentials')`. This app has no connection, token or secret of its own and its pages never
-  show one.
+  `config('communication.credentials')` or in an operator-created provider account (`acct_{id}`, encrypted,
+  write-only, ADR 0013). This app has no connection, token or secret of its own and its pages never show one.
 - **Everything outbound goes through `App\Core\Communication\Contracts\ChannelGateway`.** Consent, suppression,
   quiet hours, per-channel rate limit, retries, plan limit `communication.messages` and the provider are the
   platform's. This app adds the WhatsApp rules (window, approved templates) before it asks.
@@ -61,7 +61,11 @@ whatsapp_marketing --ChannelGateway::send()--> communication outbox --> WhatsApp
    (use it when each workspace brings its own Meta app and number).
 3. In the workspace: **Communication > Settings > WhatsApp**: provider "WhatsApp Business Platform (Cloud API)",
    `phone_number_id`, optional `business_account_id`, credential reference (token), webhook secret reference (app
-   secret + verify token), enabled.
+   secret + verify token), enabled. The reference is either an environment entry from step 2 or, alternatively,
+   a **provider account** the operator created in the Super Admin panel (**Messaging providers**, provider
+   "WhatsApp Business Platform"): the token, app secret and verify token are then typed there once, stored
+   encrypted and never shown again (ADR 0013). Both routes are equivalent to the app; the account route is
+   as unverified against live Meta as the rest.
 4. In the Meta app dashboard: callback URL `https://{workspace}.{APP_DOMAIN}/communication/webhooks/whatsapp_cloud`
    and the verify token from step 2. Meta's GET handshake (`hub.mode=subscribe`, `hub.verify_token`,
    `hub.challenge`) is answered only for a connected, enabled connection whose reference carries a `verify_token`,
@@ -99,7 +103,8 @@ the reason Meta gave. Only `approved` templates are ever sent.
 | Free-form reply | Only while `last_inbound_at + 24h` is in the future. Enforced in `Messenger::reply()`, again by the adapter at send time (`whatsapp_window_until`; a postponed message cannot go out late) and finally by Meta (error 131047) |
 | After the window | Only an approved template. The inbox page disables free text and offers templates |
 | Marketing template | Needs a recorded opt-in, always; quiet hours apply |
-| Utility/authentication template | Sent as a service message when the customer wrote to us before; otherwise treated as marketing (opt-in needed) |
+| Utility/authentication template (one agent to one customer) | A service message ONLY while the customer's own 24-hour service window is open (`whatsapp_window_until` is sent with it); after the window, or for someone who never wrote, it is marketing and needs an opt-in. Having written once is not consent |
+| Any template in a campaign | ALWAYS marketing (consent, suppression, quiet hours), whatever category the workspace gave the template. A "utility" label never exempts a bulk send |
 | Reply to a customer-initiated chat | `MessagingPurpose::Transactional` through the gateway: no marketing consent needed, quiet hours ignored, suppression scope `all` (bounced/complained) still blocks |
 | Not approved / wrong variable count | Validation error, nothing queued |
 | Channel not connected | Validation error ("WhatsApp is not connected for this workspace yet"), nothing recorded |
@@ -107,7 +112,10 @@ the reason Meta gave. Only `approved` templates are ever sent.
 A conversation window (`whatsapp_windows`) opens when a customer writes, or when a business-initiated template is
 accepted by the provider, and no window is running. It lasts 24 hours and is metered once under the key
 `wa-window:{window id}` (limit `whatsapp_marketing.conversations_per_month`). A template inside a running window
-costs nothing extra. Starting a business window needs room in the plan limit, otherwise the send is refused.
+costs nothing extra. Starting a business window needs room in the plan limit, otherwise the send is refused. A
+window is counted when the provider accepts the template, so templates that are queued but not yet accepted
+reserve their window: a campaign cannot queue more new conversations than the plan has left.
+The platform's own message limit (`communication.messages`) is checked again at worker time.
 
 ## 5. Inbox, assignment and record scope
 
@@ -119,8 +127,10 @@ costs nothing extra. Starting a business window needs room in the plan limit, ot
   `core.contacts.manage` can create the contact from the conversation, or the workspace can switch on
   `auto_create_contacts`. A reply needs a contact whose phone is the conversation's number: the platform reads the
   address from the contact, never from the caller.
-- Phone numbers are E.164. A contact's phone is used only when it already carries its country code; a national
-  number such as `01711000000` is never guessed and shows as "number needs a country code".
+- Phone numbers are E.164 in the platform's one canonical form (`Core\Communication\Support\PhoneNumber`).
+  A Bangladesh number in any usual spelling (`01711000000`, `8801711000000`, `+8801711000000`) is read as
+  `+8801711000000`; a number of another country is used only when it already carries its country code; anything
+  else (a landline, another country's national number) is never guessed and shows as "number needs a country code".
 - The record owner of a conversation is its assignee (`owner_id`, with department and branch copied). Scopes work
   like Support tickets: `own` = assigned to me, `department`, `branch`, `all`. An **enrolled, active agent** also
   sees unassigned conversations with any scope they hold so they can pick them up; nobody else does.
@@ -141,7 +151,7 @@ A campaign is a template + a list + a mapping of each numbered variable to an al
   changed or deleted. Starting needs the channel available, an approved template and 1 to
   `max_recipients` (10,000) list members.
 - **Snapshot**: the first chunk job freezes the list in pages of 500 with one `decideMany()` per page. A contact
-  without a country-code number is `skipped (invalid_phone)`, one the platform denies is `blocked` with its reason
+  without a readable number is `skipped (invalid_phone)`, one the platform denies is `blocked` with its reason
   (`no_consent`, `opted_out`, `unsubscribed`, `suppressed`), the rest `pending`.
 - **Chunks**: `SendCampaignChunk` (queue `campaigns`) hands `chunk_size` (50) recipients to the gateway and
   dispatches itself until none are pending, under a per-campaign lock. A cancelled campaign stops between
@@ -167,10 +177,15 @@ message of a conversation window), then a closed list of steps: `reply{text}`, `
 - A menu waits for the customer's next message for 30 minutes (number or label); anything else clears it.
 - Guards: no bot reply in a conversation a person owns or after a handoff; at most 5 bot messages per
   conversation per 10 minutes; the bot starts again when a customer writes after the window closed.
-- Built-in: `stop`, `unsubscribe`, `opt out`... is always answered (even with no flow and with bots off) with a
-  one-click unsubscribe link from `UnsubscribeLinks::issue()` (the contact still confirms on the page, which
-  records the opt-out and suppression); an unknown number gets a plain acknowledgement only when a contact exists
-  to answer through the platform.
+- Built-in STOP: a message that is exactly `stop`, `stop all`, `unsubscribe`, `opt out`, `optout`, `বন্ধ` or
+  `আনসাবস্ক্রাইব` (compared case-insensitively after trimming and collapsing spaces) is handled even with no flow
+  and with bots off. The opt-out is recorded AT ONCE through the core `ConsentRecorder` contract (method
+  `keyword`): marketing consent withdrawn and the number suppressed for marketing, so a running campaign blocks
+  the contact on the very next message. The customer is told once ("You have been unsubscribed ..."); repeating
+  STOP records nothing new and sends no second confirmation, and the bot's own message budget (5 per 10 minutes)
+  applies to the confirmation. Where it cannot be recorded (no contact behind the number, the communication app
+  not entitled) the older fallback is used: an unsubscribe link to confirm on, or a plain "we have noted your
+  request", and the request waits in the inbox for a person.
 - A bot reply is a service message (Transactional) and counts as a normal outbound message.
 
 ## 8. Automation
@@ -251,10 +266,10 @@ All workspace routes sit under `/whatsapp`, carry `auth:web`, `auth.session`, `m
 | `whatsapp_marketing.templates.store` / `.update` / `.status` / `.destroy` | POST `templates`, PUT `templates/{template}`, POST `templates/{template}/status`, DELETE | `templates.manage` | name, language, category, header, body, footer, buttons[], status, status_reason |
 | `whatsapp_marketing.quick-replies.index` | GET `quick-replies` | `quick_replies.view` | `QuickReplies/Index` |
 | `whatsapp_marketing.quick-replies.store` / `.update` / `.destroy` | POST, PUT/DELETE `quick-replies/{quickReply}` | `quick_replies.manage` | shortcut, title, body, is_active |
-| `whatsapp_marketing.lists.index` / `.show` | GET `lists`, `lists/{list}` | `lists.view` | `Lists/Index`, `Lists/Show` (members with opt-in answer, candidates by `search`) |
+| `whatsapp_marketing.lists.index` / `.show` | GET `lists`, `lists/{list}` | `lists.view` | `Lists/Index`, `Lists/Show` (members with opt-in answer, candidates by `search`; members and `hiddenMembers` follow the viewer's `core.contacts.view` scope) |
 | `whatsapp_marketing.lists.store` / `.update` / `.destroy` | POST, PUT/DELETE `lists/{list}` | `lists.manage` | name, description |
 | `whatsapp_marketing.lists.members.store` / `.all` / `.destroy` | POST `lists/{list}/members`, POST `.../members/all`, DELETE `.../members/{member}` | `lists.manage` | `contact_ids[]` (max 500) |
-| `whatsapp_marketing.campaigns.index` / `.show` | GET `campaigns`, `campaigns/{campaign}` | `campaigns.view` | `Campaigns/Index`, `Campaigns/Show` |
+| `whatsapp_marketing.campaigns.index` / `.show` | GET `campaigns`, `campaigns/{campaign}` | `campaigns.view` | `Campaigns/Index`, `Campaigns/Show` (recipient rows and `hiddenRecipients` follow the viewer's `core.contacts.view` scope; the state counts are aggregates) |
 | `whatsapp_marketing.campaigns.create` / `.edit` | GET `campaigns/create`, `campaigns/{campaign}/edit` | `campaigns.manage` | `Campaigns/Form` |
 | `whatsapp_marketing.campaigns.store` / `.update` / `.destroy` | POST, PUT/DELETE | `campaigns.manage` | name, template_id, list_id, variables |
 | `whatsapp_marketing.campaigns.preview` | POST `campaigns/preview` | `campaigns.manage` | JSON `{body}` for sample values |
@@ -269,7 +284,7 @@ handshake), see `docs/COMMUNICATION.md`.
 
 ## 13. Data
 
-See `docs/DATABASE.md` section 3h. Every table has `tenant_id` and tenant-first unique indexes. A reference to a
+See `docs/DATABASE.md` section 3k2. Every table has `tenant_id` and tenant-first unique indexes. A reference to a
 customer is a `contact_id` into the shared `contacts`. Money is not stored (no cost is computed).
 
 ## 14. Not built and owner decisions
@@ -283,8 +298,9 @@ customer is a `contact_id` into the shared `contacts`. Money is not stored (no c
   they are not shown.
 - No cost figures (the provider reports none in webhooks); only billable counts and pricing category.
 - Broadcast to a segment of CRM data (leads, deals) is not built: lists hold contacts you add.
-- STOP handling asks the contact to confirm on the platform's unsubscribe page rather than opting out on a
-  keyword alone. Recording a consent withdrawal from the keyword needs a core consent contract that does not exist.
+- The STOP keyword list is fixed in code (English, and the two Bengali words above); a tenant cannot edit it.
+  `বন্ধ` also means "close/off" in everyday Bengali, so a customer writing only that word is unsubscribed: whether
+  to keep it is an owner decision.
 - Whether replying to an unknown number should auto-create a contact by default is an owner decision
   (the option exists, off by default).
 - BSP (authorised solution provider) adapters: only the Meta Cloud API adapter exists.
@@ -295,3 +311,5 @@ customer is a `contact_id` into the shared `contacts`. Money is not stored (no c
 route and `VerifiesWebhookSubscription`, `ProviderEvent::$accounts|$meta`, `ProviderEventType::Read|TemplateStatus`,
 `ChannelEventRelay` and the core `ChannelEventListener`/`ChannelEvent`, `CredentialResolver::attribute()`,
 `MarketingMessage::$purpose|$providerHints`, `MarketingGateway` pass-through, `config('communication.whatsapp')`.
+Later (ADR 0013): `CredentialResolver` also resolves operator provider accounts (`acct_*`), including the
+`webhook_secret` and `verify_token` of a WhatsApp account; the adapter itself is unchanged.

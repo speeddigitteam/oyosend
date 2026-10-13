@@ -55,6 +55,7 @@ Route::middleware(['auth:web', 'auth.session', 'member', 'subscribed'])->prefix(
     Route::middleware('can:email_marketing.lists.manage')->group(function (): void {
         Route::post('lists', [ListController::class, 'store'])->name('email_marketing.lists.store');
         Route::put('lists/{list}', [ListController::class, 'update'])->name('email_marketing.lists.update');
+        Route::put('lists/{list}/signup', [ListController::class, 'updateSignup'])->name('email_marketing.lists.signup');
         Route::delete('lists/{list}', [ListController::class, 'destroy'])->name('email_marketing.lists.destroy');
         Route::post('lists/{list}/segments', [ListController::class, 'storeSegment'])->name('email_marketing.segments.store');
         Route::put('segments/{segment}', [ListController::class, 'updateSegment'])->name('email_marketing.segments.update');

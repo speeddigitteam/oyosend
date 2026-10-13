@@ -344,7 +344,8 @@ final class TicketManager
 
                 if ($customer) {
                     $locked->last_customer_message_at = $now;
-                    $this->history->record($locked, TicketEventKind::CustomerReplied, $actor, ['message_id' => $message->id]);
+                    // A reply logged by an agent on the customer's behalf stays attributable to that agent.
+                    $this->history->record($locked, TicketEventKind::CustomerReplied, $actor, ['message_id' => $message->id] + ($actor !== null ? ['logged_by' => $actor->id] : []));
 
                     if (in_array($locked->status, [TicketStatus::WaitingCustomer, TicketStatus::Resolved, TicketStatus::Closed], true)) {
                         $this->transition($locked, TicketStatus::Open, $actor, $now);
@@ -357,6 +358,11 @@ final class TicketManager
                     if ($locked->first_responded_at === null) {
                         $locked->first_responded_at = $now;
                         $locked->first_response_remaining_minutes = null;
+
+                        // The ticket was already waiting on the customer, but the clocks could not pause before this reply.
+                        if ($locked->status === TicketStatus::WaitingCustomer && $this->clock->pause($locked, $now)) {
+                            $this->history->record($locked, TicketEventKind::SlaPaused, $actor);
+                        }
                     }
 
                     if ($locked->status === TicketStatus::New) {
@@ -564,6 +570,7 @@ final class TicketManager
         }
 
         if ($reopened) {
+            $this->clock->keepFirstCycleBreach($locked);
             $locked->reopened_count++;
             $locked->resolved_at = null;
             $locked->closed_at = null;

@@ -24,6 +24,14 @@ final class InvoiceMail extends Mailable implements RequiresTenantContext, Shoul
 {
     use Queueable;
 
+    public int $tries = 3;
+
+    /** Seconds; equal to the Horizon supervisor's worker timeout for this queue. */
+    public int $timeout = 60;
+
+    /** @var list<int> Seconds between attempts. */
+    public array $backoff = [30, 120];
+
     /**
      * @param  string|null  $reminder  null for the invoice itself, otherwise `before_due`, `on_due` or `overdue`.
      */

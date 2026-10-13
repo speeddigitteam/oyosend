@@ -25,6 +25,14 @@ final class InvitationMail extends Mailable implements RequiresTenantContext, Sh
     use Queueable;
     use SerializesModels;
 
+    public int $tries = 3;
+
+    /** Seconds; equal to the Horizon supervisor's worker timeout for this queue. */
+    public int $timeout = 60;
+
+    /** @var list<int> Seconds between attempts. */
+    public array $backoff = [30, 120];
+
     public function __construct(
         public readonly Invitation $invitation,
         #[SensitiveParameter]

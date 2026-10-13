@@ -37,7 +37,7 @@ interface Widget {
     data: Record<string, unknown>;
 }
 
-defineProps<{
+const props = defineProps<{
     /** Already filtered on the server to what this person may see. */
     widgets: Widget[];
     installedApps: number;
@@ -69,15 +69,65 @@ const WIDGETS: Record<string, Component> = {
 };
 
 // Tailwind needs to see whole class names, so spans are looked up, not built.
-const SPANS: Record<number, string> = {
-    3: 'lg:col-span-3',
-    4: 'lg:col-span-4',
-    5: 'lg:col-span-5',
-    6: 'lg:col-span-6',
-    7: 'lg:col-span-7',
-    8: 'lg:col-span-8',
-    12: 'lg:col-span-12',
+const XL_SPANS: Record<number, string> = {
+    1: 'xl:col-span-1',
+    2: 'xl:col-span-2',
+    3: 'xl:col-span-3',
+    4: 'xl:col-span-4',
+    5: 'xl:col-span-5',
+    6: 'xl:col-span-6',
+    7: 'xl:col-span-7',
+    8: 'xl:col-span-8',
+    9: 'xl:col-span-9',
+    10: 'xl:col-span-10',
+    11: 'xl:col-span-11',
+    12: 'xl:col-span-12',
 };
+const MD_SPANS: Record<number, string> = { 1: 'md:col-span-1', 2: 'md:col-span-2' };
+
+/**
+ * Packs widgets, in their given order, into rows of `total` units and hands
+ * the unused units of each row to the cards in it, so every row is full and
+ * no card is left narrower than its neighbours' row. Order is never changed,
+ * which keeps reading and tab order equal to the DOM order.
+ */
+function pack(weights: number[], total: number): number[] {
+    const result: number[] = [];
+    let row: number[] = [];
+    let used = 0;
+
+    const flush = (): void => {
+        if (row.length === 0) return;
+        const extra = total - used;
+        const share = Math.floor(extra / row.length);
+        let rest = extra - share * row.length;
+        for (const weight of row) {
+            result.push(weight + share + (rest > 0 ? 1 : 0));
+            rest = Math.max(0, rest - 1);
+        }
+        row = [];
+        used = 0;
+    };
+
+    for (const raw of weights) {
+        const weight = Math.min(total, Math.max(1, Math.round(raw)));
+        if (used + weight > total) flush();
+        row.push(weight);
+        used += weight;
+        if (used >= total) flush();
+    }
+    flush();
+
+    return result;
+}
+
+/** Two columns on tablets (wide widgets take both), twelve on wide screens. */
+const layout = computed(() => {
+    const xl = pack(props.widgets.map((widget) => widget.span), 12);
+    const md = pack(props.widgets.map((widget) => (widget.span >= 7 ? 2 : 1)), 2);
+
+    return props.widgets.map((_, index) => `${MD_SPANS[md[index]] ?? ''} ${XL_SPANS[xl[index]] ?? ''}`);
+});
 
 const page = usePage();
 const { t } = useI18n();
@@ -92,23 +142,46 @@ const greeting = computed(() => {
 
     return t(`dashboard.greeting.${part}`, { name: page.props.auth?.user?.name.split(' ')[0] ?? '' });
 });
+
+/** Day number and month+year shown in the header's date aside. */
+const dateParts = computed(() => {
+    const now = new Date();
+    const tz = page.props.app.timezone ?? 'UTC';
+    const locale = page.props.app.locale ?? 'en';
+
+    return {
+        day: new Intl.DateTimeFormat(locale, { day: 'numeric', timeZone: tz }).format(now),
+        meta: new Intl.DateTimeFormat(locale, { weekday: 'short', month: 'long', year: 'numeric', timeZone: tz }).format(now),
+    };
+});
 </script>
 
 <template>
     <Head :title="t('dashboard.title')" />
 
-    <div class="mb-7">
-        <p class="eyebrow mb-2">{{ t('dashboard.title') }}</p>
-        <h1 class="text-[1.75rem] text-ink sm:text-[2.125rem]">{{ greeting }}</h1>
-        <p class="mt-1.5 text-ink-muted">{{ t('dashboard.subtitle', { workspace: page.props.tenant?.name }) }}</p>
+    <!-- Header: accent bar + greeting left, date aside right -->
+    <div class="mb-8 flex items-stretch gap-5">
+        <div class="hidden w-[3px] shrink-0 self-stretch rounded-full bg-brand-text sm:block" aria-hidden="true" />
+
+        <div class="min-w-0 flex-1">
+            <p class="eyebrow mb-2">{{ t('dashboard.title') }}</p>
+            <h1 class="text-[1.75rem] leading-tight text-ink sm:text-[2.125rem]">{{ greeting }}</h1>
+            <p class="mt-1.5 text-ink-muted">{{ t('dashboard.subtitle', { workspace: page.props.tenant?.name }) }}</p>
+        </div>
+
+        <div class="hidden shrink-0 flex-col items-end justify-center text-right sm:flex" aria-hidden="true">
+            <span class="figure text-[3rem] leading-none tabular text-ink">{{ dateParts.day }}</span>
+            <span class="eyebrow mt-1.5 text-ink-subtle">{{ dateParts.meta }}</span>
+        </div>
     </div>
 
-    <div class="grid grid-cols-1 gap-3 lg:grid-cols-12">
-        <div v-for="widget in widgets" :key="widget.key" :class="['min-w-0', SPANS[widget.span] ?? 'lg:col-span-6']">
+    <!-- Widget grid: rows are packed in script (see pack()) so every row is full; DOM order is kept. -->
+    <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-12">
+        <div v-for="(widget, index) in widgets" :key="widget.key" :class="['flex min-w-0 [&>*]:min-w-0 [&>*]:flex-1', layout[index]]">
             <component :is="WIDGETS[widget.component]" v-if="WIDGETS[widget.component]" :data="widget.data" />
         </div>
 
-        <Card v-if="installedApps === 0" class="lg:col-span-12" :title="t('dashboard.apps.title')">
+        <Card v-if="installedApps === 0" class="md:col-span-2 xl:col-span-12" :title="t('dashboard.apps.title')">
             <EmptyState :title="t('dashboard.apps.empty')" :description="t('dashboard.apps.emptyBody')" compact>
                 <template #icon><Blocks /></template>
             </EmptyState>

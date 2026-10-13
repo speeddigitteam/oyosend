@@ -28,7 +28,7 @@ class WebhookEvent extends Model
     protected $table = 'communication_webhook_events';
 
     /** @var list<string> */
-    protected $fillable = ['provider', 'event_id', 'type', 'provider_message_id', 'received_at'];
+    protected $fillable = ['provider', 'event_id', 'type', 'status', 'provider_message_id', 'received_at'];
 
     /** @return array<string, string> */
     protected function casts(): array

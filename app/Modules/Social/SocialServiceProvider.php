@@ -45,6 +45,7 @@ use App\Modules\Social\Models\SocialSetting;
 use App\Modules\Social\Platforms\SocialPlatforms;
 use App\Modules\Social\Reporting\ReportProviders;
 use App\Modules\Social\Widgets\SocialOverviewWidget;
+use Illuminate\Support\Facades\Route;
 
 /**
  * Social media management: connected accounts, a content calendar, approval, scheduled
@@ -203,5 +204,10 @@ final class SocialServiceProvider extends ModuleServiceProvider
     {
         $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
         $this->loadTenantRoutes(__DIR__.'/routes.php');
+
+        // The central OAuth redirect broker (stateless; see docs/SOCIAL.md).
+        Route::domain((string) config('platform.domain'))
+            ->middleware('central.callback')
+            ->group(__DIR__.'/centralRoutes.php');
     }
 }

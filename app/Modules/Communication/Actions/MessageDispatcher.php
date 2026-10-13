@@ -101,6 +101,12 @@ final class MessageDispatcher
                 }
             }
 
+            // The limit was checked when the message was queued, but a campaign may have queued far more than
+            // the plan has left: the allowance is spent as messages are accepted, so it is checked again here.
+            if (! $this->outbox->hasRoom($message->id, inFlightOnly: true)) {
+                return $this->end($message, MessageStatus::Failed, Outbox::FAILED_LIMIT);
+            }
+
             $resolved = $this->connections->resolve($message->channel);
 
             if (! $resolved['connection']->is_enabled) {
@@ -155,7 +161,7 @@ final class MessageDispatcher
                 meta: [...($connection->settings ?? []), ...($message->meta ?? [])],
             );
 
-            $credentials = $this->credentials->resolve($connection->credential_ref);
+            $credentials = $this->credentials->resolve($connection->credential_ref, $connection->provider);
 
             return $provider->send($payload, $connection, $credentials);
         } catch (Throwable $exception) {

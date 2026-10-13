@@ -23,6 +23,9 @@ final class SweepRuns implements RequiresTenantContext, ShouldQueue
 
     public int $tries = 1;
 
+    /** Seconds; equal to the Horizon supervisor's worker timeout for this queue. */
+    public int $timeout = 300;
+
     public function __construct()
     {
         $this->onQueue('automation');

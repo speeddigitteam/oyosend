@@ -40,7 +40,7 @@ beforeEach(function () {
     }
 
     $this->noConsent = $this->waContact($this->tenant, ['first_name' => 'Nina', 'phone' => '+8801711000009']);
-    $this->localNumber = $this->waContact($this->tenant, ['first_name' => 'Lal', 'phone' => '01711000010']);
+    $this->localNumber = $this->waContact($this->tenant, ['first_name' => 'Lal', 'phone' => '0212345678']);
     $this->list = $this->waList($this->tenant, [...$this->optedIn, $this->noConsent, $this->localNumber]);
 
     $this->payload = fn (array $overrides = []) => [

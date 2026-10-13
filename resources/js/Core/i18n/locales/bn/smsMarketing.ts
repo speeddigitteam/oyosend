@@ -189,6 +189,7 @@ const smsMarketing: MessageSchema['smsMarketing'] = {
         message: 'বার্তা',
         noRecipients: 'এখনো কোনো প্রাপক নেই',
         noRecipientsBody: 'ক্যাম্পেইন শুরু হলে প্রাপকের তালিকা তৈরি হয়।',
+        hiddenRecipients: '{count} জন প্রাপক এমন কন্টাক্ট যাঁদের আপনি দেখতে পারেন না। তাঁরা ক্যাম্পেইনে আছেন, কিন্তু এখানে তালিকাভুক্ত বা এক্সপোর্ট করা হয়নি।',
         recipients: 'প্রাপক',
         recipientsCaption: 'এই ক্যাম্পেইনের প্রাপক',
         retry: '{count}টি ব্যর্থ বার্তা আবার চেষ্টা করুন',

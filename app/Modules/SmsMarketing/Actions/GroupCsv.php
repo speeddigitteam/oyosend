@@ -123,13 +123,15 @@ final class GroupCsv
         return CsvSafe::render(['name', 'phone'], $rows);
     }
 
-    /** The recipients of one campaign as CSV text. */
-    public function exportRecipients(string $campaignId): string
+    /** The recipients of one campaign as CSV text: only the contacts the actor may see. */
+    public function exportRecipients(string $campaignId, User $actor): string
     {
         $rows = [];
+        $visible = $this->records->constrain(Contact::query(), $actor, 'core.contacts.view')->select('id');
 
         Recipient::query()
             ->where('campaign_id', $campaignId)
+            ->whereIn('contact_id', $visible)
             ->with('contact:id,first_name,last_name')
             ->orderBy('id')
             ->chunk(1000, function ($recipients) use (&$rows): void {

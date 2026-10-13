@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Core\Billing\CurrentSubscription;
 use App\Modules\Communication\Models\Message;
 use App\Modules\EmailMarketing\Actions\CampaignManager;
 use App\Modules\EmailMarketing\Actions\SequenceManager;
@@ -186,4 +187,35 @@ it('answers 404 for the public links when the workspace is not entitled to the a
 
     $this->get($this->tenantUrl($plain, '/email-marketing/v/'.str_repeat('a', 40)))->assertNotFound();
     $this->get($this->tenantUrl($plain, '/email-marketing/t/c/'.str_repeat('a', 40)))->assertNotFound();
+});
+
+it('does not let a delivery refused for the plan limit hold back other sequences, and sends it once the limit is lifted', function () {
+    $sequence = ($this->sequence)([['delay_minutes' => 0, 'subject' => 'Welcome {{first_name|friend}}', 'blocks' => [['type' => 'text', 'text' => 'Glad you are here.']]]]);
+    $this->inTenant($this->tenant, fn () => app(SequenceManager::class)->activate($sequence));
+
+    $plan = $this->createFreePlan(['key' => 'em-seq-zero', 'modules' => ['email_marketing', 'communication'], 'limits' => ['communication.messages' => 0]]);
+    $this->subscribe($this->tenant, $plan, withTrial: false);
+
+    $first = $this->emContact($this->tenant, ['first_name' => 'Nadia']);
+    $second = $this->emContact($this->tenant, ['first_name' => 'Karim']);
+    $this->emSubscribe($this->tenant, $this->list, $first);
+    $this->emSubscribe($this->tenant, $this->list, $second);
+
+    $this->emRun($this->tenant);
+
+    // Both were tried in the same pass (nobody stopped the pass), and both wait for the limit.
+    $this->inTenant($this->tenant, function (): void {
+        expect(Delivery::query()->where('status', DeliveryStatus::Pending->value)->where('send_epoch', 1)->count())->toBe(2)
+            ->and(Enrollment::query()->where('status', EnrollmentStatus::Active->value)->where('next_due_at', '>', now())->count())->toBe(2);
+    });
+
+    $plan->forceFill(['limits' => ['communication.messages' => 1000]])->save();
+    app(CurrentSubscription::class)->forget();
+    $this->travelTo(now()->addMinutes(61));
+    $this->emRun($this->tenant);
+
+    $this->inTenant($this->tenant, function (): void {
+        expect(Message::query()->where('status', '!=', 'failed')->pluck('subject')->sort()->values()->all())->toBe(['Welcome Karim', 'Welcome Nadia'])
+            ->and(Enrollment::query()->where('status', EnrollmentStatus::Completed->value)->count())->toBe(2);
+    });
 });

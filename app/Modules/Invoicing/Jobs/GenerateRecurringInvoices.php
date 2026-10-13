@@ -19,6 +19,12 @@ final class GenerateRecurringInvoices implements RequiresTenantContext, ShouldBe
 
     public int $tries = 3;
 
+    /** Seconds; equal to the Horizon supervisor's worker timeout for this queue. */
+    public int $timeout = 300;
+
+    /** @var list<int> Seconds between attempts. */
+    public array $backoff = [30, 120];
+
     public function __construct()
     {
         $this->onQueue('automation');

@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Modules\Ai\Providers;
 
 use App\Modules\Ai\Contracts\AiProvider;
+use App\Modules\Ai\Enums\AiDriver;
 use App\Modules\Ai\Support\CompletionRequest;
 use App\Modules\Ai\Support\CompletionResponse;
 use App\Modules\Ai\Support\ProviderFailure;
 use App\Modules\Ai\Support\ProviderNotConfigured;
+use App\Modules\Ai\Support\ProviderSettings;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\Facades\Log;
@@ -16,8 +18,9 @@ use Illuminate\Support\Facades\Log;
 /**
  * Anthropic Messages API (`POST /v1/messages`) over the Laravel HTTP client.
  *
- * The credential is the platform-level `ANTHROPIC_API_KEY` from config. It is only ever placed in the
- * `x-api-key` request header: not in an exception message, a log line, a response or the database.
+ * The credential is the default operator account's key (decrypted for this call only) or, when no account
+ * exists, the platform-level `ANTHROPIC_API_KEY` from config. It is only ever placed in the `x-api-key`
+ * request header: not in an exception message, a log line, a response or a page.
  * Failures are logged by status and error type only (never the request or response body).
  *
  * Deliberate deviation: the official PHP SDK is not installed (a new dependency needs the licence and
@@ -25,7 +28,28 @@ use Illuminate\Support\Facades\Log;
  */
 final class AnthropicProvider implements AiProvider
 {
-    public function __construct(private readonly HttpFactory $http) {}
+    public function __construct(
+        private readonly HttpFactory $http,
+        private readonly ?ProviderSettings $settings = null,
+    ) {}
+
+    /** The adapter for an operator account's settings. */
+    public static function using(HttpFactory $http, ProviderSettings $settings): self
+    {
+        return new self($http, $settings);
+    }
+
+    private function settings(): ProviderSettings
+    {
+        return $this->settings ?? new ProviderSettings(
+            AiDriver::Anthropic,
+            is_string($key = config('ai.providers.anthropic.api_key')) ? trim($key) : '',
+            (string) config('ai.providers.anthropic.model', 'claude-sonnet-5-5'),
+            (string) config('ai.providers.anthropic.base_url', 'https://api.anthropic.com'),
+            (int) config('ai.providers.anthropic.timeout', 60),
+            (string) config('ai.providers.anthropic.version', '2023-06-01'),
+        );
+    }
 
     public function name(): string
     {
@@ -34,17 +58,18 @@ final class AnthropicProvider implements AiProvider
 
     public function model(): string
     {
-        return (string) config('ai.providers.anthropic.model', 'claude-sonnet-5-5');
+        return $this->settings()->model;
     }
 
     public function isConfigured(): bool
     {
-        return $this->key() !== '';
+        return $this->settings()->apiKey !== '';
     }
 
     public function complete(CompletionRequest $request): CompletionResponse
     {
-        $key = $this->key();
+        $settings = $this->settings();
+        $key = $settings->apiKey;
 
         if ($key === '') {
             throw new ProviderNotConfigured('The AI provider has no platform credential configured.');
@@ -61,22 +86,22 @@ final class AnthropicProvider implements AiProvider
             $body['tools'] = $request->tools;
         }
 
-        $url = rtrim((string) config('ai.providers.anthropic.base_url', 'https://api.anthropic.com'), '/').'/v1/messages';
+        $url = rtrim($settings->baseUrl !== '' ? $settings->baseUrl : 'https://api.anthropic.com', '/').'/v1/messages';
 
         try {
             $response = $this->http
                 ->withHeaders([
                     'x-api-key' => $key,
-                    'anthropic-version' => (string) config('ai.providers.anthropic.version', '2023-06-01'),
+                    'anthropic-version' => $settings->version,
                 ])
                 ->acceptJson()
                 ->asJson()
-                ->timeout((int) config('ai.providers.anthropic.timeout', 60))
+                ->timeout($settings->timeout)
                 ->post($url, $body);
         } catch (ConnectionException) {
             Log::warning('ai.provider.failed', ['provider' => 'anthropic', 'reason' => 'connection']);
 
-            throw new ProviderFailure('The AI provider could not be reached.');
+            throw new ProviderFailure('The AI provider could not be reached.', 'unreachable');
         }
 
         if (! $response->successful()) {
@@ -87,7 +112,14 @@ final class AnthropicProvider implements AiProvider
                 'request_id' => $response->header('request-id'),
             ]);
 
-            throw new ProviderFailure('The AI provider failed the request (HTTP '.$response->status().').');
+            throw new ProviderFailure(
+                'The AI provider failed the request (HTTP '.$response->status().').',
+                match (true) {
+                    in_array($response->status(), [401, 403], true) => 'unauthorized',
+                    $response->status() === 429 => 'rate_limited',
+                    default => 'http_error',
+                },
+            );
         }
 
         $content = $response->json('content');
@@ -119,12 +151,5 @@ final class AnthropicProvider implements AiProvider
             model: (string) ($response->json('model') ?? $this->model()),
             provider: $this->name(),
         );
-    }
-
-    private function key(): string
-    {
-        $key = config('ai.providers.anthropic.api_key');
-
-        return is_string($key) ? trim($key) : '';
     }
 }

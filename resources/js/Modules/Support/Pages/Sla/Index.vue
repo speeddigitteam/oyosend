@@ -106,7 +106,8 @@ function savePolicy(): void {
 
         for (const priority of props.priorities) {
             const read = (kind: 'first_response' | 'resolution'): number | null => {
-                const raw = (data.targets[targetKey(priority, kind)] ?? '').trim();
+                // A number input may hand back a number, not a string.
+                const raw = String(data.targets[targetKey(priority, kind)] ?? '').trim();
 
                 return raw === '' ? null : Number(raw);
             };

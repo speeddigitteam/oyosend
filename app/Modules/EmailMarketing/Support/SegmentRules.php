@@ -75,7 +75,7 @@ final class SegmentRules
                 throw ValidationException::withMessages([$path => __('Enter a date as YYYY-MM-DD.')]);
             }
 
-            if ($name === 'source' && ! in_array($value, ['manual', 'import', 'automation'], true)) {
+            if ($name === 'source' && ! in_array($value, ['manual', 'import', 'automation', 'form'], true)) {
                 throw ValidationException::withMessages([$path => __('This rule is not supported.')]);
             }
 

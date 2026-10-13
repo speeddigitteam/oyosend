@@ -113,9 +113,9 @@ final class Presenter
      * @param  Collection<int, RunStep>  $steps
      * @return list<array<string, mixed>>
      */
-    public static function steps(Collection $steps, Graph $graph): array
+    public static function steps(Collection $steps, Graph $graph, bool $detail = true): array
     {
-        return $steps->map(static function (RunStep $step) use ($graph): array {
+        return $steps->map(static function (RunStep $step) use ($graph, $detail): array {
             $node = $graph->node($step->node_id);
 
             return [
@@ -127,9 +127,9 @@ final class Presenter
                 'attempt' => $step->attempt,
                 'sequence' => $step->sequence,
                 'iteration' => $step->iteration,
-                'input' => $step->input,
-                'output' => $step->output,
-                'logs' => $step->logs ?? [],
+                'input' => $detail ? $step->input : null,
+                'output' => $detail ? $step->output : null,
+                'logs' => $detail ? ($step->logs ?? []) : [],
                 'errorCode' => $step->error_code,
                 'errorMessage' => $step->error_message,
                 'availableAt' => $step->available_at?->toIso8601String(),

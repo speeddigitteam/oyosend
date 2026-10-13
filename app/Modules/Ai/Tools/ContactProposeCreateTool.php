@@ -10,6 +10,7 @@ use App\Core\Ai\ProposalDraft;
 use App\Core\Ai\ToolContext;
 use App\Core\Ai\ToolOutput;
 use App\Core\Contacts\ContactDirectory;
+use App\Modules\Ai\Support\ChangeValue;
 
 /** Proposes a new contact. Nothing is written until a person confirms. */
 final class ContactProposeCreateTool implements ProposalTool
@@ -69,6 +70,21 @@ final class ContactProposeCreateTool implements ProposalTool
             $company,
             new ProposalDraft(__('Add contact ":name"', ['name' => $name]), $attributes, $company),
         );
+    }
+
+    public function changes(ToolContext $context, array $payload): array
+    {
+        $rows = [];
+
+        foreach (ContactInput::FIELDS as $field) {
+            $new = ChangeValue::display($payload[$field] ?? null);
+
+            if ($new !== null) {
+                $rows[] = ['field' => $field, 'old' => null, 'new' => $new];
+            }
+        }
+
+        return $rows;
     }
 
     public function apply(ToolContext $context, array $payload): array

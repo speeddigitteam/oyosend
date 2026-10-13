@@ -32,8 +32,60 @@ final class CampaignReports
      */
     public function figures(Builder $query): array
     {
-        $byStatus = (clone $query)->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
+        $byStatus = (clone $query)->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status')->all();
 
+        return $this->compose(
+            $byStatus,
+            (clone $query)->whereNotNull('clicked_at')->count(),
+            (int) (clone $query)->sum('click_count'),
+            (clone $query)->whereNotNull('viewed_at')->count(),
+        );
+    }
+
+    /**
+     * The same figures as {@see figures()} for many campaigns in one grouped query.
+     *
+     * @param  list<string>  $campaignIds
+     * @return array<string, array<string, int|null>> campaign id => figures
+     */
+    public function figuresByCampaign(array $campaignIds): array
+    {
+        if ($campaignIds === []) {
+            return [];
+        }
+
+        $rows = Delivery::query()
+            ->whereIn('campaign_id', $campaignIds)
+            ->selectRaw('campaign_id, status, count(*) as total, SUM(CASE WHEN clicked_at IS NOT NULL THEN 1 ELSE 0 END) as clickers, COALESCE(SUM(click_count), 0) as clicks, SUM(CASE WHEN viewed_at IS NOT NULL THEN 1 ELSE 0 END) as viewers')
+            ->groupBy('campaign_id', 'status')
+            ->get();
+
+        $parts = [];
+
+        foreach ($rows as $row) {
+            $id = (string) $row->campaign_id;
+            $parts[$id]['status'][$row->status->value] = (int) $row->getAttribute('total');
+            $parts[$id]['clickers'] = ($parts[$id]['clickers'] ?? 0) + (int) $row->getAttribute('clickers');
+            $parts[$id]['clicks'] = ($parts[$id]['clicks'] ?? 0) + (int) $row->getAttribute('clicks');
+            $parts[$id]['viewers'] = ($parts[$id]['viewers'] ?? 0) + (int) $row->getAttribute('viewers');
+        }
+
+        $out = [];
+
+        foreach ($campaignIds as $id) {
+            $part = $parts[$id] ?? ['status' => [], 'clickers' => 0, 'clicks' => 0, 'viewers' => 0];
+            $out[$id] = $this->compose($part['status'], $part['clickers'], $part['clicks'], $part['viewers']);
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  array<string, int|string>  $byStatus
+     * @return array<string, int|null>
+     */
+    private function compose(array $byStatus, int $clickers, int $clicks, int $viewers): array
+    {
         $figures = ['planned' => 0];
 
         foreach (self::STATUSES as $status) {
@@ -42,9 +94,9 @@ final class CampaignReports
         }
 
         $figures['sentTotal'] = $figures['sent'] + $figures['delivered'];
-        $figures['clickers'] = (clone $query)->whereNotNull('clicked_at')->count();
-        $figures['clicks'] = (int) (clone $query)->sum('click_count');
-        $figures['viewers'] = (clone $query)->whereNotNull('viewed_at')->count();
+        $figures['clickers'] = $clickers;
+        $figures['clicks'] = $clicks;
+        $figures['viewers'] = $viewers;
         $figures['clickRate'] = $figures['sentTotal'] > 0 ? intdiv($figures['clickers'] * 10000, $figures['sentTotal']) : null;
         $figures['viewRate'] = $figures['sentTotal'] > 0 ? intdiv($figures['viewers'] * 10000, $figures['sentTotal']) : null;
         $figures['bounceRate'] = $figures['sentTotal'] + $figures['bounced'] > 0

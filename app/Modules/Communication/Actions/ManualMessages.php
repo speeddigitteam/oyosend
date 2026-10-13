@@ -23,6 +23,12 @@ use Illuminate\Validation\ValidationException;
  */
 final class ManualMessages
 {
+    /**
+     * Sending free text as a transactional message skips consent, marketing suppression, quiet hours and the
+     * unsubscribe footer, so it is a separate, sensitive permission.
+     */
+    public const string SEND_TRANSACTIONAL = 'communication.messages.send_transactional';
+
     public function __construct(
         private readonly Outbox $outbox,
         private readonly TemplateManager $templates,
@@ -34,12 +40,17 @@ final class ManualMessages
     ) {}
 
     /**
-     * @param  array<string, mixed>  $input  contact_id, channel, purpose, template_id|subject+body, request_id
+     * The purpose is decided here, never taken on trust: a template carries its own (a transactional template is
+     * curated by people who manage templates); free text is marketing unless the sender holds
+     * {@see self::SEND_TRANSACTIONAL} and asked for transactional.
+     *
+     * @param  array<string, mixed>  $input  contact_id, channel, purpose?, template_id|subject+body, request_id
      */
     public function send(User $actor, array $input): Message
     {
         $channel = Channel::from((string) $input['channel']);
-        $purpose = MessagePurpose::from((string) $input['purpose']);
+        $requested = MessagePurpose::tryFrom((string) ($input['purpose'] ?? ''));
+        $purpose = MessagePurpose::Marketing;
         // 404 for a contact outside the actor's scope: it is not disclosed to exist.
         $contact = $this->records->constrain(Contact::query(), $actor, ContactController::VIEW)
             ->with('company:id,name')
@@ -55,6 +66,12 @@ final class ManualMessages
             }
 
             $purpose = $template->purpose;
+        } elseif ($requested === MessagePurpose::Transactional) {
+            if (! $actor->can(self::SEND_TRANSACTIONAL)) {
+                throw ValidationException::withMessages(['purpose' => __('You may not send free text as a transactional message. Use a transactional template, or send it as marketing.')]);
+            }
+
+            $purpose = MessagePurpose::Transactional;
         }
 
         $address = $channel->normalize((string) ($channel === Channel::Email ? $contact->email : $contact->phone));
@@ -104,7 +121,17 @@ final class ManualMessages
 
         $membership = $this->access->membership($actor);
         $requestId = (string) ($input['request_id'] ?? '');
-        $key = 'composer:'.($membership->id ?? 'none').':'.($requestId !== '' ? $requestId : bin2hex(random_bytes(12)));
+        // The key names the intent, not only the request: a reused request id with another contact, channel or
+        // text is a different message and must never answer with the first one.
+        $fingerprint = substr(hash('sha256', (string) json_encode([
+            $contact->id,
+            $channel->value,
+            $purpose->value,
+            $template?->id,
+            $subject,
+            $body,
+        ])), 0, 24);
+        $key = 'composer:'.($membership->id ?? 'none').':'.($requestId !== '' ? $requestId : bin2hex(random_bytes(12))).':'.$fingerprint;
 
         $message = $this->outbox->queue(new OutboundRequest(
             channel: $channel,

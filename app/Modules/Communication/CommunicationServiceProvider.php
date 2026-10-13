@@ -9,6 +9,7 @@ use App\Core\AppStore\Enums\AppCategory;
 use App\Core\AppStore\Enums\ScheduledJobFrequency;
 use App\Core\AppStore\ScheduledJobDefinition;
 use App\Core\Communication\Contracts\ChannelGateway;
+use App\Core\Communication\Contracts\ConsentRecorder;
 use App\Core\Communication\Contracts\InteractionRecorder;
 use App\Core\Communication\Contracts\MarketingAudience;
 use App\Core\Communication\Contracts\Notifier;
@@ -23,6 +24,7 @@ use App\Core\Modules\PermissionDefinition;
 use App\Core\Modules\WidgetDefinition;
 use App\Modules\Communication\Actions\CommunicationContactMergeReference;
 use App\Modules\Communication\Actions\MarketingAudienceResolver;
+use App\Modules\Communication\Actions\MarketingConsentRecorder;
 use App\Modules\Communication\Actions\MarketingGateway;
 use App\Modules\Communication\Actions\MarketingStatusRelay;
 use App\Modules\Communication\Actions\MarketingUnsubscribeLinks;
@@ -37,8 +39,11 @@ use App\Modules\Communication\Automation\Triggers\MessageBouncedTrigger;
 use App\Modules\Communication\Automation\Triggers\MessageDeliveredTrigger;
 use App\Modules\Communication\Automation\Triggers\MessageFailedTrigger;
 use App\Modules\Communication\Channels\ProviderRegistry;
+use App\Modules\Communication\Channels\Providers\HttpSmsProvider;
 use App\Modules\Communication\Channels\Providers\LaravelMailProvider;
 use App\Modules\Communication\Channels\Providers\NullProvider;
+use App\Modules\Communication\Channels\Providers\SmtpProvider;
+use App\Modules\Communication\Channels\Providers\TwilioSmsProvider;
 use App\Modules\Communication\Channels\Providers\WhatsAppCloudProvider;
 use App\Modules\Communication\Events\MessageBounced;
 use App\Modules\Communication\Events\MessageDelivered;
@@ -61,6 +66,7 @@ use App\Modules\Communication\Models\WebhookEvent;
 use App\Modules\Communication\Testing\InMemoryProvider;
 use App\Modules\Communication\Widgets\NotificationsWidget;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Route;
 
 /**
  * The communication platform: the notification center, the message outbox with provider adapters, templates,
@@ -85,6 +91,10 @@ final class CommunicationServiceProvider extends ModuleServiceProvider
             $registry->register(NullProvider::whatsapp());
             // The official WhatsApp Cloud API: not_configured until the operator provides credentials.
             $registry->register(new WhatsAppCloudProvider);
+            // Operator-managed accounts (Super Admin > Messaging providers, ADR 0013).
+            $registry->register(new SmtpProvider);
+            $registry->register(new TwilioSmsProvider);
+            $registry->register(new HttpSmsProvider);
 
             // In-memory doubles exist only for tests and local development, and say so.
             if (app()->environment(['testing', 'local'])) {
@@ -102,6 +112,7 @@ final class CommunicationServiceProvider extends ModuleServiceProvider
         $this->app->bind(MarketingAudience::class, MarketingAudienceResolver::class);
         $this->app->bind(UnsubscribeLinksContract::class, MarketingUnsubscribeLinks::class);
         $this->app->bind(ChannelGateway::class, MarketingGateway::class);
+        $this->app->bind(ConsentRecorder::class, MarketingConsentRecorder::class);
         $this->app->tag(CommunicationContactMergeReference::class, ContactMergeReference::class);
     }
 
@@ -116,6 +127,7 @@ final class CommunicationServiceProvider extends ModuleServiceProvider
                 new PermissionDefinition('communication.notifications.view', 'communication_notifications'),
                 new PermissionDefinition('communication.messages.view', 'communication_messages', scopable: true),
                 new PermissionDefinition('communication.messages.send', 'communication_messages', scopable: true),
+                new PermissionDefinition('communication.messages.send_transactional', 'communication_messages', sensitive: true),
                 new PermissionDefinition('communication.timeline.view', 'communication_timeline'),
                 new PermissionDefinition('communication.timeline.log', 'communication_timeline', scopable: true),
                 new PermissionDefinition('communication.templates.view', 'communication_templates'),
@@ -216,6 +228,12 @@ final class CommunicationServiceProvider extends ModuleServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
         $this->loadTenantRoutes(__DIR__.'/routes.php');
         $this->loadTenantCallbackRoutes(__DIR__.'/callbacks.php');
+
+        // An opt-out must work for a recipient even after the workspace's app lapsed, so these routes carry
+        // the tenant resolution and throttle but not `entitled:communication`.
+        Route::domain('{tenant}.'.config('platform.domain'))
+            ->middleware(['tenant.callback'])
+            ->group(__DIR__.'/callbacks-unsubscribe.php');
 
         // Marketing apps hear about their messages through the core MarketingMessageStatusChanged event.
         foreach ([MessageSent::class, MessageDelivered::class, MessageFailed::class, MessageBounced::class] as $event) {

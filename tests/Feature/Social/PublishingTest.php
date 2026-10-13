@@ -313,3 +313,26 @@ it('counts a scheduled post once against the monthly limit and blocks the one ov
 
     expect(fn () => $workflow($second, null))->toThrow(ValidationException::class);
 });
+
+it('publishes nothing when the post was unscheduled or moved after the due ids were read', function () {
+    $post = ($this->queued)();
+    $target = ($this->target)($post);
+
+    $this->inTenant($this->tenant, fn () => app(PostWorkflow::class)->unschedule($post));
+
+    expect($this->inTenant($this->tenant, fn () => app(PostPublisher::class)->publishTarget($target->id)))->toBeNull()
+        ->and($this->fake->published)->toBe([]);
+
+    $this->inTenant($this->tenant, function () use ($post, $target): void {
+        expect(PostTarget::query()->findOrFail($target->id)->status)->toBe(TargetStatus::Pending)
+            ->and(PostTarget::query()->findOrFail($target->id)->attempts)->toBe(0)
+            ->and(Post::query()->findOrFail($post->id)->status)->toBe(PostStatus::Draft);
+    });
+
+    $later = ($this->queued)(['body' => 'Moved']);
+    $laterTarget = ($this->target)($later);
+    $this->inTenant($this->tenant, fn () => app(PostWorkflow::class)->reschedule($later, CarbonImmutable::now()->addHours(3)));
+
+    expect($this->inTenant($this->tenant, fn () => app(PostPublisher::class)->publishTarget($laterTarget->id)))->toBeNull()
+        ->and($this->fake->published)->toBe([]);
+});

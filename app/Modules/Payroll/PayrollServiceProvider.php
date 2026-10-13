@@ -114,7 +114,7 @@ final class PayrollServiceProvider extends ModuleServiceProvider
             ],
             widgets: [
                 new WidgetDefinition('payroll.self', 'PayrollSelfWidget', PayrollSelfWidget::class, 'payroll.payslips.view', span: 4, order: 17),
-                new WidgetDefinition('payroll.overview', 'PayrollOverviewWidget', PayrollOverviewWidget::class, 'payroll.runs.view', span: 6, order: 18),
+                new WidgetDefinition('payroll.overview', 'PayrollOverviewWidget', PayrollOverviewWidget::class, 'payroll.runs.view', span: 8, order: 18),
             ],
             triggers: [
                 RunApprovedTrigger::class,

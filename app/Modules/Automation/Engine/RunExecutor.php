@@ -27,8 +27,10 @@ use App\Modules\Automation\Support\Permissions;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
@@ -1036,9 +1038,30 @@ final class RunExecutor
             return StepOutcome::fail('action_forbidden', 'The action was refused.');
         }
 
-        report($exception);
+        // The stored message (shown to anyone who can open the run) names only the exception class: a
+        // database or HTTP error message can carry SQL, bindings or personal data. Detail goes to the log,
+        // without query bindings.
+        Log::error('Automation action raised an unexpected error.', [
+            'exception' => $exception::class,
+            'message' => self::sanitized($exception instanceof QueryException ? $exception->getSql() : $exception->getMessage()),
+            'code' => $exception->getCode(),
+            'file' => $exception->getFile().':'.$exception->getLine(),
+        ]);
 
-        return StepOutcome::fail('action_error', class_basename($exception).': '.Str::limit($exception->getMessage(), 300, '...'), retryable: true);
+        return StepOutcome::fail('action_error', 'The action failed unexpectedly ('.class_basename($exception).').', retryable: true);
+    }
+
+    /**
+     * A log-safe form of an exception message: URLs, email addresses and long digit runs (phone numbers, ids,
+     * card-like numbers) are replaced, and the text is cut short. The class and location are logged separately.
+     */
+    public static function sanitized(string $message): string
+    {
+        $clean = preg_replace('~[a-z][a-z0-9+.\-]*://\S+~i', '[url]', $message) ?? '';
+        $clean = preg_replace('/[^\s@<>"\']+@[^\s@<>"\']+\.[^\s@<>"\']+/u', '[email]', $clean) ?? '';
+        $clean = preg_replace('/\d[\d\s().\-]{5,}\d/', '[number]', $clean) ?? '';
+
+        return mb_substr($clean, 0, 200);
     }
 
     private function graphOf(Run $run): Graph

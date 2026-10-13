@@ -19,6 +19,12 @@ final class ReconcileDeliveries implements RequiresTenantContext, ShouldBeEncryp
 
     public int $tries = 2;
 
+    /** Seconds; equal to the Horizon supervisor's worker timeout for this queue. */
+    public int $timeout = 300;
+
+    /** @var list<int> Seconds between attempts. */
+    public array $backoff = [30, 120];
+
     public function __construct()
     {
         $this->onQueue('campaigns');

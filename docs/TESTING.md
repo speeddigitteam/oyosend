@@ -32,6 +32,24 @@ end in `_testing`). A variable set in the shell wins over `phpunit.xml`.
 - **Windows, Git Bash:** start Vitest from a path with an upper-case drive letter (`cd D:/laragon/www/oyosend`).
   Started from `/d/...`, every test file fails with `Cannot read properties of undefined (reading 'config')`.
 
+### Running the browser (Playwright) suite
+
+`npm run test:e2e` needs MySQL, a current `npm run build`, and Google Chrome (`channel: 'chrome'`). The config
+(`playwright.config.ts`) serves the app with `php -S` on port 8010 against `oyosend_e2e_testing`, and
+`tests/e2e/global-setup.ts` rebuilds that database (`migrate:fresh --seed`) before every run. The specs use
+the seeded demo logins (`password`); workspaces are `{slug}.localhost`, so no hosts-file entry is needed.
+
+- Beside another run (or another agent), give yours its own port and database:
+  `E2E_PORT=8011 E2E_DATABASE=oyosend_e2e2_testing npm run test:e2e` (the name must end in `_testing`).
+- On a slow shared MySQL the rebuild takes many minutes. Build the database once yourself with `migrate:fresh --seed`
+  (or `migrate`, then `db:seed`) under the same `DB_DATABASE` and start Playwright with `E2E_SKIP_SETUP=1`.
+  A migration added after that build must be applied with `migrate --force` on the same database.
+- Most older specs change shared state (an admin enrols two-step verification, the sign-up spec takes an address,
+  a contact's email is used). Run them against a freshly built database; `tests/e2e/apps.spec.ts` (one smoke
+  flow per optional app, plus two Bengali flows) creates uniquely named records and can be re-run.
+- Page titles in `apps.spec.ts` are read from the `Core/i18n/locales/{en,bn}` catalogues, not typed again.
+- `PLATFORM_REQUIRE_2FA=true` is forced by `support/env.ts`, so a developer's `.env` cannot change the admin flows.
+
 ## 2. The test database
 
 - Tests use MySQL, database **`oyosend_testing`** (`phpunit.xml`), not SQLite: production is MySQL and the code
@@ -223,10 +241,19 @@ and Kanban workflow on the Business demo plan in addition to checking its catalo
 | `Feature/Ai`, `Unit/Ai` | `Assistant`, `Guardrails`, `Drafting`, `AutomationRetention`, `AiAppStore`, `AiModelIsolation`, `ToolRegistry`; `Support` | AI Assistant as described in `docs/AI.md`: member permissions and scopes in tools, proposals-only mutation, injection hygiene, metering idempotency and limits, `not_configured`, secret never leaked, retention, paid activation. Helper `InteractsWithAi` (`aiTenant`, `fakeAi`, `aiMember`, `aiContact`); no test calls a real provider |
 | `Feature/Automation`, `Unit/Automation` | `WorkflowEngine`, `GraphValidation`, `ExecutionGuards`, `RunLifecycle`, `Approval`, `DryRun`, `Webhook`, `WorkflowHttp`, `AutomationModelIsolation`; `OperatorsAndMapping`, `UrlGuardAndManifest` | Workflow Automation as described in `docs/WORKFLOWS.md`: tenant-only matching of events, idempotent delivery, retries/backoff and error handlers, delay/schedule resume through the sweeper after a simulated restart, abandoned-run recovery, loop/step/depth/rate/concurrency limits, parallel and join, entitlement and permission re-checks mid-run (revoked permission, removed member, unentitled app), approvals (no self-approval, named approver, expiry), dry run with no side effects, inbound webhook signature/replay/tenant isolation and outbound SSRF guard, graph validation codes, publish immutability and quotas, route isolation for every id route. Helper `InteractsWithAutomation` (`flowTenant`, `memberWith`, `changeRole`, `revokeModules`, graph builders `node`/`edge`/`graphOf`/`simpleGraph`, `makeWorkflow`, `raise`, `drain`, `runsOf`) on the `test_flow` fixture app in `tests/Support/Fixtures/Flow` (an event trigger and controllable actions: record, fail, reject, flaky, emit, scoped) |
 | `Feature/Audit` | `AuditTrail` | What is recorded, redaction, immutability, the audit page and its filters |
-| `Feature/Platform` | `PlatformAuth`, `PlatformPages`, `CreatePlatformAdminCommand` | Super Admin sign-in and mandatory 2FA; dashboard and tenant list; `platform:create-admin` |
+| `Feature/Platform` | `PlatformAuth`, `PlatformPages`, `CreatePlatformAdminCommand`, `HealthEndpoint`, `MessagingProviderAccounts`, `TenantManagement`, `PlanManagement`, `PlatformInvoices`, `SubscriptionAdmin`, `Impersonation` | Super Admin sign-in and mandatory 2FA; dashboard and tenant list; `platform:create-admin`; the `/health` probes; the Messaging providers panel (secrets write-only, per-workspace allow-list, test send); workspace, plan, invoice and support-access management |
+| `Feature/Reports`, `Unit/Reporting` | `ReportsPlatform`, `SavedReports`, `ProviderScope`, `ReportsIsolation` | The Reports app against the `reports.fixture` provider (`Fixtures\Reporting\FixtureReport`): entitlement and permission 404s, date and column validation, row cap and truncation, formula-safe CSV, saved-report sharing and ownership |
+| `Feature/Hardening`, `Unit/Hardening` | `SecurityHeaders`, `TenantIndexes`, `VerifyBackupCommand`; `QueueDefinitions` | Phase 13 audits that read the whole schema or code base; see below |
 | `Feature/Central` | `CentralSite`, `ErrorPages` | Landing page and workspace finder; error pages per area |
 | `Unit` | `Tenancy/TenantHost`, `Modules/ModuleRegistry`, `Modules/AutomationRegistry`, `Modules/ProjectsEventContract`, `Modules/ProjectsExactMoney`, `Access/AccessScope` | Host parsing, registries, scope ordering, Projects event/trigger contracts and exact-money arithmetic |
 | `tests/js` | `components`, `composables`, `format`, `locales`, `contrast`, `audit`, `projects`, `projects-hardening` | Base components; toasts, theme and labels; number/money formatting; `en`/`bn` parity; WCAG AA contrast; audit rendering; Projects pages and interaction hardening |
+
+Phase 13 hardening checks: `tests/Unit/Hardening/QueueDefinitionsTest.php` (every queued class under `app/` has an
+explicit queue, tries, timeout, backoff and tenant context; supervisors cover all queues),
+`tests/Feature/Hardening/TenantIndexesTest.php` (every tenant-owned table has an index led by `tenant_id` and every
+unique index leads with it, with a reasoned exemption list; reads the migrated schema, so it covers every module),
+`SecurityHeadersTest`, `VerifyBackupCommandTest` (needs a mysql client; skipped without one) and
+`tests/Feature/Platform/HealthEndpointTest.php`.
 
 `Feature/Tenancy/TenantScopeTest.php` is the model to copy for cross-tenant tests: it points
 `assertTenantIsolated()` at every tenant-owned model that exists (`Invitation`, `TenantMembership`, `AuditLog`).
@@ -314,6 +341,19 @@ through the cycle: move the clock (`$this->travel(8)->days()`, `$this->travelTo(
 
 `Fixtures\Reporting\FixtureReport` is a provider owned by `reports` itself whose rows a test sets
 (`FixtureReport::$rows`); tag it in `beforeEach` with `$this->app->tag([FixtureReport::class], ReportProvider::TAG)`.
+
+**`InteractsWithProviderAccounts`** (operator messaging provider accounts; `uses(InteractsWithProviderAccounts::class)`)
+
+| Signature | Does |
+|---|---|
+| `platformUrl(string $path = '/messaging'): string` | A URL on the Super Admin host |
+| `makeAccount(array $overrides = []): ProviderAccount`, `makeHttpSmsAccount(array $settings = [], array $overrides = []): ProviderAccount` | A stored account (`secrets` encrypted) for a channel and provider; the second is a ready generic HTTP SMS gateway |
+| `httpSmsSettings(): array`, `accountInput(string $provider, array $overrides = []): array` | Valid non-secret settings / a valid panel form payload for a provider |
+| `smsPayload(...)`, `smsConnection(string $provider)`, `credentials(string $secret, array $settings = [])` | An `OutboundPayload`, a workspace connection and a `ChannelCredentials` for adapter tests against `Http::fake` |
+
+The other module helpers (`InteractsWithCommunication`, `InteractsWithEmailMarketing`, `InteractsWithSmsMarketing`,
+`InteractsWithWhatsapp`, `InteractsWithSocial`, `InteractsWithSupport`, `InteractsWithAi`, `InteractsWithAutomation`,
+`InteractsWithHrm`, `InteractsWithPayroll`, `InteractsWithTalent`) are described with their suites in section 3.
 
 **Fixtures (`tests/Support/Fixtures`)**
 

@@ -177,6 +177,15 @@ export interface ListRow {
     createdAt: string | null;
 }
 
+export interface SignupSummary {
+    enabled: boolean;
+    embed: boolean;
+    url: string | null;
+    iframe: string | null;
+    confirmed: number;
+    unconfirmed: number;
+}
+
 export interface SegmentRule {
     field: string;
     operator: string;

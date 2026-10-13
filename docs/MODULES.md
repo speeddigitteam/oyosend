@@ -1,8 +1,7 @@
 # Modules
 
-How to add a first-party module. The contract is in `app/Core/Modules`; the production build registers `core` and
-the optional `crm`, `projects`, `invoicing` and `hrm` business apps. They are documented in `docs/CRM.md`,
-`docs/PROJECTS.md`, `docs/INVOICING.md` and `docs/HRM.md`. `hrm` is the reference for a module that other apps build
+How to add a first-party module. The contract is in `app/Core/Modules`; the build registers `core` and fifteen
+optional apps (section 0). `hrm` is the reference for a module that other apps build
 on: it publishes read contracts under `App\Core\Workforce` so that dependents never import its models.
 `payroll` (`docs/PAYROLL.md`) is the reference for a dependent app: it declares `hrm` in `dependencies`, reads HR
 data only through those contracts, and consumes HRM events by class name through a documented listener.
@@ -57,6 +56,47 @@ hears inbound messages, read receipts and template status through `ChannelEventL
 provider) and has no connection, credential or webhook route of its own. It also shows the assignee-owned record
 pattern (`Models\Concerns\HasAssignee`, an enrolled agent also reaches unassigned records), a closed declarative
 vocabulary for tenant-authored bot flows, and a chunked, per-recipient-idempotent sender on the `campaigns` queue.
+
+## 0. Registered modules
+
+The registry (`config/modules.php`) holds **16 modules and 251 declared permissions**. `php artisan permissions:sync`
+writes the permissions; `apps:sync` writes the catalogue. Only `ai` is a paid app; every other optional app has one
+free offer (`included` or `free`). Counts below come from the compiled manifests.
+
+| Key | Name | Depends on | Permissions | Limits | Scheduled jobs (key, frequency) | Triggers / actions | Report providers | Doc |
+|---|---|---|---|---|---|---|---|---|
+| `core` | Workspace | none (always on) | 16 | `core.members` | none | 3 / 0 | none | `ARCHITECTURE.md` |
+| `crm` | CRM & Sales | `core` | 24 | none | none | 4 / 3 | 3 | `CRM.md` |
+| `projects` | Project Management | `core` | 19 | `projects.active_projects` | `projects.task_maintenance` (minute) | 4 / 3 | 2 | `PROJECTS.md` |
+| `invoicing` | Invoicing | `core` | 12 | `invoicing.invoices_per_month` | `invoicing.recurring_invoices`, `invoicing.receivables` (hourly) | 5 / 1 | 2 | `INVOICING.md` |
+| `hrm` | HR Management | `core` | 20 | `hrm.employees` | `hrm.attendance_close` (hourly), `hrm.leave_accrual` (daily) | 5 / 2 | 3 | `HRM.md` |
+| `payroll` | Payroll | `core`, `hrm` | 22 | `payroll.payslips` | none | 3 / 2 | 1 | `PAYROLL.md` |
+| `talent` | Talent & Performance | `core`, `hrm` | 30 | `talent.job_openings`, `talent.candidates` | `talent.reminders`, `talent.retention` (daily) | 9 / 2 | 1 | `TALENT.md` |
+| `automation` | Workflow Automation | `core` | 8 | `automation.runs`, `automation.workflows` | `automation.sweep` (minute) | 3 / 0 | 1 | `WORKFLOWS.md`, `AUTOMATION.md` |
+| `ai` | AI Assistant (paid) | `core` | 5 | `ai.tokens` | `ai.retention` (daily) | 1 / 1 | none | `AI.md` |
+| `communication` | Communication | `core` | 12 | `communication.messages` | `communication.dispatch_due` (minute), `communication.cleanup` (daily) | 4 / 2 | none | `COMMUNICATION.md` |
+| `email_marketing` | Email Marketing | `core`, `communication` | 18 | `email_marketing.campaigns_per_month`, `email_marketing.subscribers` | `email_marketing.run` (minute) | 2 / 1 | 2 | `EMAIL_MARKETING.md` |
+| `sms_marketing` | SMS Marketing | `core`, `communication` | 13 | `sms_marketing.segments_per_month`, `sms_marketing.contacts` | `sms_marketing.run_campaigns` (minute), `sms_marketing.reconcile` (hourly) | 2 / 1 | 2 | `SMS_MARKETING.md` |
+| `whatsapp_marketing` | WhatsApp Business | `core`, `communication` | 16 | `whatsapp_marketing.conversations_per_month`, `whatsapp_marketing.agents` | `whatsapp_marketing.campaigns` (minute), `whatsapp_marketing.maintenance` (daily) | 4 / 3 | 2 | `WHATSAPP.md` |
+| `social` | Social Media | `core` | 16 | `social.scheduled_posts_per_month`, `social.connected_accounts` | `social.publish_due` (minute), `social.maintenance` (hourly) | 5 / 1 | 2 | `SOCIAL.md` |
+| `support` | Customer Support | `core` | 16 | `support.tickets_per_month`, `support.agents` | `support.sla` (minute), `support.maintenance` (daily) | 6 / 3 | 3 | `SUPPORT.md` |
+| `reports` | Reports & Analytics | `core` | 4 | `reports.saved_reports` | none | 0 / 0 | consumes all | `REPORTS.md` |
+
+Cross-module rules this build established (each is enforced by code and tests, not by convention alone):
+
+- **Optional apps never import another app's models.** They talk through core contracts under `App\Core`
+  (`Workforce`, `Communication`, `Reporting`, `Ai`, `Automation`, `Contacts`) and through domain events.
+- **Marketing apps (`email_marketing`, `sms_marketing`, `whatsapp_marketing`) send only through
+  `App\Core\Communication` contracts** (`ChannelGateway`, `MarketingAudience`, `UnsubscribeLinks`,
+  `ConsentRecorder`, `ChannelEventListener`). They hold no provider credential and import no Communication class;
+  see ADR 0014.
+- **A module that has reports registers a `ReportProvider`** in its own provider with
+  `$this->app->tag(ReportProviders::ALL, ReportProvider::TAG)`; the Reports app discovers it (ADR 0015).
+- **A module that exposes AI access registers an `AiTool` / `ProposalTool`** with `AiTool::TAG`
+  (`docs/AI.md` section 6).
+- **Stateless public endpoints** (webhooks, tracking links, single-use token pages) use
+  `loadTenantCallbackRoutes()`: tenant from the hostname, throttle, no session, plus the module's entitlement
+  (the unsubscribe page is deliberately not entitlement-gated, `docs/COMMUNICATION.md` section 6).
 
 ## 1. What a module is
 
@@ -336,6 +376,7 @@ limits: [
   must identify the event, so a retried job or a duplicate webhook counts nothing.
 - See `docs/BILLING.md` section 6.
 
+## 6. Common needs
 
 | Need | Use |
 |---|---|
@@ -417,7 +458,11 @@ Override `register()` only to add container bindings, and call `parent::register
 6. Pages under `resources/js/Modules/<Module>/Pages`, rendered as `Inertia::render('Modules/<Module>/Pages/…')`;
    labels in the i18n catalogue; icon and widget component registered.
 7. Domain events for what other modules or workflows may react to; triggers/actions, scheduled jobs and limits
-   declared from the first release. Scheduled work goes through the entitlement-gated runner.
+   declared from the first release. Scheduled work goes through the entitlement-gated runner. Anything a member
+   may want to report on is published as a `ReportProvider` tagged in the module's provider (`docs/REPORTS.md`
+   section 1); a marketing or messaging app sends only through the `App\Core\Communication` contracts.
+   Every queued class declares its queue, tries, timeout, backoff and `RequiresTenantContext`
+   (`tests/Unit/Hardening/QueueDefinitionsTest.php` fails otherwise).
 8. Lifecycle hooks only when needed; dependency/dependent handling; uninstall retains business data. Typed app
    settings reject undeclared keys and never expose secret values.
 9. Tests: a cross-tenant test for every new model and every new route (`docs/TESTING.md`), plus catalogue sync,

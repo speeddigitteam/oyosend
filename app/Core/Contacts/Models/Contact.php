@@ -6,6 +6,7 @@ namespace App\Core\Contacts\Models;
 
 use App\Core\Access\Concerns\HasRecordOwner;
 use App\Core\Audit\Concerns\Auditable;
+use App\Core\Communication\Support\PhoneNumber;
 use App\Core\Tenancy\Concerns\BelongsToTenant;
 use Database\Factories\ContactFactory;
 use Illuminate\Database\Eloquent\Attributes\UseFactory;
@@ -27,6 +28,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $last_name
  * @property string|null $email
  * @property string|null $phone
+ * @property string|null $phone_e164 canonical form of phone; set by the model, never by callers
  * @property string|null $job_title
  * @property string|null $address
  * @property string|null $city
@@ -54,6 +56,20 @@ class Contact extends Model
     protected $fillable = [
         'company_id', 'first_name', 'last_name', 'email', 'phone', 'job_title', 'address', 'city', 'country', 'notes',
     ];
+
+    /** @var list<string> */
+    protected $hidden = ['phone_e164'];
+
+    protected static function booted(): void
+    {
+        // The indexed canonical form of the phone follows it on every write that goes through the model
+        // (ContactDirectory, merge, imports): channel lookups use it instead of scanning raw phones.
+        static::saving(static function (Contact $contact): void {
+            if (! $contact->exists || $contact->isDirty('phone')) {
+                $contact->phone_e164 = PhoneNumber::normalize($contact->phone);
+            }
+        });
+    }
 
     /**
      * @return BelongsTo<Company, $this>

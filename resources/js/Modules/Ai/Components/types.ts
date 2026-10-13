@@ -47,10 +47,18 @@ export interface ChatMessage {
 
 export type ProposalState = 'pending' | 'confirmed' | 'rejected' | 'failed' | 'expired';
 
+/** One field of a proposed change: the stored value and the value that would be written (plain text). */
+export interface ProposalChange {
+    field: string;
+    old: string | null;
+    new: string | null;
+}
+
 export interface ProposalRow {
     id: string;
     tool: string;
     summary: string;
+    changes: ProposalChange[];
     status: ProposalState;
     pending: boolean;
     expiresAt: string;

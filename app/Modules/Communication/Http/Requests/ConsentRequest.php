@@ -25,7 +25,7 @@ final class ConsentRequest extends FormRequest
         return [
             'channel' => ['required', Rule::enum(Channel::class)],
             'status' => ['required', Rule::enum(ConsentStatus::class)],
-            'method' => ['required', 'string', Rule::in(array_values(array_diff(ConsentManager::METHODS, ['unsubscribe_link', 'complaint'])))],
+            'method' => ['required', 'string', Rule::in(array_values(array_diff(ConsentManager::METHODS, ['unsubscribe_link', 'keyword', 'button', 'complaint'])))],
             'evidence' => ['nullable', 'string', 'max:500', 'required_if:status,opted_in'],
         ];
     }

@@ -7,6 +7,8 @@ own service provider. Spec: `MASTER_PROMPT.md` section 26 and Phase 12.
 
 ## 1. The contract (`App\Core\Reporting`)
 
+Decision record: ADR 0015.
+
 - `Contracts\ReportProvider`: `definition(): ReportDefinition`, `run(ReportContext): ReportResult`. Tag
   `ReportProvider::TAG` (`reporting.providers`).
 - `ReportDefinition`: key (`{module}.{report}`), module, label, description, permission, columns, filters,
@@ -46,8 +48,8 @@ Rules a provider keeps:
 - Stop at `$context->rowLimit + 1` rows; the runner cuts at the limit and flags `truncated`.
 - A snapshot report sets `usesDateRange: false`.
 
-Communication and AI do not publish providers yet; when they do they follow the same two steps and nothing in the
-reports app changes.
+Communication and AI do not publish providers (24 providers are registered by 12 modules); a module that does
+later follows the same two steps and nothing in the reports app changes.
 
 ## 2. Running a report (`ReportRunner`)
 
@@ -127,6 +129,10 @@ Pages: `Modules/Reports/Pages/Index` and `Modules/Reports/Pages/Run` (used for b
 | `payroll.run_totals` | `payroll.reports.view` (sensitive; reversal runs shown negative) |
 | `talent.recruitment_funnel` | `talent.analytics.view` (sensitive) |
 | `support.volume`, `support.sla`, `support.csat` | `support.reports.view` |
+| `email_marketing.campaigns` | `email_marketing.reports.view` (not scopable: workspace-wide for holders; sent campaigns only) |
+| `email_marketing.lists` | `email_marketing.reports.view` (snapshot) |
+| `sms_marketing.campaigns`, `sms_marketing.daily` | `sms_marketing.analytics.view` |
+| `whatsapp_marketing.campaign_delivery`, `whatsapp_marketing.conversation_activity` | `whatsapp_marketing.analytics.view` |
 | `social.publishing`, `social.engagement` | `social.analytics.view` (null = platform did not report) |
 | `automation.run_outcomes` | `automation.runs.view` (live runs only) |
 

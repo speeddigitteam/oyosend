@@ -613,6 +613,7 @@ export default {
             resumeAt: 'Continues {when}',
             payload: 'Data the run started with',
             payloadEmpty: 'No data.',
+            detailHidden: 'Step data and the trigger payload are only shown to people who manage runs.',
             stepsTitle: 'Steps',
             noSteps: 'No step has run yet.',
             graph: 'Path taken',

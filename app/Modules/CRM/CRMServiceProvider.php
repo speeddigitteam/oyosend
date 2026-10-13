@@ -107,7 +107,7 @@ final class CRMServiceProvider extends ModuleServiceProvider
                 new NavigationItem('crmSettings', 'crm.settings.index', 'settings', 'crm.settings.manage', 'manage', 35, 'crm.settings.*'),
             ],
             widgets: [
-                new WidgetDefinition('crm.pipeline', 'PipelineWidget', PipelineWidget::class, 'crm.deals.view', span: 7, order: 15),
+                new WidgetDefinition('crm.pipeline', 'PipelineWidget', PipelineWidget::class, 'crm.deals.view', span: 8, order: 15),
             ],
             triggers: [
                 LeadCreatedTrigger::class,

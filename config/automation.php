@@ -52,7 +52,7 @@ return [
         // Webhooks.
         'webhook_replay_seconds' => 300,
         'outbound_timeout_seconds' => 10,
-        'outbound_response_bytes' => 16384,
+        'outbound_response_bytes' => 65536,
     ],
 
 ];

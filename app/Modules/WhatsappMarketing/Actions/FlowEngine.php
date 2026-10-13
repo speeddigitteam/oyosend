@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Modules\WhatsappMarketing\Actions;
 
+use App\Core\Communication\Contracts\ConsentRecorder;
 use App\Core\Communication\Contracts\UnsubscribeLinks;
 use App\Core\Communication\Data\MarketingChannel;
+use App\Core\Support\Like;
 use App\Modules\WhatsappMarketing\Enums\FlowMatch;
 use App\Modules\WhatsappMarketing\Enums\FlowTrigger;
 use App\Modules\WhatsappMarketing\Enums\SenderType;
@@ -40,6 +42,7 @@ final class FlowEngine
         private readonly ConversationManager $conversations,
         private readonly AutoAssigner $assigner,
         private readonly UnsubscribeLinks $unsubscribe,
+        private readonly ConsentRecorder $consent,
         private readonly AgentManager $agents,
     ) {}
 
@@ -52,13 +55,17 @@ final class FlowEngine
             return;
         }
 
+        // The bot's own message budget applies to everything it says, the STOP confirmation included. The
+        // opt-out itself is not a message: it is recorded every time, and stays in force whatever the budget.
+        $overGuard = $this->overGuard($conversation);
+
         if (in_array($text, self::STOP_WORDS, true)) {
-            $this->acknowledgeStop($conversation);
+            $this->acknowledgeStop($conversation, $overGuard);
 
             return;
         }
 
-        if (! $this->settings->current()->bots_enabled || $conversation->bot_paused || $this->overGuard($conversation)) {
+        if (! $this->settings->current()->bots_enabled || $conversation->bot_paused || $overGuard) {
             return;
         }
 
@@ -180,21 +187,64 @@ final class FlowEngine
         }
     }
 
-    private function acknowledgeStop(Conversation $conversation): void
+    /**
+     * STOP is an explicit request: the opt-out is recorded at once (consent withdrawn, number suppressed for
+     * marketing), and the customer is told so, once. Where it cannot be recorded (no contact behind the number,
+     * or the communication app is not available) the older, honest fallback applies: an unsubscribe link to
+     * confirm on, or a plain note that a person will see the request.
+     */
+    private function acknowledgeStop(Conversation $conversation, bool $overGuard): void
     {
-        $link = $conversation->contact_id === null
-            ? null
-            : $this->unsubscribe->issue($conversation->contact_id, MarketingChannel::Whatsapp, Messenger::MODULE);
+        $recorded = $conversation->contact_id !== null && $this->consent->recordOptOut(
+            $conversation->contact_id,
+            MarketingChannel::Whatsapp,
+            'keyword',
+            'WhatsApp keyword',
+            $conversation->phone,
+        );
 
-        $text = $link === null
-            ? __('We have noted your request. You will not receive marketing messages from us unless you opt in.')
-            : __('To stop receiving marketing messages from us, open this link and confirm: :link', ['link' => $link]);
+        $prefix = null;
+
+        if ($recorded) {
+            $text = __('You have been unsubscribed. You will not receive marketing messages from us unless you opt in again.');
+        } else {
+            $link = $conversation->contact_id === null
+                ? null
+                : $this->unsubscribe->issue($conversation->contact_id, MarketingChannel::Whatsapp, Messenger::MODULE);
+
+            $text = $link === null
+                ? __('We have noted your request. You will not receive marketing messages from us unless you opt in.')
+                : __('To stop receiving marketing messages from us, open this link and confirm: :link', ['link' => $link]);
+
+            // A link carries a new token each time: the same message is recognised by what precedes it.
+            $prefix = $link === null ? null : __('To stop receiving marketing messages from us, open this link and confirm: :link', ['link' => '']);
+        }
+
+        // Once: the same confirmation is not repeated to a customer who keeps writing STOP, and the bot's
+        // message budget still applies.
+        if ($overGuard || $this->alreadySaid($conversation, $text, $prefix)) {
+            return;
+        }
 
         try {
             $this->messenger->reply($conversation, $text, null, SenderType::Bot);
         } catch (ValidationException) {
             // No contact to answer through the platform: the request stays visible in the inbox.
         }
+    }
+
+    private function alreadySaid(Conversation $conversation, string $text, ?string $prefix): bool
+    {
+        return Message::query()
+            ->where('conversation_id', $conversation->id)
+            ->where('sender_type', SenderType::Bot->value)
+            ->where('occurred_at', '>=', CarbonImmutable::now()->subMinutes(self::GUARD_MINUTES))
+            ->when(
+                $prefix === null,
+                static fn ($query) => $query->where('body', $text),
+                static fn ($query) => $query->where('body', 'like', Like::escape((string) $prefix).'%'),
+            )
+            ->exists();
     }
 
     private function overGuard(Conversation $conversation): bool

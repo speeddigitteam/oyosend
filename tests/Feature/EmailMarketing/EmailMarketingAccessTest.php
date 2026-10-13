@@ -3,8 +3,11 @@
 declare(strict_types=1);
 
 use App\Core\AppStore\Enums\ScheduledJobFrequency;
+use App\Core\Contacts\Models\Contact;
 use App\Core\Modules\ModuleRegistry;
+use App\Modules\EmailMarketing\Actions\CampaignManager;
 use App\Modules\EmailMarketing\Models\Campaign;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\Support\InteractsWithEmailMarketing;
 
 uses(InteractsWithEmailMarketing::class);
@@ -122,4 +125,47 @@ it('never lets a sensitive permission be implied by view access', function () {
         expect($definition->sensitive, $name)->toBeTrue();
     }
 
+});
+
+it('shows and exports recipients, list members and subscribers only for contacts the viewer may see', function () {
+    $mine = $this->emContact($this->tenant, ['first_name' => 'Ownedname', 'email' => 'owned.person@example.test']);
+    $theirs = $this->emContact($this->tenant, ['first_name' => 'Foreignname', 'email' => 'foreign.person@example.test']);
+    $this->emSubscribe($this->tenant, $this->list, $mine);
+    $this->emSubscribe($this->tenant, $this->list, $theirs);
+    $campaign = $this->emCampaign($this->tenant, $this->list);
+    $this->inTenant($this->tenant, fn () => app(CampaignManager::class)->schedule($campaign, null));
+    $this->emRun($this->tenant);
+
+    [$user, $membership] = $this->emMember($this->tenant, [
+        'email_marketing.campaigns.view', 'email_marketing.reports.view', 'email_marketing.lists.view',
+        'email_marketing.subscribers.view', 'email_marketing.subscribers.export', 'core.contacts.view',
+    ], ['core.contacts.view' => 'own']);
+    $this->inTenant($this->tenant, function () use ($mine, $theirs, $membership): void {
+        Contact::query()->whereKey($mine->id)->update(['owner_id' => $membership->id]);
+        Contact::query()->whereKey($theirs->id)->update(['owner_id' => null]);
+    });
+    $this->actingAsMember($this->tenant, $user);
+
+    $this->get(($this->url)("/campaigns/{$campaign->id}"))->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->has('deliveries.data', 1)
+        ->where('deliveries.data.0.contact.email', 'owned.person@example.test')
+        ->where('hiddenDeliveries', 1));
+
+    $csv = $this->get(($this->url)("/campaigns/{$campaign->id}/deliveries/export"))->assertOk()->streamedContent();
+    expect($csv)->toContain('owned.person@example.test')->and($csv)->not->toContain('foreign.person@example.test');
+
+    $this->get(($this->url)("/lists/{$this->list->id}"))->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->has('members.data', 1)
+        ->where('members.data.0.contact.email', 'owned.person@example.test')
+        ->where('hiddenMembers', 1)
+        ->where('list.counts.subscribed', 2));
+
+    $this->get(($this->url)('/subscribers?q=Foreign'))->assertOk()->assertInertia(fn (Assert $page) => $page->has('members.data', 0));
+    $this->get(($this->url)('/subscribers'))->assertOk()->assertInertia(fn (Assert $page) => $page->has('members.data', 1)->where('hiddenMembers', 1));
+
+    $export = $this->get(($this->url)("/lists/{$this->list->id}/export"))->assertOk()->streamedContent();
+    expect($export)->toContain('owned.person@example.test')->and($export)->not->toContain('foreign.person@example.test')->and($export)->not->toContain('Foreignname');
+
+    // The whole-campaign aggregates stay accurate and carry no identities.
+    $this->get(($this->url)("/campaigns/{$campaign->id}"))->assertInertia(fn (Assert $page) => $page->where('campaign.counts.planned', 2));
 });

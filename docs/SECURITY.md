@@ -1,6 +1,8 @@
 # Security
 
-State: Phases 1–5 are implemented. Each mechanism is listed with the file
+State: every registered module is covered (foundation, Core SaaS, App Store, business apps, Communication,
+marketing, Social, Automation, AI, Support, Reports); the marketing, Social, Automation, AI, Support and Reports apps
+have had no independent review. Each mechanism is listed with the file
 that enforces it. Layers with nothing to protect yet are marked **not applicable yet**. Section 8 lists open work.
 
 Principles the code follows: the tenant comes from the hostname only; tenant, membership, entitlement and
@@ -21,9 +23,9 @@ not an empty result; what the browser receives (`permissions`, `navigation`) is 
 | File storage | Enforced | Every path is forced under `tenants/{tenant_id}/` on a private disk; `..` and NUL are rejected; access is by short-lived signed URL; no tenant → throws. The workspace logo is the one stored file: png / jpg / webp up to 1 MB, 2000 px a side, SVG refused | `Core/Tenancy/Storage/TenantStorage.php`, `Core/Settings/WorkspaceLogo.php` |
 | Records inside a tenant | Enforced | A scopable permission reaches a person's own, their department's, their branch's or all records. The controller narrows lists and single records through `RecordAccess`; a record outside the scope is a 404 | `Core/Access/RecordAccess.php`, `Concerns/HasRecordOwner.php`, ADR 0007 |
 | Search results | **Not applicable yet** | Scout is installed (`database` driver) but no model is searchable. The first searchable model needs a cross-tenant search test before it ships | — |
-| Exports | **Not applicable yet** | No export feature | — |
+| Exports | Enforced | CSV exports (reports, email and SMS campaign recipients, subscriber lists and groups, payroll reports, social posts) are built by the same code and for the same member as the screen, are formula-safe (`=`, `+`, `-`, `@`, tab, CR get an apostrophe), narrowed to the viewer's `core.contacts.view` scope where they list people, throttled where they are on-demand and audited for reports (`reports.report.exported`). There is no whole-workspace data export (section 9) | `Core/Reporting/Support/CsvWriter.php`, module `*Exporter` / `CsvSafe` classes, `docs/REPORTS.md` |
 | WebSocket channels | **Not applicable yet** | Reverb is not installed; `BROADCAST_CONNECTION=log`; there is no `routes/channels.php` | — |
-| Notifications | Partly | Workspace mail is queued with `RequiresTenantContext` and built inside the tenant context (invitation, invoice, receipt, workspace ready); password-reset links are generated with the active tenant's host. The sign-up confirmation is platform mail: no tenant exists yet. No notification centre | `Core/Identity/Mail`, `Core/Billing/Mail`, `Platform/Mail`, `Core/Registration/Mail` |
+| Notifications | Partly | Workspace mail is queued with `RequiresTenantContext` and built inside the tenant context (invitation, invoice, receipt, workspace ready); password-reset links are generated with the active tenant's host. The sign-up confirmation is platform mail: no tenant exists yet. The optional Communication app adds a per-member notification centre and the outbox; every notification query is narrowed to the signed-in membership (section 5d.4) | `Core/Identity/Mail`, `Core/Billing/Mail`, `Platform/Mail`, `Core/Registration/Mail` |
 | Automation executions | Enforced | A run executes inside its workflow's tenant context; each step re-checks the workspace's entitlement to `automation` and to the step's module and the permission of the member the workflow runs as; triggers match only workflows of the event's tenant; inbound webhook tokens are looked up inside the hostname's tenant; run idempotency keys are tenant-first (section 5d.7) | `Modules/Automation`, `docs/WORKFLOWS.md` |
 | Unique constraints | Enforced | Tenant-first on tenant-owned identities/names, with validation scoped the same way. Deliberate global exceptions are listed in `docs/DATABASE.md`: identity email, token hashes, app licence id and platform-wide billing identifiers | `database/migrations`, `docs/DATABASE.md` |
 
@@ -173,7 +175,8 @@ for as typed (member search, audit search, the Super Admin tenant list).
 - A provider transaction is recorded once (`UNIQUE(gateway, gateway_reference)`); confirming is idempotent under a
   row lock, so duplicate notifications change nothing.
 - Gateway credentials come from the environment (`config/platform.php`, `gateways`). They are never stored in the
-  database, shown on a page, put in an exception message or written to `payments.details`.
+  database, shown on a page, put in an exception message or written to `payments.details`. ADR 0013 does not
+  change this: only messaging provider accounts (section 5d.4) may hold encrypted secrets in the database. (AI provider accounts, section 5d.6, are a second encrypted-secret store that ADR 0013 did not approve; ADR 0018 records the open decision.)
 - Offline payments are recorded by an operator with `platform.billing.manage`, under their name, in the
   workspace's own audit trail.
 - App purchase and renewal invoices use this same path. `InvoiceSettlement` creates/extends an app entitlement
@@ -336,13 +339,27 @@ for as typed (member search, audit search, the Super Admin tenant list).
 
 Details: `docs/COMMUNICATION.md`.
 
-- **No secret in the database.** A channel connection stores a provider key, non-secret settings and the *name*
-  of a credential (`credential_ref`, `webhook_secret_ref`). The value is read from `config('communication.credentials')`
-  (environment) at send time into a `ChannelCredentials` object that cannot be serialized, dumped or cast to a
-  string. A reference is usable only if the operator listed it for the workspace (`tenants`); the settings
+- **A workspace holds no secret.** A channel connection stores a provider key, non-secret settings and the *name*
+  of a credential (`credential_ref`, `webhook_secret_ref`). The value is read at send time into a
+  `ChannelCredentials` object that cannot be serialized, dumped or cast to a string, either from
+  `config('communication.credentials')` (environment) or from an operator **provider account** (ADR 0013).
+  A reference is usable only if the operator listed it for the workspace (`tenants` / `tenant_ids`); the settings
   screen shows names, never values; the audit trail records the channel and provider only.
-- **Honest providers.** SMS and WhatsApp ship with a `none` adapter that is always `not_configured` and refuses
-  sends. The in-memory test doubles are registered only in `testing` / `local` and are flagged as test doubles.
+- **Platform provider accounts (the one place messaging secrets sit in the database).**
+  `communication_provider_accounts` is a central table written only from the Super Admin panel
+  (`platform.settings.manage`, platform guard with mandatory 2FA). `secrets` is an `encrypted:array` cast
+  (`APP_KEY`) and `$hidden`; a dump of the table alone reveals no secret, **a leaked `APP_KEY` reveals all of
+  them** (rotate with `APP_PREVIOUS_KEYS`, and rotate the secrets at the provider). Secrets are write-only: no
+  page, prop, JSON response, audit entry, log, queue payload or exception message carries one, and an empty value
+  on edit keeps the stored one. An account answers only to the provider key it was created for (its secret is
+  never sent to another endpoint) and only to workspaces in `tenant_ids`. `http_sms` calls an
+  operator-supplied URL: https only (unless `communication.sms.allow_insecure_http`), no IP literal, local or
+  private host, no embedded credentials. Treat database backups as secret-bearing. Payment gateways and
+  Social credentials are not covered by this and remain environment-only. AI provider keys may now also be held
+  as operator accounts: see 5d.6.
+- **Honest providers.** SMS and WhatsApp use a `none` adapter that is always `not_configured` and refuses
+  sends until a provider is selected. The in-memory test doubles are registered only in `testing` / `local` and
+  are flagged as test doubles. Twilio, the generic HTTP gateway and SMTP adapters are covered by faked tests only.
 - **Callbacks** (`communication/webhooks/{provider}`, `communication/unsubscribe/{token}`) are on the stateless
   `tenant.callback` group plus `entitled:communication`. The webhook verifies an HMAC over the raw body with the
   workspace's own secret before parsing (401 otherwise), caps the body, applies each provider event id once and
@@ -368,6 +385,12 @@ Details: `docs/COMMUNICATION.md`.
 - The OAuth `state` is random, bound to the session, the signed-in member and a 10-minute expiry, checked with
   `hash_equals` and consumed on first use; PKCE verifiers live in the session. A granted-pages selection is kept
   encrypted in the workspace cache for 10 minutes, bound to the member, and deleted when used.
+- **Central redirect broker** (`GET social/oauth/callback/{platform}` on the central host, `central.callback`: no
+  session, no cookies, throttled). The workspace is learned only from an HMAC-signed envelope the workspace put in
+  front of `state` (key derived from `APP_KEY`; covers workspace, platform, expiry, nonce and inner state; 10
+  minutes), the target host is built from `APP_DOMAIN` and a workspace that exists and is accessible, only
+  `code`/`state`/`error*` are forwarded, redirects carry `no-store` and `no-referrer`, and every failure is a bare 404
+  (no workspace probing). The workspace callback still performs the session-bound state check and token exchange.
 - Publishing never trusts the browser: the publish runs in the entitlement-gated scheduled job, claims each target
   atomically, and treats an uncertain outcome as a failure for a person to check instead of retrying blindly.
   Approval is four-eyes (approver is neither author nor submitter) and a post whose content changes returns to draft.
@@ -397,7 +420,7 @@ Details: `docs/COMMUNICATION.md`.
 - Sender-id registration is the workspace's own note and is never presented as verified. CSV import is size/row
   capped, UTF-8 only and column-checked; CSV output neutralises spreadsheet formulas.
 
-## 5d.8. Email Marketing: consent, content and public links
+## 5d.9. Email Marketing: consent, content and public links
 
 - The route group requires tenant resolution, `entitled:email_marketing`, authentication, the membership check and
   the paywall; campaigns use `HasRecordOwner` and `RecordAccess` (a campaign outside the scope is a 404). Sending,
@@ -419,7 +442,7 @@ Details: `docs/COMMUNICATION.md`.
   typed in. A/B and campaign counters are metered idempotently; the audit trail records ids and counts, never message
   content or addresses.
 
-## 5d.7. WhatsApp Business: webhooks, window and customer text
+## 5d.10. WhatsApp Business: webhooks, window and customer text
 
 - The app has no webhook route of its own. Meta's callbacks arrive on the communication app's stateless route: tenant
   from the hostname, connected and enabled channel required, signature (`X-Hub-Signature-256`, HMAC-SHA256 of the raw
@@ -447,10 +470,17 @@ Details: `docs/COMMUNICATION.md`.
 
 Full design in `docs/AI.md`; the security rules:
 
-- The provider credential (`ANTHROPIC_API_KEY`) is platform-level, read from config only and sent only in the
-  provider request header. It is never stored in the database, taken from a tenant or request, shown, logged or put
-  in an exception message; failures log status and error type only. No credential means `not_configured`; the fake
-  provider is bound only in `local` and `testing`.
+- The provider credential is platform-level. It comes from either an operator AI provider account (Super Admin >
+  AI providers, extends ADR 0013) or, when no account exists, from `ANTHROPIC_API_KEY` in config. An account key is
+  stored in `ai_provider_accounts.secrets` with the `encrypted:array` cast (`APP_KEY`; rotate with
+  `APP_PREVIOUS_KEYS` and at the provider), is hidden from serialization, is write-only (no page, prop, JSON
+  response, audit entry, log or exception message carries it; empty on edit keeps it) and is decrypted only inside
+  the adapter that makes the call, where it goes only into the provider request header. It is never taken from a
+  tenant or request; failures log status and error type only; "test connection" reports `ok` or a reason code
+  (`unauthorized`, `unreachable`, ...), never provider text. The endpoint URL of an OpenAI-compatible account is
+  operator-supplied and trusted at Super Admin level (http or https, no embedded credentials); it is not a
+  tenant-reachable input. No usable credential means `not_configured`; the fake provider is bound only in
+  `local` and `testing`. Treat database backups as secret-bearing.
 - Record content is untrusted data: tool results and drafting inputs are JSON-encoded inside data blocks (tag
   characters escaped), the system prompt is versioned in code and never built from tenant input, drafting and
   automation calls have no tools, and whatever the model asks for is re-checked against the tools available to the
@@ -516,6 +546,25 @@ Full design in `docs/WORKFLOWS.md`; the security rules:
   opens it runs it with their own permission and scope. Only the owner, or a holder of `reports.saved.manage_all`,
   may change or delete one; anyone else gets a `404`.
 
+## 5d.11. Operator tooling: health probes, backup verification, benchmark
+
+Decision record: ADR 0019. Procedures: `docs/DEPLOYMENT.md` section 8, `docs/BACKUP_RESTORE.md`,
+`docs/PERFORMANCE.md`.
+
+- `GET /health` answers `{"status":"ok"}` to anyone and nothing else. `GET /health/ready` is readable only from an
+  address in `HEALTH_ALLOWED_IPS` or with the `HEALTH_TOKEN` bearer (constant-time compare); everyone else gets a
+  **404**, so the endpoint's existence is not disclosed. It carries platform-wide counts and service names only: no
+  tenant names or ids, no credentials, no exception text. Both are outside the `web` group (no session, no
+  cookies). Behind a proxy `TRUSTED_PROXIES` must be set first or the IP gate sees the proxy.
+- `ops:verify-backup` never touches the application's database: it creates a scratch database whose name must end in
+  `_restore_check`, refuses an existing one, refuses a dump that contains `USE`, `CREATE|DROP DATABASE|SCHEMA`,
+  `SOURCE`, `SYSTEM` or a `\!` client command (also inside version comments), passes the database password in
+  `MYSQL_PWD` not on the command line, strips credentials from error text and drops only a database it created.
+  A dump is secret-bearing (every tenant, encrypted columns): store and transfer it accordingly.
+- `ops:benchmark` seeds a workspace into a database and so refuses production and any database not named
+  `*testing`. It writes synthetic data only.
+- None of these commands is reachable from the web.
+
 ## 5e. Browser security headers
 
 `App\Core\Http\Middleware\SecurityHeaders`, appended to the `web` group:
@@ -566,7 +615,8 @@ are ignored.
 
 - `.env` is git-ignored; `.env.example` holds no secrets. No credentials are hardcoded. Demo accounts exist only
   through `DemoSeeder`, which refuses to run outside `local`.
-- `APP_KEY` encrypts 2FA secrets, recovery codes, App Store installation settings and queued mail that carries a
+- `APP_KEY` encrypts 2FA secrets, recovery codes, App Store installation settings, the secrets of messaging
+  provider accounts (`communication_provider_accounts`, ADR 0013) and queued mail that carries a
   token (invitation, sign-up confirmation, workspace ready). Rotate it with
   `APP_PREVIOUS_KEYS`, never by replacing it.
 - Tokens are never stored in the clear: invitations, sign-ups, support sessions and handoffs keep a SHA-256;
@@ -588,7 +638,7 @@ Open after Phase 5 implementation. Decide and fix, or accept and record.
 | 2 | After a 404 for an unknown workspace, a tenant initialised earlier in the same process stays initialised. No effect under PHP-FPM; it matters only on a long-lived server such as Octane | `InitializeTenancy.php` |
 | 3 | Signed file URLs on the `local` disk are served by the framework route `/storage/{path}` on any host with no session; the signature is the only check | `config/filesystems.php` (`serve => true`) |
 | 4 | The Content-Security-Policy is report-only until it has been watched in a browser and switched to `enforce`. `style-src` allows inline styles | `SecurityHeaders`, `config/platform.php` |
-| 6 | SSLCommerz has not been run against its sandbox. Until it has, treat it as unverified | `Core/Billing/Gateways/SslCommerzGateway.php` |
+| 6 | SSLCommerz and aamarPay have not been run against their sandboxes. Until they have, treat them as unverified | `Core/Billing/Gateways/SslCommerzGateway.php`, `AamarPayGateway.php` |
 | 7 | A payment confirmed for an invoice that was voided meanwhile is kept and flagged (`billing.payment_unapplied`); there is no refund or credit feature to put it right | `PaymentProcessor::applyTo()` |
 | 8 | Sign-up has no CAPTCHA or proof of work: the throttle (6 a minute per address) and the email confirmation are the only brakes on scripted sign-ups | `routes/central.php` |
 | 9 | Support access is always as the owner, and a workspace cannot refuse or pre-approve it | `ImpersonationManager` |

@@ -71,8 +71,20 @@ final class ProposalManager
             throw ValidationException::withMessages(['proposal' => __('You can no longer apply this change.')]);
         }
 
+        $stale = false;
+
         try {
-            DB::transaction(function () use ($proposal, $tool, $context): void {
+            DB::transaction(function () use ($proposal, $tool, $context, &$stale): void {
+                // Serialize concurrent confirms (double click, two tabs): the row is locked and re-read, so
+                // only one of them can still see it pending and apply it.
+                $proposal = $this->lockPending($proposal, $context);
+
+                if ($proposal === null) {
+                    $stale = true;
+
+                    return;
+                }
+
                 $result = $tool->apply($context, $proposal->payload);
 
                 $proposal->forceFill([
@@ -104,6 +116,10 @@ final class ProposalManager
             throw ValidationException::withMessages(['proposal' => __('That record is no longer available to you.')]);
         }
 
+        if ($stale) {
+            throw ValidationException::withMessages(['proposal' => __('This proposal was already decided.')]);
+        }
+
         return $proposal->refresh();
     }
 
@@ -111,7 +127,17 @@ final class ProposalManager
     {
         $this->assertDecidable($proposal, $context);
 
-        DB::transaction(function () use ($proposal, $context): void {
+        $stale = false;
+
+        DB::transaction(function () use ($proposal, $context, &$stale): void {
+            $proposal = $this->lockPending($proposal, $context);
+
+            if ($proposal === null) {
+                $stale = true;
+
+                return;
+            }
+
             $proposal->forceFill(['status' => ProposalStatus::Rejected, 'decided_at' => Carbon::now()])->save();
 
             $this->audit->record('ai.proposal.rejected', null, [
@@ -127,7 +153,29 @@ final class ProposalManager
             ]);
         });
 
+        if ($stale) {
+            throw ValidationException::withMessages(['proposal' => __('This proposal was already decided.')]);
+        }
+
         return $proposal->refresh();
+    }
+
+    /**
+     * Re-read the proposal under a row lock inside the deciding transaction. Null when another request
+     * decided it first (or it expired meanwhile), so the caller must not act.
+     */
+    private function lockPending(Proposal $proposal, ToolContext $context): ?Proposal
+    {
+        $locked = Proposal::query()->lockForUpdate()->find($proposal->id);
+
+        if ($locked === null
+            || $locked->membership_id !== $context->membership->id
+            || $locked->status !== ProposalStatus::Pending
+            || $locked->expires_at->isPast()) {
+            return null;
+        }
+
+        return $locked;
     }
 
     private function assertDecidable(Proposal $proposal, ToolContext $context): void
@@ -148,7 +196,13 @@ final class ProposalManager
 
     private function fail(Proposal $proposal, ToolContext $context): void
     {
-        $proposal->forceFill(['status' => ProposalStatus::Failed, 'decided_at' => Carbon::now()])->save();
+        // Only a still-pending proposal can fail; a decided one keeps its outcome.
+        $updated = Proposal::query()->whereKey($proposal->id)->where('status', ProposalStatus::Pending->value)
+            ->update(['status' => ProposalStatus::Failed->value, 'decided_at' => Carbon::now()]);
+
+        if ($updated !== 1) {
+            return;
+        }
 
         $this->audit->record('ai.proposal.failed', null, [
             'proposal_id' => $proposal->id,

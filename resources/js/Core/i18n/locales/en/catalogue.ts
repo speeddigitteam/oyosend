@@ -24,6 +24,7 @@ export default {
         communication: 'Communication',
         reports: 'Reports & Analytics',
         automation: 'Workflow Automation',
+        ai: 'AI',
     },
     permissionGroups: {
         members: 'Members',
@@ -398,6 +399,7 @@ export default {
         'communication.notifications.view': { label: 'Use the notification center', description: 'See your own notifications and choose which ones you receive.' },
         'communication.messages.view': { label: 'View messages', description: 'See the message log and message details within the granted record scope.' },
         'communication.messages.send': { label: 'Send messages', description: 'Send one-off messages to contacts and retry or cancel messages within the granted record scope.' },
+        'communication.messages.send_transactional': { label: 'Send free text as transactional', description: 'Send hand-written messages as transactional, which skips consent, marketing suppression and quiet hours. Sensitive: grant only to people who may message a customer without an opt-in.' },
         'communication.timeline.view': { label: 'View interaction timelines', description: 'See the timeline of contacts and companies you may already see.' },
         'communication.timeline.log': { label: 'Log interactions', description: 'Log notes, calls, meetings and emails by hand and remove your own entries within the granted record scope.' },
         'communication.templates.view': { label: 'View message templates', description: 'See message templates and their placeholders.' },

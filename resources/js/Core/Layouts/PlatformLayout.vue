@@ -87,6 +87,22 @@ const ENTRIES: PanelEntry[] = [
         icon: 'settings',
         ability: 'platform.settings.manage',
     },
+    {
+        key: 'messaging',
+        label: 'platformMessaging',
+        route: 'platform.messaging.index',
+        active: 'platform.messaging.*',
+        icon: 'message-square-text',
+        ability: 'platform.settings.manage',
+    },
+    {
+        key: 'ai',
+        label: 'platformAi',
+        route: 'platform.ai.index',
+        active: 'platform.ai.*',
+        icon: 'sparkles',
+        ability: 'platform.settings.manage',
+    },
 ];
 
 /*

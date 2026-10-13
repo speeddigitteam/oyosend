@@ -80,6 +80,9 @@ const STATELESS_WORKSPACE_ROUTES = [
     // Email Marketing: signed click redirect and web version of an email (HMAC token only).
     'email_marketing.track.click',
     'email_marketing.web.show',
+    // Email Marketing: public sign-up form (honeypot, time trap, throttles) and its single-use confirmation link.
+    'email_marketing.signup.show', 'email_marketing.signup.store',
+    'email_marketing.signup.confirm.show', 'email_marketing.signup.confirm.store',
     // Automation: inbound workflow webhooks (HMAC-signed, replay-windowed).
     'automation.hooks.receive',
 ];
@@ -230,4 +233,22 @@ it('keeps the central site out of any tenant context', function () {
             ->toContain(EnsureCentralContext::class)
             ->not->toContain(InitializeTenancy::class);
     }
+});
+
+/** Central-host stateless callbacks: no session, no cookies, no Inertia; context and throttle only. */
+const STATELESS_CENTRAL_ROUTES = ['central.social.oauth.callback'];
+
+it('keeps central callbacks stateless', function () {
+    foreach (routesOnHost('localhost') as $route) {
+        if (! in_array((string) $route->getName(), STATELESS_CENTRAL_ROUTES, true)) {
+            continue;
+        }
+
+        $pipeline = pipelineOf($route);
+
+        expect($pipeline)->toContain(EnsureCentralContext::class, ThrottleRequests::class)
+            ->not->toContain(StartSession::class, Authenticate::class, InitializeTenancy::class);
+    }
+
+    expect(collect(routesOnHost('localhost'))->pluck('action.as')->all())->toContain(...STATELESS_CENTRAL_ROUTES);
 });

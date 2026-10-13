@@ -14,7 +14,6 @@ use App\Core\Reporting\ReportResult;
 use App\Modules\EmailMarketing\Actions\CampaignReports;
 use App\Modules\EmailMarketing\Enums\CampaignStatus;
 use App\Modules\EmailMarketing\Models\Campaign;
-use App\Modules\EmailMarketing\Models\Delivery;
 
 /**
  * One row per campaign finished in the period, from this app's own delivery records. Rates are basis points and
@@ -59,9 +58,10 @@ final class CampaignPerformanceReport implements ReportProvider
             ->get();
 
         $rows = [];
+        $all = $this->reports->figuresByCampaign($campaigns->pluck('id')->map(fn ($id): string => (string) $id)->all());
 
         foreach ($campaigns as $campaign) {
-            $figures = $this->reports->figures(Delivery::query()->where('campaign_id', $campaign->id));
+            $figures = $all[(string) $campaign->id];
 
             $rows[] = [
                 'campaign' => $campaign->name,

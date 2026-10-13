@@ -151,6 +151,9 @@ function addNode(type: NodeType): void {
     });
 
     nodes.value = [...nodes.value.map((item) => ({ ...item, selected: false })), { ...node, selected: true }];
+
+    // The new step is placed below the lowest one, often outside the visible canvas.
+    void nextTick(() => canvas.value?.fitView());
 }
 
 async function refreshHandles(id: string): Promise<void> {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\EmailMarketing\Actions;
 
+use App\Core\Audit\AuditLogger;
 use App\Modules\EmailMarketing\Enums\ListStatus;
 use App\Modules\EmailMarketing\Models\Campaign;
 use App\Modules\EmailMarketing\Models\MailingList;
@@ -19,6 +20,8 @@ use Illuminate\Validation\ValidationException;
 /** Lists and their saved segments. */
 final class ListManager
 {
+    public function __construct(private readonly AuditLogger $audit) {}
+
     /** @param  array{name: string, description?: string|null}  $attributes */
     public function create(array $attributes): MailingList
     {
@@ -48,6 +51,34 @@ final class ListManager
         }
 
         $list->save();
+
+        return $list;
+    }
+
+    /**
+     * Turn the public sign-up form on or off, allow framing it, or replace its link. The link is minted the first
+     * time the form is turned on and kept while it is off, so switching it back on restores the published URL;
+     * `$rotate` kills the old URL (confirmation links already sent keep working).
+     *
+     * @throws ValidationException
+     */
+    public function configureSignup(MailingList $list, bool $enabled, bool $embed, bool $rotate): MailingList
+    {
+        if ($enabled && $list->status !== ListStatus::Active) {
+            throw ValidationException::withMessages(['enabled' => __('An archived list cannot take sign-ups. Restore it first.')]);
+        }
+
+        $token = $list->signup_token;
+
+        if ($rotate || ($enabled && $token === null)) {
+            $token = bin2hex(random_bytes(16));
+        }
+
+        $list->forceFill(['signup_enabled' => $enabled, 'signup_embed' => $enabled && $embed, 'signup_token' => $token])->save();
+
+        $this->audit->record('email_marketing.list.signup_configured', $list, [
+            'enabled' => $enabled, 'embed' => $list->signup_embed, 'rotated' => $rotate,
+        ], subjectLabel: $list->name);
 
         return $list;
     }

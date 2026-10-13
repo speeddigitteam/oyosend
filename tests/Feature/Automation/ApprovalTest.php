@@ -176,3 +176,68 @@ it('cancels the approval when the run is cancelled', function () {
     expect($this->inTenant($this->tenant, fn () => $approval->refresh()->status))->toBe(ApprovalStatus::Cancelled);
     expect(fn () => ($this->decide)($approval, $this->approver))->toThrow(ValidationException::class);
 });
+
+it('refuses a decision after the deadline and closes the approval as expired', function () {
+    [, $run, $approval] = ($this->begin)();
+
+    $this->travel(2)->hours();
+
+    expect(fn () => ($this->decide)($approval, $this->approver))->toThrow(ValidationException::class);
+
+    expect($this->inTenant($this->tenant, fn () => $approval->refresh()->status))->toBe(ApprovalStatus::Expired)
+        ->and($this->inTenant($this->tenant, fn () => app(ApprovalManager::class)->refusal($approval->refresh(), $this->approver)))->toBe('closed');
+});
+
+it('shows approval history only to those it concerns, unless they manage runs', function () {
+    $named = $this->memberWith($this->tenant, ['automation.approvals.decide']);
+    $bystander = $this->memberWith($this->tenant, ['automation.approvals.decide']);
+    $manager = $this->memberWith($this->tenant, ['automation.approvals.decide', 'automation.runs.manage']);
+    [, , $approval] = ($this->begin)(['approver' => ['type' => 'membership', 'membership_id' => $named[1]->id]]);
+
+    ($this->decide)($approval, $named[1]);
+
+    $history = fn ($user) => $this->actingAsMember($this->tenant, $user)
+        ->get($this->tenantUrl($this->tenant, '/automation/approvals'))
+        ->assertOk();
+
+    $history($named[0])->assertInertia(fn ($page) => $page->has('history', 1));
+    $history($this->starterUser)->assertInertia(fn ($page) => $page->has('history', 1));
+    $history($manager[0])->assertInertia(fn ($page) => $page->has('history', 1));
+    $history($bystander[0])->assertInertia(fn ($page) => $page->has('history', 0));
+});
+
+it('hides step input, output and the trigger payload from viewers who may not manage runs', function () {
+    [, $run] = ($this->begin)();
+    $manager = $this->memberWith($this->tenant, ['automation.runs.view', 'automation.runs.manage']);
+    $show = fn ($user) => $this->actingAsMember($this->tenant, $user)
+        ->get($this->tenantUrl($this->tenant, "/automation/runs/{$run->id}"))
+        ->assertOk();
+
+    $show($this->outsiderUser)->assertInertia(fn ($page) => $page
+        ->where('detailHidden', true)
+        ->where('payload', [])
+        ->where('steps.0.input', null)->where('steps.0.output', null)->where('steps.0.logs', [])
+        ->has('approvals', 0));
+
+    $show($manager[0])->assertInertia(fn ($page) => $page
+        ->where('detailHidden', false)
+        ->where('payload.what', 'the budget')
+        ->has('approvals', 1));
+});
+
+it('does not store the message of an unexpected action exception on the step', function () {
+    $workflow = $this->makeWorkflow($this->tenant, $this->graphOf(
+        [
+            $this->node('trigger', 'trigger', ['trigger_key' => 'automation.trigger.manual', 'config' => []]),
+            $this->recordNode('bad', ['label' => 'x'], ['retry' => ['max_attempts' => 1, 'backoff_seconds' => 1]], 'test_flow.item.fail'),
+        ],
+        [$this->edge('trigger', 'bad')],
+    ));
+
+    $run = $this->inTenant($this->tenant, fn () => app(RunManager::class)->startManual($workflow, $this->starter, []));
+    $step = $this->inTenant($this->tenant, fn () => Run::query()->findOrFail($run->id)->steps()->where('node_id', 'bad')->latest('sequence')->firstOrFail());
+
+    expect($step->error_code)->toBe('action_error')
+        ->and($step->error_message)->toContain('RuntimeException')
+        ->and($step->error_message)->not->toContain('boom');
+});

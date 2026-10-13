@@ -47,7 +47,9 @@ final class OutboundWebhook
             $headers['X-Oyosend-Signature'] = 'sha256='.hash_hmac('sha256', $timestamp.'.'.$body, $endpoint->secret);
         }
 
-        $options = ['allow_redirects' => false];
+        // Only the status is used: never download more than a small cap of the answer.
+        $cap = new ResponseCap;
+        $options = ['allow_redirects' => false, 'on_headers' => $cap->onHeaders(...), 'progress' => $cap->onProgress(...)];
 
         if (defined('CURLOPT_RESOLVE')) {
             $options['curl'] = [CURLOPT_RESOLVE => array_map(
@@ -63,12 +65,23 @@ final class OutboundWebhook
                 ->withBody($body, 'application/json')
                 ->post($endpoint->url);
         } catch (Throwable) {
+            if ($cap->exceeded && $cap->status > 0) {
+                // The answer was cut off at the cap; its status line still tells the outcome.
+                return $this->outcome($cap->status);
+            }
+
             return ['status' => 0, 'retryable' => true, 'message' => 'The endpoint could not be reached.'];
         }
 
-        $status = $response->status();
+        return $this->outcome($response->status());
+    }
 
-        if ($response->successful()) {
+    /**
+     * @return array{status: int, retryable: bool, message: string}
+     */
+    private function outcome(int $status): array
+    {
+        if ($status >= 200 && $status < 300) {
             return ['status' => $status, 'retryable' => false, 'message' => ''];
         }
 

@@ -24,7 +24,8 @@ final class SendMessageRequest extends FormRequest
         return [
             'contact_id' => ['required', 'string', 'size:26'],
             'channel' => ['required', Rule::enum(Channel::class)],
-            'purpose' => ['required', Rule::enum(MessagePurpose::class)],
+            // Optional and advisory: the server derives the purpose (see ManualMessages).
+            'purpose' => ['nullable', Rule::enum(MessagePurpose::class)],
             'template_id' => ['nullable', 'string', 'size:26'],
             'subject' => ['nullable', 'string', 'max:200', Rule::requiredIf(fn (): bool => ! $this->filled('template_id') && $this->input('channel') === Channel::Email->value)],
             'body' => ['nullable', 'string', 'max:5000', 'required_without:template_id'],

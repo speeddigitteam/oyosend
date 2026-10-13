@@ -53,8 +53,13 @@ final class ListController
         $actor = $this->presenter->actor($request);
         $search = trim((string) $request->query('search', ''));
 
+        // Members are contacts: each one only for someone who may see that contact; the rest are counted.
+        $visible = $this->records->constrain(Contact::query(), $actor, ContactController::VIEW)->select('id');
+        $hidden = max(0, $this->lists->count($list) - ListMember::query()->where('list_id', $list->id)->whereIn('contact_id', $visible)->count());
+
         $members = ListMember::query()
             ->where('list_id', $list->id)
+            ->whereIn('contact_id', $visible)
             ->with('contact:id,first_name,last_name,phone')
             ->whereHas('contact')
             ->orderByDesc('id')
@@ -97,6 +102,7 @@ final class ListController
                     'reason' => $decision->reason->value,
                 ];
             }),
+            'hiddenMembers' => $hidden,
             'candidates' => $candidates,
             'search' => $search,
             'canManage' => $manage,

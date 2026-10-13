@@ -136,8 +136,8 @@ Warnings only: `no_end` (a step with nothing after it simply ends the workflow),
 The three engine triggers are registered like any module's, with `event() === null`.
 
 **Idempotency.** `RunStarter` creates a run under a unique `(tenant_id, workflow_id, idempotency_key)`.
-Event key: `evt:` + sha1 of event class, `occurredAt` (microseconds) and payload. Webhook key: a sender-chosen
-`X-Oyosend-Delivery` id, else the signature. Schedule key: `sched:` + the slot's UTC minute. Manual and test keys
+Event key: `evt:` + sha1 of event class, `occurredAt` (microseconds) and payload. Webhook key: the
+`X-Oyosend-Delivery` id (covered by the signature, section 7), else the signature. Schedule key: `sched:` + the slot's UTC minute. Manual and test keys
 are ULIDs. A duplicate delivery returns the existing run and starts nothing.
 
 **Loop prevention.** When an action raises a domain event that starts another workflow, the new run records
@@ -145,6 +145,8 @@ are ULIDs. A duplicate delivery returns the existing run and starts nothing.
 (`depth_limit`) and never executes.
 
 ## 5. Authorization: who a workflow runs as
+
+Decision record: ADR 0017.
 
 A workflow runs as **one member: the person who last published (or resumed) it** (`workflows.actor_membership_id`).
 There is no system super-identity and the engine never bypasses a module's own checks: actions still go through
@@ -193,7 +195,9 @@ cap 3600). Not retried: validation errors from the action, not-found, authorizat
 authorization denials. When attempts are exhausted the failure follows the node's `error` edge, else the
 workflow's unconnected error handler, else the run fails with the step's code. The attempt log is on the step.
 `error_handler` nodes set `error.*` and either resume or fail the run after their chain. Per-step timeouts are
-the job timeout (120 s) and a webhook call timeout (10 s); a run older than 60 days fails (`run_timeout`); an
+the job timeout (120 s) and a webhook call timeout (10 s); an unexpected action exception is stored as a fixed
+message naming only its class (`action_error`), never its text (SQL, bindings or personal data); the detail goes to
+the log without query bindings; a run older than 60 days fails (`run_timeout`); an
 approval has its own timeout.
 
 ### 6.4 Time: delays, schedules, the sweeper
@@ -218,7 +222,8 @@ repeating the mutation. The engine never bypasses a module's authorization or cr
 `max_nodes` 100, `max_edges` 250, `max_steps_per_run` 200 (`step_limit`), `max_depth` 5, `max_loop_iterations` 100,
 `max_parallel_branches` 10, `max_attempts` 5, `max_delay_days` 30, `max_run_age_days` 60, `runs_per_minute_workflow`
 120 and `runs_per_minute_tenant` 600 (over the limit a trigger is dropped and logged, nothing is queued),
-`concurrent_runs` 20, `max_payload_bytes` 64 KB, `max_context_bytes` 256 KB.
+`concurrent_runs` 20, `max_payload_bytes` 64 KB, `max_context_bytes` 256 KB, `outbound_response_bytes` 64 KB (the most
+of an outbound endpoint's response that is ever downloaded).
 
 Plan quotas (`LimitDefinition`): `automation.runs` (metered; one record per live run, idempotency key
 `automation:run:{runId}`, test runs excluded; over quota a run is recorded as failed `quota_exceeded`) and
@@ -232,23 +237,45 @@ Plan quotas (`LimitDefinition`): `automation.runs` (metered; one record per live
 cookies, no CSRF; tenant from the hostname only). Publishing a workflow whose trigger is the webhook trigger
 creates credentials, **shown once** (flash prop `revealed`): a URL token `whk_...` (stored only as SHA-256 hash; it
 locates the workflow) and a signing secret `whsec_...` (stored encrypted, because HMAC verification needs it).
-Rotate with `POST workflows/{w}/webhook/rotate`; the old pair stops working at once.
+Rotate with `POST workflows/{w}/webhook/rotate` (needs `automation.workflows.publish`: whoever can publish the
+workflow may see its new secret; `automation.webhooks.manage` alone is not enough); the old pair stops working at once.
 
 The caller sends JSON and headers `X-Oyosend-Timestamp` (unix seconds) and
-`X-Oyosend-Signature: sha256=` + `hex(hmac_sha256(secret, timestamp + "." + rawBody))`, optionally
-`X-Oyosend-Delivery` (<= 64 chars of `[A-Za-z0-9_-]`). Responses: `202 accepted`, `200 duplicate`, `401` bad/missing
+`X-Oyosend-Signature: sha256=` + `hex(hmac_sha256(secret, timestamp + "." + rawBody))`. A sender that wants its
+own de-duplication id adds `X-Oyosend-Delivery` (<= 64 chars of `[A-Za-z0-9_-]`) **and signs it**:
+`hex(hmac_sha256(secret, timestamp + "." + delivery + "." + rawBody))`. The id is only the replay key when it is
+part of what was signed; a request whose delivery header was added or changed after signing fails the signature
+(`401`), and a malformed id is `422`. Without the header the replay key is the signature itself. Responses: `202 accepted`, `200 duplicate`, `401` bad/missing
 signature or timestamp outside +-300 s (replay window), `404` unknown token/paused/not entitled (also another
 workspace's token), `413` over 64 KB, `422` not a JSON object, `429` volume limit. A redelivered signed request is a
 duplicate and starts nothing; the same bytes after the window are refused.
+
+**Breaking change (one time, pre-release).** The delivery id used to travel unsigned. It is now part of the
+signed string whenever the header is sent, so a sender that already sends `X-Oyosend-Delivery` must change how it
+signs; senders that never sent the header are unaffected. No migration or compatibility mode exists: the old
+`timestamp.body` signature over a request that carries a delivery header is rejected with `401`. The exact signing
+string is `"{timestamp}.{delivery}.{rawBody}"` with a delivery id and `"{timestamp}.{rawBody}"` without one, for
+example:
+
+```php
+$timestamp = (string) time();                       // 1790000000
+$delivery  = 'order-1042';                          // optional, <= 64 chars of [A-Za-z0-9_-]
+$body      = '{"event":"order.paid","id":1042}';  // the exact bytes sent
+$signature = 'sha256='.hash_hmac('sha256', $timestamp.'.'.$delivery.'.'.$body, $secret);
+// headers: X-Oyosend-Timestamp: 1790000000 · X-Oyosend-Delivery: order-1042 · X-Oyosend-Signature: $signature
+```
 
 ### Outbound (node)
 
 A webhook node can only name an endpoint registered by someone holding `automation.webhooks.manage`; a workflow
 never carries a raw URL. Endpoints: https only, port 443, no credentials, host name only (no IP literals), and
 every address the name resolves to must be public (`UrlGuard`; private, loopback, link-local, reserved and
-carrier-grade NAT refused, IPv4-mapped IPv6 judged as IPv4). The connection is pinned to the approved addresses,
-redirects are not followed, timeout 10 s. The body is JSON, signed with the endpoint's secret in the same
-`timestamp.body` scheme, with `X-Oyosend-Idempotency-Key`. The secret is write-only: never returned, logged or
+carrier-grade NAT, documentation and benchmarking ranges refused; IPv4 carried in IPv6 - mapped `::ffff:`, compatible
+`::/96`, NAT64 `64:ff9b::/96` and 6to4 `2002::/16` - is decoded and judged as that IPv4; local-use NAT64 and Teredo are
+refused). The connection is pinned to the approved addresses, redirects are not followed, timeout 10 s, and at most
+64 KB (`outbound_response_bytes`) of the response is ever downloaded (the transfer is aborted past that; only the status is used). The body is JSON, signed with the endpoint's secret in the same
+`timestamp.body` scheme, with `X-Oyosend-Idempotency-Key` (a plain header, not part of the signature: a receiver
+should de-duplicate on the signed body or signature, not trust that header alone). The secret is write-only: never returned, logged or
 audited.
 
 ## 8. Approvals
@@ -258,7 +285,10 @@ hold `automation.approvals.decide`, are the named approver (or hold the named pe
 `prevent_self_approval` is set (default) - are not the person the run acts for: whoever started it by hand, else
 the member the workflow runs as. Decisions are recorded under a row lock (one decision wins), audited
 (`automation.approval.approved|rejected`) and applied by the executor. `on_timeout` approves, rejects or fails the
-step. Cancelling the run cancels pending approvals. The inbox lists only what the viewer may decide.
+step. Cancelling the run cancels pending approvals. A decision after `expires_at` is refused and the approval is
+closed as `expired` at that moment (the run then follows `on_timeout`), without waiting for the sweeper. The inbox
+lists only what the viewer may decide; its history shows only approvals addressed to, requested by or decided by the
+viewer, unless they hold `automation.runs.manage`.
 
 ## 9. Test runs (dry run)
 
@@ -285,10 +315,10 @@ Routes (all `{tenant}.APP_DOMAIN/automation/...`, `auth:web`, `member`, `subscri
 | `automation.workflows.pause` / `resume` / `archive` | POST | `.publish` |
 | `automation.workflows.duplicate` | POST | `.manage` |
 | `automation.workflows.versions.restore` | POST `.../versions/{version}/restore` | `.manage` |
-| `automation.workflows.webhook.rotate` | POST | `automation.webhooks.manage` |
+| `automation.workflows.webhook.rotate` | POST | `automation.workflows.publish` |
 | `automation.workflows.test` | POST `.../test` (`payload`) | `.manage` |
 | `automation.workflows.run` | POST `.../run` (`payload`) | `automation.runs.start` |
-| `automation.runs.index` / `show` | GET `runs?status=&source=&workflow=&mode=`, `runs/{run}` | `automation.runs.view` |
+| `automation.runs.index` / `show` | GET `runs?status=&source=&workflow=&mode=`, `runs/{run}` | `automation.runs.view` (step input/output/logs, the trigger payload and approvals of others are returned only with `automation.runs.manage`; `detailHidden` tells the page) |
 | `automation.runs.cancel` / `retry` | POST | `automation.runs.manage` |
 | `automation.approvals.index` / `decide` | GET `approvals`, POST `approvals/{approval}/decide` (`decision: approve\|reject`, `comment?`) | `automation.approvals.decide` |
 | `automation.webhooks.index` / `store` / `update` / `destroy` | GET, POST, PUT, DELETE `webhooks[/{endpoint}]` | `automation.webhooks.manage` |
@@ -333,8 +363,10 @@ Audit entries: `automation.workflow.created|updated|published|paused|resumed|arc
 `automation.run.started|cancelled|retried`, `automation.approval.approved|rejected`,
 `automation.webhook_endpoint.created|updated|deleted`. Domain events (ids and scalars, after commit):
 `automation.workflow.published|archived`, `automation.run.finished|failed`, `automation.approval.requested|decided`.
-`automation.run.failed` and `automation.approval.requested` are the hooks Phase 8 notifications use for failure
-alerts and approver notifications; nothing here sends email or messages itself.
+`automation.run.failed` and `automation.approval.requested` are the hooks a notification feature would use for
+failure alerts and approver notifications. **Nothing subscribes to them today**: no listener in the code base turns
+either into a notification, so a failed run or a waiting approval is visible only in the Runs and Approvals pages.
+Nothing here sends email or messages itself.
 
 ## 13. Operating notes
 
@@ -347,6 +379,9 @@ stops runs at their next step (entitlement); workflows, versions and history are
 
 - A dedicated AI action node type (spec section 13): the AI app registers its actions as `ActionDefinition`s
   (`ai.text.generate`); they run like any other action (permission, entitlement, receipt, dry-run skip).
-- Notification / email / SMS / WhatsApp actions: Phase 8 and later apps register them. The engine has no channel.
+- The engine has no channel of its own. Apps register the actions that reach one: Communication registers
+  `communication.message.send` (transactional templates only) and `communication.interaction.log`; WhatsApp
+  registers `whatsapp_marketing.template.send`. There is no SMS-sending or email-campaign action, by design
+  (`docs/AUTOMATION.md`).
 - Run history retention/pruning, per-workflow alert destinations and exporting a run are not built.
 - Sub-minute delays: the sweeper granularity is one minute.

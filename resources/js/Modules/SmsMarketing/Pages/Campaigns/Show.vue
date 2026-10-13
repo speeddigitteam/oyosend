@@ -28,6 +28,7 @@ defineOptions({ layout: TenantLayout });
 const props = defineProps<{
     campaign: CampaignDetail;
     recipients: Paginated<RecipientRow>;
+    hiddenRecipients?: number;
     filters: { status: string | null };
     statuses: RecipientStatus[];
     sample: SegmentCount;
@@ -210,6 +211,9 @@ function reasonText(row: RecipientRow): string {
             <Select v-model="status" :options="statusOptions" :label="t('smsMarketing.fields.status')" class="w-full sm:w-48" />
             <Button type="submit" size="sm">{{ t('smsMarketing.common.apply') }}</Button>
         </form>
+        <p v-if="(hiddenRecipients ?? 0) > 0" class="border-b border-line px-5 py-3 text-[0.8125rem] text-ink-muted" data-testid="hidden-recipients">
+            {{ t('smsMarketing.show.hiddenRecipients', { count: format.number(hiddenRecipients ?? 0) }) }}
+        </p>
         <DataTable :columns="columns" :rows="recipients.data" row-key="id" :caption="t('smsMarketing.show.recipientsCaption')" storage-key="sms-marketing-recipients">
             <template #cell-name="{ row }"><span class="text-ink">{{ row.name || t('smsMarketing.common.dash') }}</span></template>
             <template #cell-phone="{ row }"><span class="tabular text-ink-muted">{{ row.phone ?? t('smsMarketing.common.dash') }}</span></template>

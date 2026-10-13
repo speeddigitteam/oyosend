@@ -39,6 +39,13 @@ final class CircuitBreaker
         $this->cache()->forget(self::FAILURES);
     }
 
+    /** Forget the failure history: the provider behind the breaker changed. */
+    public function reset(): void
+    {
+        $this->cache()->forget(self::FAILURES);
+        $this->cache()->forget(self::OPEN);
+    }
+
     private function cache(): Repository
     {
         /** @var Repository $cache */

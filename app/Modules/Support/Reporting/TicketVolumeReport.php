@@ -38,7 +38,7 @@ final class TicketVolumeReport implements ReportProvider
 
     public function run(ReportContext $context): ReportResult
     {
-        $overview = $this->reports->overview($context->from, $context->to, $context->string('queue_id'));
+        $overview = $this->reports->overview($context->from, $context->to, $context->string('queue_id'), ['volume']);
 
         return new ReportResult($overview['volume']['byDay']);
     }

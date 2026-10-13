@@ -114,7 +114,7 @@ final class HrmServiceProvider extends ModuleServiceProvider
             ],
             widgets: [
                 new WidgetDefinition('hrm.self', 'HrmSelfWidget', HrmSelfWidget::class, 'hrm.self.view', span: 4, order: 15),
-                new WidgetDefinition('hrm.overview', 'HrmOverviewWidget', HrmOverviewWidget::class, 'hrm.reports.view', span: 6, order: 16),
+                new WidgetDefinition('hrm.overview', 'HrmOverviewWidget', HrmOverviewWidget::class, 'hrm.reports.view', span: 8, order: 16),
             ],
             triggers: [
                 EmployeeCreatedTrigger::class,

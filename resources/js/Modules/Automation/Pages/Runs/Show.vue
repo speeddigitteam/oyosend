@@ -22,6 +22,7 @@ defineOptions({ layout: TenantLayout });
 const props = defineProps<{
     run: RunRow;
     payload: unknown;
+    detailHidden?: boolean;
     steps: StepRow[];
     approvals: ApprovalRow[];
     graph: unknown;
@@ -258,6 +259,7 @@ function when(value: string | null): string {
 
             <Card :title="t('automation.runs.show.payload')">
                 <pre v-if="hasPayload" class="max-h-72 overflow-auto rounded-control bg-control-sunken p-2.5 font-mono text-xs text-ink">{{ pretty(payload) }}</pre>
+                <p v-else-if="detailHidden" class="text-[0.8125rem] text-ink-subtle">{{ t('automation.runs.show.detailHidden') }}</p>
                 <p v-else class="text-[0.8125rem] text-ink-subtle">{{ t('automation.runs.show.payloadEmpty') }}</p>
             </Card>
 

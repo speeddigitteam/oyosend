@@ -41,7 +41,10 @@ interface ChannelProvider
     /**
      * The non-secret settings the connection form shows for this provider.
      *
-     * @return list<array{key: string, label: string, type: 'text'|'select'|'integer', required: bool, options?: list<string>, maxLength?: int}>
+     * `account: true` marks a field that names the provider's own account (a WhatsApp phone number id): the
+     * value can be connected by one workspace only, enforced when the connection is saved.
+     *
+     * @return list<array{key: string, label: string, type: 'text'|'select'|'integer', required: bool, options?: list<string>, maxLength?: int, account?: bool}>
      */
     public function fields(): array;
 

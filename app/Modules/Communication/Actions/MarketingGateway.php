@@ -20,6 +20,7 @@ use App\Modules\Communication\Models\Message;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use InvalidArgumentException;
+use Throwable;
 
 /**
  * The implementation of the core {@see ChannelGateway} contract. Everything goes through {@see Outbox::queue()}
@@ -96,7 +97,7 @@ final class MarketingGateway implements ChannelGateway
 
         $queued = $this->outbox->queue(new OutboundRequest(
             channel: $channel,
-            purpose: $message->purpose === MessagingPurpose::Transactional ? MessagePurpose::Transactional : MessagePurpose::Marketing,
+            purpose: $this->purposeOf($message),
             recipient: $address,
             subject: $message->subject,
             body: $message->body,
@@ -109,6 +110,27 @@ final class MarketingGateway implements ChannelGateway
         ));
 
         return $this->receipt($queued, $decision->allowed ? null : $decision->reason->value, false);
+    }
+
+    /**
+     * Transactional is honoured only for a WhatsApp message that names a customer-service window which is
+     * still open (`whatsapp_window_until`): the caller's word alone never skips consent and quiet hours.
+     */
+    private function purposeOf(MarketingMessage $message): MessagePurpose
+    {
+        if ($message->purpose !== MessagingPurpose::Transactional) {
+            return MessagePurpose::Marketing;
+        }
+
+        $until = $message->providerHints['whatsapp_window_until'] ?? null;
+
+        try {
+            $open = is_string($until) && CarbonImmutable::parse($until)->isFuture();
+        } catch (Throwable) {
+            $open = false;
+        }
+
+        return $message->channel === MarketingChannel::Whatsapp && $open ? MessagePurpose::Transactional : MessagePurpose::Marketing;
     }
 
     public function statusFor(string $messageId): ?DeliveryReport

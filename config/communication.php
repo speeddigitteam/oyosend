@@ -41,6 +41,17 @@ return [
     // Largest webhook body accepted, in bytes.
     'webhook_max_bytes' => 262144,
 
+    // A provider event whose handling fails this many times is recorded as `failed` and answered 200, so a
+    // poison message is not redelivered forever.
+    'webhook_max_failures' => 5,
+
+    // SMS gateway adapters. Endpoints are operator configuration, never tenant input.
+    'sms' => [
+        'twilio_base_url' => 'https://api.twilio.com',
+        // A custom HTTP gateway must be https unless this is turned on (some local gateways offer plain http).
+        'allow_insecure_http' => false,
+    ],
+
     // The WhatsApp Cloud API adapter (Graph API). The base URL is operator configuration, never tenant input.
     'whatsapp' => [
         'graph_base_url' => 'https://graph.facebook.com',

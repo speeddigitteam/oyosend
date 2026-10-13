@@ -21,8 +21,9 @@ use Illuminate\Support\Carbon;
 /**
  * Inbound webhook trigger. Stateless: no session, no cookies, no CSRF (the `tenant.callback` group).
  *
- * The caller proves itself with an HMAC over `{timestamp}.{raw body}` using the workflow's signing secret,
- * and the timestamp must be inside the replay window. The URL token only locates the workflow (it is stored
+ * The caller proves itself with an HMAC over `{timestamp}.{raw body}` (or `{timestamp}.{delivery}.{raw body}`
+ * when it sends an `X-Oyosend-Delivery` id, so the id is covered by the signature) using the workflow's
+ * signing secret, and the timestamp must be inside the replay window. The URL token only locates the workflow (it is stored
  * hashed); it is not the credential. Redelivery of the same signed request is recognised and starts nothing.
  * Nothing in the body is trusted beyond being data for the workflow: it cannot choose the tenant, the
  * workflow version or the actor.
@@ -63,7 +64,17 @@ final class InboundWebhookController
             return response()->json(['status' => 'stale'], 401);
         }
 
-        $expected = 'sha256='.hash_hmac('sha256', $timestamp.'.'.$raw, $secret);
+        // The delivery id picks the replay key, so it is part of what is signed: otherwise a captured request
+        // could be replayed with other ids. A body is a JSON object, so `ts.delivery.body` and `ts.body` are
+        // never ambiguous (an id cannot contain `{`).
+        $delivery = (string) $request->header('X-Oyosend-Delivery', '');
+
+        if ($delivery !== '' && preg_match('/^[A-Za-z0-9_\-]{1,64}$/D', $delivery) !== 1) {
+            return response()->json(['status' => 'invalid_delivery'], 422);
+        }
+
+        $signed = $delivery === '' ? $timestamp.'.'.$raw : $timestamp.'.'.$delivery.'.'.$raw;
+        $expected = 'sha256='.hash_hmac('sha256', $signed, $secret);
 
         if (! hash_equals($expected, $signature)) {
             return response()->json(['status' => 'invalid_signature'], 401);
@@ -75,8 +86,7 @@ final class InboundWebhookController
             return response()->json(['status' => 'invalid_payload'], 422);
         }
 
-        $delivery = (string) $request->header('X-Oyosend-Delivery', '');
-        $identity = preg_match('/^[A-Za-z0-9_\-]{1,64}$/D', $delivery) === 1 ? $delivery : $signature;
+        $identity = $delivery !== '' ? $delivery : $signature;
         $key = 'webhook:'.substr(hash('sha256', $identity), 0, 40);
 
         $version = $workflow->published_version_id === null ? null : WorkflowVersion::query()->find($workflow->published_version_id);

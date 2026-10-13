@@ -57,6 +57,7 @@ use Illuminate\Support\Carbon;
  * @property CarbonInterface|null $sla_paused_at
  * @property CarbonInterface|null $first_response_breached_at
  * @property CarbonInterface|null $resolution_breached_at
+ * @property CarbonInterface|null $resolution_first_breached_at
  * @property Carbon $created_at
  * @property-read Contact|null $contact
  * @property-read Company|null $company
@@ -81,7 +82,7 @@ class Ticket extends Model
         'created_by', 'merged_into_id', 'split_from_id', 'source_key', 'reopened_count', 'first_responded_at',
         'resolved_at', 'closed_at', 'last_customer_message_at', 'last_agent_message_at', 'last_activity_at',
         'first_response_due_at', 'resolution_due_at', 'first_response_remaining_minutes',
-        'resolution_remaining_minutes', 'sla_paused_at', 'first_response_breached_at', 'resolution_breached_at',
+        'resolution_remaining_minutes', 'sla_paused_at', 'first_response_breached_at', 'resolution_breached_at', 'resolution_first_breached_at',
     ];
 
     /** @return array<string, string> */
@@ -105,6 +106,7 @@ class Ticket extends Model
             'sla_paused_at' => 'datetime',
             'first_response_breached_at' => 'datetime',
             'resolution_breached_at' => 'datetime',
+            'resolution_first_breached_at' => 'datetime',
         ];
     }
 

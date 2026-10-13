@@ -19,14 +19,22 @@ use Illuminate\Mail\Mailables\Headers;
  */
 final class OutboundMail extends Mailable
 {
-    public function __construct(private readonly OutboundPayload $payload) {}
+    /**
+     * @param  string|null  $fromAddress  A platform SMTP account's own sender; the platform mailer's when null.
+     * @param  string|null  $fromName  The account's display name; the workspace's when null.
+     */
+    public function __construct(
+        private readonly OutboundPayload $payload,
+        private readonly ?string $fromAddress = null,
+        private readonly ?string $fromName = null,
+    ) {}
 
     public function envelope(): Envelope
     {
-        $from = (string) config('mail.from.address');
+        $from = $this->fromAddress ?? (string) config('mail.from.address');
         $name = $this->payload->fromName !== null && $this->payload->fromName !== ''
             ? $this->payload->fromName
-            : (string) config('mail.from.name');
+            : ($this->fromName ?? (string) config('mail.from.name'));
 
         return new Envelope(
             from: new Address($from, $name),

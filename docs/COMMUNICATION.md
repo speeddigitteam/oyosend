@@ -8,10 +8,11 @@ and 21 (integration centre, where relevant). Code: `app/Modules/Communication`, 
 What it is: a per-member **notification center**, a **message outbox** with channel/provider adapters,
 **templates**, **consent and suppression**, and a shared **interaction timeline** for contacts and companies.
 
-What it is not (yet): there is **no SMS and no WhatsApp provider adapter**. Both channels ship with an honest
-"no provider" adapter that reports `not_configured` and refuses every send. Email works through the platform's
-Laravel mailer. Campaigns/bulk sending, inbound email parsing, social platforms (Phase 9) and the visual
-automation builder (Phase 10) do not exist.
+What it is not (yet): inbound email parsing and SMS delivery receipts do not exist. Email works through the
+platform's Laravel mailer or an operator's SMTP account; SMS through an operator's Twilio or generic HTTP gateway
+account (ADR 0013, section 3). Until an operator creates a provider account (or an environment credential entry)
+and a workspace selects it, SMS and WhatsApp report `not_configured` and refuse every send. **Twilio, the generic
+HTTP SMS gateway and SMTP have only been exercised by faked tests, never against a live provider.**
 
 WhatsApp has one real adapter, **`whatsapp_cloud`** (the official WhatsApp Business Platform, Cloud API), used by
 the WhatsApp Business app (`docs/WHATSAPP.md`). It reports `not_configured` until an operator provides credentials
@@ -71,9 +72,20 @@ Outbox ──► SendMessage job ──► MessageDispatcher ──► ChannelPr
   non-secret settings form), `state()`, `send()`, `parseWebhook()`. `EmailChannel`, `SmsChannel` and
   `WhatsAppChannel` are the typed interfaces; `ProviderRegistry` refuses an adapter that does not implement the
   interface of its channel.
-- Shipped adapters: `mail` (`LaravelMailProvider`, real), `none` for SMS and WhatsApp (`NullProvider`, always
-  `not_configured`). `fake_sms` / `fake_whatsapp` (`Testing/InMemoryProvider`) are registered **only** when the
-  environment is `testing` or `local`, and are flagged `isTestDouble` so no screen presents them as real.
+- Shipped adapters: `mail` (`LaravelMailProvider`, the platform mailer), `smtp` (`SmtpProvider`, an operator's
+  SMTP server, email), `twilio` (`TwilioSmsProvider`, SMS), `http_sms` (`HttpSmsProvider`, SMS: a generic gateway
+  that takes one HTTP request per message), `whatsapp_cloud`, and `none` for SMS and WhatsApp (`NullProvider`,
+  always `not_configured`). `smtp`, `twilio`, `http_sms` and `whatsapp_cloud` take a platform provider account
+  (`PlatformAccountProvider`: `accountFields()`, `supportsTestSend()`). `fake_sms` / `fake_whatsapp`
+  (`Testing/InMemoryProvider`) are registered **only** when the environment is `testing` or `local`, and are
+  flagged `isTestDouble` so no screen presents them as real.
+- `smtp`: host, port, encryption (`starttls`/`ssl`), username, password (secret), from address and name; sends
+  through a mailer built for that account, plain text as the platform mailer does. `twilio`: Account SID,
+  auth token (secret), a sender number or Messaging Service SID; sends through the REST Messages API.
+  `http_sms`: endpoint URL (https only unless `communication.sms.allow_insecure_http`; no IP literal, local or
+  private host, no embedded credentials), method, how parameters and the key are sent, the number / message /
+  sender parameter names and an optional `success_contains` text the response must contain. None of the three
+  consumes delivery receipts: their messages stay `sent`.
 - `whatsapp_cloud` (`WhatsAppCloudProvider`, WhatsApp channel): sends template and free-form text messages
   through the Graph API with a bearer token from `credential_ref`; non-secret settings `phone_number_id`
   (required), `business_account_id`, `graph_api_version`; webhook secret from `webhook_secret_ref` (the Meta app
@@ -82,9 +94,10 @@ Outbox ──► SendMessage job ──► MessageDispatcher ──► ChannelPr
   message meta. Operator credentials: `config/communication.php` entries as documented in `docs/WHATSAPP.md`.
 - UI-facing state is only `configured` or `not_configured`. Email is `not_configured` in production when the
   mailer is `log` or `array`.
-- **Credentials are never stored in the database.** `communication_channel_connections` holds the provider key,
+- **A workspace connection never holds a secret.** `communication_channel_connections` holds the provider key,
   non-secret `settings` validated against the adapter's `fields()`, a `credential_ref` and a
-  `webhook_secret_ref`. A reference names an entry of `config('communication.credentials')`:
+  `webhook_secret_ref`. A reference names either a **platform provider account** (`acct_{id}`, see below) or an
+  entry of `config('communication.credentials')`:
 
   ```php
   'sms_gateway_main' => ['secret' => env('COMMUNICATION_SMS_MAIN_SECRET'), 'tenants' => null],     // every workspace
@@ -94,6 +107,17 @@ Outbox ──► SendMessage job ──► MessageDispatcher ──► ChannelPr
   A reference that is missing, empty or not allowed for the workspace reads as `not_configured`, and the
   settings screen only lists names the workspace may use. The secret exists in memory as `ChannelCredentials`,
   which cannot be serialized, dumped or cast to a string.
+- **Platform provider accounts** (ADR 0013). The operator adds an account in the Super Admin panel
+  (**Messaging providers**, `platform.settings.manage`): channel, provider, a name, the adapter's non-secret
+  settings, its secrets, an enabled flag and which workspaces may use it (`tenant_ids`; empty = all). Secrets are
+  stored **encrypted** in `communication_provider_accounts` (central, no `tenant_id`), are write-only (never
+  returned to a page; an empty value on edit keeps the stored one) and never reach logs, audit entries or
+  exception messages. `CredentialResolver` resolves `acct_*` references next to the environment entries; an
+  account answers only to the provider key it was created for, and only for a workspace in `tenant_ids`. Secret
+  keys: `secret` (API credential / password), `webhook_secret`, `verify_token`. Email and SMS accounts have a
+  test send to one address. Environment references keep working unchanged. Payment gateways stay
+  environment-only. A workspace picks the account by name in the credential dropdown of **Settings > Channels**;
+  it cannot create, read or see the value of one.
 - Sender identity: a per-workspace **from name** and **reply-to**; the From *address* is the platform's
   (`MAIL_FROM_ADDRESS`). A custom sender domain needs SPF, DKIM and DMARC records for the domain and is set up
   by the operator; the settings screen shows guidance text and `customDomainVerified: false`. No DNS check is
@@ -108,9 +132,19 @@ Outbox ──► SendMessage job ──► MessageDispatcher ──► ChannelPr
    case) over the **raw body** before parsing, throw `InvalidWebhookSignature` otherwise, and return
    `ProviderEvent`s with the provider's own event id.
 3. Register it in `CommunicationServiceProvider::register()` on the `ProviderRegistry` singleton.
-4. Add the operator's credential entry to `config/communication.php` / `.env`. Document the provider's required
-   approvals (sender id registration, WhatsApp Business template approval) in this file.
+4. If the adapter takes an operator account, implement `PlatformAccountProvider` (`accountFields()` marks the
+   secret fields with type `secret`); otherwise add the operator's credential entry to `config/communication.php`
+   / `.env`. Document the provider's required approvals (sender id registration, WhatsApp Business template approval) in this file.
 5. Test with `Testing/InMemoryProvider` as the model; never ship a simulated provider outside `testing`/`local`.
+
+**One provider account, one workspace** (ADR 0016). A provider field marked `account` (the WhatsApp `phone_number_id`) can be
+connected by one workspace only. A shared credential reference (`tenants: null`) is usable by every workspace its
+operator allows, so without this a workspace could name another workspace's number and send from it.
+`ChannelConnections::save()` claims the value in `communication_account_claims` (platform-wide, no `tenant_id`,
+unique `(provider, account_key, account_value)`, owned by the connection and deleted with it); a second workspace
+gets the form error "This account is already connected to another workspace" and nothing is saved. The webhook
+route already drops events whose account is not the connection's own. Operators should still scope tokens with
+`tenants` allow-lists where they can: that is the other half of the control.
 
 ## 4. The outbox
 
@@ -120,14 +154,17 @@ Outbox ──► SendMessage job ──► MessageDispatcher ──► ChannelPr
 2. Address normalization and validation per channel.
 3. **Suppression** and **marketing consent** (section 5). A blocked message is still recorded, with status
    `suppressed` and `failure_code` `suppressed` or `no_consent`, so the log explains what did not happen.
-4. **Plan limit** `communication.messages` (metered per billing period). A message over the limit is recorded as
-   `failed` / `limit_reached`; interactive callers ask `assertWithinLimit()` first and show a form error.
+4. **Plan limit** `communication.messages` (metered per billing period, spent when the provider accepts a
+   message). Queued and sending messages are counted as pending use, so a campaign cannot queue thousands more
+   than the plan has left. A message over the limit is recorded as `failed` / `limit_reached`; interactive
+   callers ask `assertWithinLimit()` first and show a form error.
 5. Row `queued`, timeline entry for contact/company messages, `SendMessage` job dispatched after commit (queue
    `notifications`), delayed until `next_attempt_at`.
 
 `MessageDispatcher` (inside the job) re-checks at worker time: still queued and due, workspace still entitled
-(else `cancelled` / `module_not_entitled`), suppression and consent again, quiet hours, channel enabled and
-configured, per-channel rate limit. Then it marks `sending`, calls the adapter and settles:
+(else `cancelled` / `module_not_entitled`), suppression and consent again, quiet hours, the plan limit again
+(`failed` / `limit_reached`, counting messages currently being sent), channel enabled and configured,
+per-channel rate limit. Then it marks `sending`, calls the adapter and settles:
 
 | Provider answer | Result |
 |---|---|
@@ -152,6 +189,14 @@ at queue time and again at worker time. Transactional messages ignore them.
 - `communication_consents`: the current decision per contact, channel and purpose (`opted_in`/`opted_out`), with
   `method` and `evidence`; history is the audit trail. **No record means no consent.** An opt-in requires
   evidence text.
+- **Phone numbers have one canonical form**, `Core\Communication\Support\PhoneNumber::normalize()` (used by
+  `Channel::normalize()` for SMS and WhatsApp, the gateway, suppression, consent, conversation matching and the
+  inbound contact lookup): E.164 with a plus. A Bangladesh mobile number in any usual spelling (`01712345678`,
+  `1712345678`, `8801712345678`, `+8801712345678`, `008801712345678`, with spaces or dashes, Bengali digits) is
+  `+8801712345678`; a number of another country is accepted only when it already carries its country code (`+` or
+  `00`); anything else is refused, never guessed. Contacts saved in a national spelling are matched through
+  `PhoneNumber::digitVariants()`. Nothing is deployed with the older keys, so no data migration exists; a
+  workspace that already holds suppression rows in another spelling would need them re-keyed.
 - `communication_suppressions`: unique `(tenant_id, channel, address, scope)`. Scope `all` (bounce, complaint,
   invalid, manual) blocks every message; scope `marketing` (unsubscribe) blocks promotional messages only.
   Complaints cannot be removed by hand; a new explicit opt-in lifts the contact's own unsubscribe.
@@ -159,6 +204,16 @@ at queue time and again at worker time. Transactional messages ignore them.
   The token is 40 random characters that exist only in the outgoing message; the table stores its SHA-256 and an
   expiry (365 days). `GET` shows a confirmation page and changes nothing (scanners cannot unsubscribe anyone),
   `POST` opts the contact out and suppresses the address. Every invalid, expired or foreign token answers the same.
+- **Opt-out from a reply**: `Core\Communication\Contracts\ConsentRecorder::recordOptOut(contactId, channel,
+  method, evidenceNote)` (method `keyword` or `button`) records the withdrawal and the marketing suppression of
+  the address in one transaction, at once, idempotently. WhatsApp uses it for STOP (see `docs/WHATSAPP.md`).
+  Without the app or entitlement it returns `false`.
+- **Opt-in from a confirmed form**: `ConsentRecorder::recordOptIn(contactId, channel, method, evidence)` (method
+  `form` or `double_opt_in`, stored as `form`; evidence 1 to 500 characters, no IP). One transaction, audited,
+  entitlement-checked. It returns `false` and changes nothing when the contact's address has any marketing or
+  all-scope suppression (an unsubscribe, bounce, complaint or manual block stays until the platform lifts it) or
+  the contact's opt-out was a complaint; a contact's own plain `opted_out` record with no suppression is replaced;
+  an already opted-in contact is left as is (`true`). Email Marketing's confirmed sign-up uses it.
 
 ## 6. Provider webhooks and the unsubscribe page
 
@@ -170,6 +225,11 @@ Stateless routes on the workspace host through `ModuleServiceProvider::loadTenan
 `webhook_secret_ref` must resolve for the workspace (otherwise 404, nothing disclosed); the body is capped at
 `webhook_max_bytes` (413); the signature is verified over the raw body **before** parsing (401, nothing changed);
 then each event is applied once per `(provider, event id)` (`communication_webhook_events`, no payload kept).
+The dedupe row, the applied change and the hand-over to apps commit in ONE transaction per event: if applying it
+or an app's inbound-message listener fails, the row rolls back, the route answers `503` with `Retry-After`, and
+the provider's redelivery is applied afresh (a bounce or an inbound message is never "seen" and lost). A failing
+listener for receipts or template status is logged by class and contained: a retry loop on those would only
+block delivery tracking.
 Events: `delivered`, `failed`, `bounced` (suppresses), `complained` (suppresses and opts out), `inbound` (a
 timeline entry on the contact whose phone/email matches).
 
@@ -179,6 +239,14 @@ provider that confirms its callback URL (adapters implementing `VerifiesWebhookS
 `verify_token`. An event may carry `accounts` (`phone_number_id`, `business_account_id`): the route drops an event
 whose account is not the connection's own setting. `ProviderEventType` also has `read` and `template_status`; they
 change no outbox message, they are forwarded to channel-event listeners (section 14).
+
+The **unsubscribe routes are not entitlement-gated** (`callbacks-unsubscribe.php`: `tenant.callback` only). A
+person who received a message can always opt out, also after the workspace's Communication app lapsed; the page
+still resolves the workspace from the hostname, answers identically for every unknown, used or expired token and
+shows nothing but the workspace name. The webhook routes keep `entitled:communication`. The email tracking
+routes of the Email Marketing app are gated by that app and answer 404 after it lapses: opens and clicks stop
+being recorded and links in already-sent mail stop redirecting; whether to keep click redirects alive for a
+lapsed workspace is an owner decision.
 
 ## 7. Templates
 
@@ -212,6 +280,7 @@ a fixed Blade view that escapes the text. A subject is collapsed to one line (he
 | `communication.notifications.view` | | | own notifications and preferences |
 | `communication.messages.view` | yes | | message log and detail |
 | `communication.messages.send` | yes | | composer, retry, cancel |
+| `communication.messages.send_transactional` | | yes | send hand-written text as transactional (skips consent, marketing suppression, quiet hours, footer) |
 | `communication.timeline.view` | | | contact/company timelines |
 | `communication.timeline.log` | yes | | log or remove a manual entry |
 | `communication.templates.view` / `.manage` | | | templates |
@@ -219,6 +288,12 @@ a fixed Blade view that escapes the text. A subject is collapsed to one line (he
 | `communication.consent.manage` | | yes | record opt-in/out by hand |
 | `communication.suppressions.manage` | | yes | add/remove suppressions |
 | `communication.settings.manage` | | yes | sender identity, quiet hours, channel connections |
+
+The composer derives the purpose on the server: a template carries its own (templates are curated by
+`templates.manage`), and free text is `marketing` unless the sender holds `communication.messages.send_transactional`
+and asked for `transactional`; asking without it is refused. The composer's idempotency key is
+`composer:{membership}:{request_id}:{hash of contact, channel, purpose, template, subject, body}`, so a reused
+request id with other content is a different message and never answers with the first.
 
 New permissions are granted to no role. Until an owner grants `communication.notifications.view` to a role,
 only the owner sees a notification center.
@@ -231,8 +306,9 @@ Limit `communication.messages` (metered). Scheduled jobs (entitlement-gated runn
 Triggers: `communication.message.delivered`, `.failed`, `.bounced`, `communication.contact.unsubscribed`.
 Actions: `communication.message.send` (a **transactional** template to a contact; a marketing template is
 refused as `template_not_transactional`; every refusal is a stored, replayable output, not an exception) and
-`communication.interaction.log`. Both use `communication_automation_action_receipts`. Nothing executes workflows
-until Phase 10.
+`communication.interaction.log`. Both use `communication_automation_action_receipts`. The Workflow Automation app
+(`docs/WORKFLOWS.md`) executes them like any registered action: as the member who published the workflow, after
+re-checking `communication.messages.send` for all records and the entitlement.
 
 ## 11. Events
 
@@ -241,9 +317,12 @@ until Phase 10.
 
 ## 12. Known limits and owner decisions
 
-- No SMS/WhatsApp provider, no bulk campaigns, no inbound email, no per-member notification digest.
+- Provider accounts are platform-owned: a workspace cannot bring its own SMS/SMTP account, only choose one the
+  operator made available to it. Twilio, `http_sms` and SMTP are unverified against live providers. No inbound
+  email, no per-member notification digest.
 - Message bodies are stored for the log and the timeline; there is no retention policy yet.
-- Provider webhook delivery receipts are only as good as the adapter; the mail adapter has none.
+- Provider webhook delivery receipts are only as good as the adapter; the mail, SMTP, Twilio and HTTP SMS
+  adapters have none (SMS delivery receipts are not consumed), so their messages stay `sent`.
 - Whether `communication.notifications.view` should join the default Employee/Manager role grants
   (`DefaultRoles`) is an owner decision; existing workspaces are not changed by a release either way.
 
@@ -262,7 +341,7 @@ Validation failures come back as Inertia form errors; feedback is a `Toast`.
 | `communication.preferences.index` / `.update` | GET / PUT `preferences` | `notifications.view` | `preferences[]`: `category`, `in_app`, `email` (bool) |
 | `communication.messages.index` | GET `messages` | `messages.view` | query `search`, `status`, `channel`, `source`, `contact` |
 | `communication.messages.create` | GET `messages/compose` | `messages.send` | query `contact` (ULID, preselect) |
-| `communication.messages.store` | POST `messages` (throttle 30/min) | `messages.send` | `contact_id`, `channel`, `purpose`, `template_id?`, `subject?` (required for email without template), `body?` (required without template, max 5000), `request_id?` (idempotency) |
+| `communication.messages.store` | POST `messages` (throttle 30/min) | `messages.send` | `contact_id`, `channel`, `purpose?` (advisory; `transactional` only with `send_transactional`), `template_id?`, `subject?` (required for email without template), `body?` (required without template, max 5000), `request_id?` (idempotency) |
 | `communication.messages.show` | GET `messages/{message}` | `messages.view` | none |
 | `communication.messages.retry` / `.cancel` | POST `messages/{message}/{retry\|cancel}` | `messages.send` | none |
 | `communication.timeline.contact.show` / `.company.show` | GET `contacts/{contact}/timeline`, `companies/{company}/timeline` | `timeline.view` | query `type` |
@@ -277,7 +356,7 @@ Validation failures come back as Inertia form errors; feedback is a `Toast`.
 | `communication.settings.index` / `.update` | GET / PUT `settings` | `settings.manage` | `from_name?`, `reply_to_email?`, `quiet_hours_enabled`, `quiet_hours_start`, `quiet_hours_end` (HH:MM), `footer_text?` |
 | `communication.settings.channels.update` | PUT `settings/channels/{channel}` (`email`/`sms`/`whatsapp`) | `settings.manage` | `provider`, `is_enabled`, `settings{}`, `credential_ref?`, `webhook_secret_ref?`, `rate_limit_per_minute?` |
 | `communication.webhooks.receive` | POST `communication/webhooks/{provider}` (callback group) | signature | raw body, provider headers |
-| `communication.unsubscribe.show` / `.store` | GET / POST `communication/unsubscribe/{token}` (callback group, Blade view `communication.unsubscribe`, not Inertia) | token | none |
+| `communication.unsubscribe.show` / `.store` | GET / POST `communication/unsubscribe/{token}` (`tenant.callback`, not entitlement-gated, Blade view `communication.unsubscribe`, not Inertia) | token | none |
 
 Pages (`Modules/Communication/Pages/...`), props exactly as the controllers send them:
 
@@ -287,7 +366,7 @@ Pages (`Modules/Communication/Pages/...`), props exactly as the controllers send
 | `Notifications/Preferences` | `preferences: {category, in_app, email}[]`, `emailAvailable: boolean` |
 | `Messages/Index` | `messages` (paginator of Message), `filters {search, status, channel, source, contact}`, `statuses: string[]`, `channels: {channel, state}[]`, `canSend` |
 | `Messages/Show` | `message`: Message plus `body`, `locale`, `provider`, `failureMessage`, `templateId`, `owner {id, name}|null` |
-| `Messages/Compose` | `contacts: {id, name, email, phone}[]`, `channels: {channel, state}[]`, `purposes: string[]`, `templates: {id, name, channel, locale, purpose, subject}[]`, `contactId: string|null` |
+| `Messages/Compose` | `contacts: {id, name, email, phone}[]`, `channels: {channel, state}[]`, `purposes: string[]` (what free text may be: `['marketing']`, plus `transactional` with the sensitive permission), `canChoosePurpose: boolean`, `templates: {id, name, channel, locale, purpose, subject}[]`, `contactId: string|null` |
 | `Timeline/Show` | `subject {type: contact|company, id, name, email, phone, ...}`, `entries` (paginator of TimelineEntry), `filters {type}`, `types: string[]` (manual types), `canLog`, `canCompose` |
 | `Templates/Index` | `templates: Template[]`, `variables: {key, label}[]`, `channels`, `locales`, `purposes`, `canManage` |
 | `Audience/Index` | `consents` (paginator, page name `consents_page`), `suppressions` (paginator, `suppressions_page`), `filters {search, status, channel}`, `contacts: {id,name,email,phone}[]` (empty without consent permission), `methods`, `channels`, `scopes`, `canManageConsent`, `canManageSuppressions` |
@@ -304,7 +383,7 @@ Widget `communication.notifications` (component `NotificationsWidget`): `{unread
 
 ## 14. Contracts for marketing apps
 
-Email marketing, SMS and WhatsApp apps must not import this module's models, enums or events. Everything they
+Decision record: ADR 0014. Email marketing, SMS and WhatsApp apps must not import this module's models, enums or events. Everything they
 need is under `App\Core\Communication` (always bound; honest null objects answer when the app is not installed,
 and the module answers the same way when the workspace is not entitled). Call inside the active tenant context.
 
@@ -313,6 +392,7 @@ and the module answers the same way when the workspace is not entitled). Call in
 | `Contracts\MarketingAudience` | `canReceive(contactId, MarketingChannel, MessagingPurpose = Marketing): AudienceDecision`; `decideMany(list<id> up to 1000, ...): array<id, AudienceDecision>` (a fixed ~6 queries) | `allowed=false`, `channel_unavailable` |
 | `Contracts\UnsubscribeLinks` | `issue(contactId, MarketingChannel, source): ?string` absolute workspace URL | `null` |
 | `Contracts\ChannelGateway` | `availability(channel)`, `send(MarketingMessage): SendReceipt`, `statusFor(id)`, `statusForMany(ids)` | `not_configured` / `unavailable`, nothing recorded |
+| `Contracts\ConsentRecorder` | `recordOptOut(contactId, MarketingChannel, method, evidenceNote?, address?): bool` (method `keyword`\|`button`; consent withdrawn and the address suppressed for marketing, at once); `recordOptIn(contactId, MarketingChannel, method, evidence): bool` (method `form`\|`double_opt_in`; refused with `false` while a suppression holds the address) | `false`, nothing recorded |
 
 **Decision** (`AudienceReason`): checked in order channel available (`channel_unavailable`), contact exists
 (`unknown_contact`), valid address (`no_address`), suppression (`unsubscribed` when only unsubscribe suppressions
@@ -353,7 +433,9 @@ use `commTenant`, `optIn`, `connectFakeProvider` (SMS/WhatsApp, testing and loca
 
 - `MarketingMessage::$purpose` defaults to `Marketing`. `Transactional` is accepted for **WhatsApp only** (a reply
   inside the customer-service window of a conversation the customer started): no marketing consent, no quiet hours,
-  suppression scope `all` still blocks. Any other channel throws.
+  suppression scope `all` still blocks. Any other channel throws. The gateway also requires the provider hint
+  `whatsapp_window_until` naming a moment still in the future; without it the message is queued as marketing.
+  A campaign must always send `Marketing`, whatever its template's category.
 - `MarketingMessage::$providerHints` carries provider instructions (at most 10, keys prefixed with the channel such as
   `whatsapp_template`, scalar values up to 2000 characters). The gateway stores them in the message meta, before the
   `marketing_*` references so they can never replace them; the prefix keeps a hint from overriding connection
@@ -364,4 +446,6 @@ use `commTenant`, `optIn`, `connectFakeProvider` (SMS/WhatsApp, testing and loca
   address, the matching shared contact id, the marketing module/campaign/recipient references, the text of an
   inbound message and provider `details` (message type, profile name, media MIME type, pricing facts, template
   name/language/status). A listener checks its own entitlement, is idempotent, treats text and details as untrusted
-  and may not throw: exceptions are caught and logged by class only.
+  and should not throw: exceptions are logged by class only and never stop another listener. For an `inbound`
+  event a listener's failure makes the webhook answer `503` and keeps nothing of the event, so the provider
+  redelivers it (the message exists nowhere else); this is why listeners must be idempotent.

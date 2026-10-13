@@ -113,7 +113,11 @@ final class MessageController
         return Inertia::render('Modules/Communication/Pages/Messages/Compose', [
             'contacts' => $this->support->contactOptions($actor),
             'channels' => $this->channelStates(),
-            'purposes' => array_map(static fn (MessagePurpose $purpose): string => $purpose->value, MessagePurpose::cases()),
+            // What the sender may choose for FREE TEXT. Templates carry their own purpose.
+            'purposes' => $actor->can(ManualMessages::SEND_TRANSACTIONAL)
+                ? array_map(static fn (MessagePurpose $purpose): string => $purpose->value, MessagePurpose::cases())
+                : [MessagePurpose::Marketing->value],
+            'canChoosePurpose' => $actor->can(ManualMessages::SEND_TRANSACTIONAL),
             'templates' => MessageTemplate::query()->where('is_active', true)->orderBy('name')->get()
                 ->map(fn (MessageTemplate $template): array => [
                     'id' => $template->id,

@@ -12,6 +12,7 @@ use App\Core\Support\Like;
 use App\Core\Support\Toast;
 use App\Modules\EmailMarketing\Actions\AudienceBuilder;
 use App\Modules\EmailMarketing\Actions\ListManager;
+use App\Modules\EmailMarketing\Actions\PublicSignup;
 use App\Modules\EmailMarketing\Actions\SubscriberExporter;
 use App\Modules\EmailMarketing\Actions\SubscriberManager;
 use App\Modules\EmailMarketing\Enums\ConsentMethod;
@@ -34,6 +35,7 @@ final class ListController
 {
     public function __construct(
         private readonly ListManager $lists,
+        private readonly PublicSignup $signups,
         private readonly SubscriberManager $subscribers,
         private readonly SubscriberExporter $exporter,
         private readonly AudienceBuilder $audience,
@@ -92,9 +94,14 @@ final class ListController
         $segments = Segment::query()->where('list_id', $record->id)->orderBy('name')->get();
         $segment = isset($filters['segment']) ? $segments->firstWhere('id', $filters['segment']) : null;
 
+        // A member is a person's name and address: each one only for someone who may see that contact.
+        $visible = $this->records->constrain(Contact::query(), $actor, 'core.contacts.view')->select('id');
+        $hidden = Subscription::query()->where('list_id', $record->id)->count()
+            - Subscription::query()->where('list_id', $record->id)->whereIn('contact_id', $visible)->count();
+
         $members = Subscription::query()
             ->with(['contact', 'list'])
-            ->whereHas('contact')
+            ->whereIn('contact_id', $visible)
             ->where('list_id', $record->id)
             ->when($filters['status'] ?? null, fn ($query, string $status) => $query->where('status', $status))
             ->when($segment !== null, fn ($query) => SegmentRules::apply($query, $segment->rules, $segment->match))
@@ -114,12 +121,14 @@ final class ListController
         return Inertia::render('Modules/EmailMarketing/Pages/Lists/Show', [
             'list' => $this->presenter->list($record, $counts),
             'members' => $members->through(fn (Subscription $member): array => $this->presenter->subscription($member, $decisions[$member->contact_id] ?? null)),
+            'hiddenMembers' => max(0, $hidden),
             'segments' => $segments->map(fn (Segment $item): array => $this->presenter->segment($item, $this->audience->count($record->id, $item)))->values()->all(),
             'filters' => ['status' => $filters['status'] ?? null, 'segment' => $filters['segment'] ?? null, 'q' => $filters['q'] ?? null],
             'statuses' => array_map(static fn (SubscriptionStatus $status): string => $status->value, SubscriptionStatus::cases()),
             'consentMethods' => array_map(static fn (ConsentMethod $method): string => $method->value, ConsentMethod::cases()),
             'segmentFields' => array_keys(SegmentRules::FIELDS),
             'segmentOperators' => SegmentRules::FIELDS,
+            'signup' => $actor->can('email_marketing.lists.manage') ? $this->signups->summary($record) : null,
             'canManage' => $actor->can('email_marketing.lists.manage'),
             'canManageSubscribers' => $actor->can('email_marketing.subscribers.manage'),
             'canExport' => $actor->can('email_marketing.subscribers.export'),
@@ -136,6 +145,22 @@ final class ListController
             'status' => ['sometimes', Rule::enum(ListStatus::class)],
         ]));
         Toast::success(__('List saved.'));
+
+        return back();
+    }
+
+    public function updateSignup(Request $request, string $list): RedirectResponse
+    {
+        $this->support->actor($request);
+        $record = MailingList::query()->findOrFail($list);
+        $data = $request->validate([
+            'enabled' => ['required', 'boolean'],
+            'embed' => ['required', 'boolean'],
+            'rotate' => ['sometimes', 'boolean'],
+        ]);
+
+        $this->lists->configureSignup($record, (bool) $data['enabled'], (bool) $data['embed'], (bool) ($data['rotate'] ?? false));
+        Toast::success(__('Sign-up form saved.'));
 
         return back();
     }
@@ -206,9 +231,9 @@ final class ListController
 
     public function export(Request $request, string $list): StreamedResponse
     {
-        $this->support->actor($request);
+        $actor = $this->support->actor($request);
         $record = MailingList::query()->findOrFail($list);
-        $csv = $this->exporter->csv($record);
+        $csv = $this->exporter->csv($record, $actor);
 
         return response()->streamDownload(static function () use ($csv): void {
             echo $csv;

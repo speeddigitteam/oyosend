@@ -67,7 +67,31 @@ final class Outbox
      */
     public function assertWithinLimit(string $field = 'limit'): void
     {
-        $this->limits->ensure(self::LIMIT, 1, $field);
+        $this->limits->ensure(self::LIMIT, 1 + $this->pending(), $field);
+    }
+
+    /**
+     * Messages already accepted but not yet counted: queued ones (a plan's allowance is spent when the provider
+     * accepts a message, so a backlog is owed against it) and ones being sent right now.
+     */
+    public function pending(?string $exceptId = null, bool $inFlightOnly = false): int
+    {
+        $statuses = $inFlightOnly ? [MessageStatus::Sending] : [MessageStatus::Queued, MessageStatus::Sending];
+
+        return Message::query()
+            ->whereIn('status', array_map(static fn (MessageStatus $status): string => $status->value, $statuses))
+            ->when($exceptId !== null, static fn ($query) => $query->where('id', '!=', $exceptId))
+            ->count();
+    }
+
+    /**
+     * Whether one more message fits the plan's limit once what is already waiting or in flight is counted.
+     * The worker asks this again right before a provider call, with only in-flight messages as the backlog
+     * (the queue itself is not "used" until a message is accepted).
+     */
+    public function hasRoom(?string $exceptId = null, bool $inFlightOnly = false): bool
+    {
+        return $this->limits->allows(self::LIMIT, 1 + $this->pending($exceptId, $inFlightOnly));
     }
 
     public function queue(OutboundRequest $request): Message
@@ -99,7 +123,7 @@ final class Outbox
         if ($blocked !== null) {
             $status = MessageStatus::Suppressed;
             $failure = $blocked;
-        } elseif (! $this->limits->allows(self::LIMIT)) {
+        } elseif (! $this->hasRoom()) {
             $status = MessageStatus::Failed;
             $failure = self::FAILED_LIMIT;
         }

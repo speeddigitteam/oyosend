@@ -23,7 +23,7 @@ use Illuminate\Validation\ValidationException;
 final class ConsentManager
 {
     /** How consent was obtained. */
-    public const array METHODS = ['form', 'verbal', 'written', 'import', 'unsubscribe_link', 'complaint', 'other'];
+    public const array METHODS = ['form', 'verbal', 'written', 'import', 'unsubscribe_link', 'keyword', 'button', 'complaint', 'other'];
 
     public function __construct(
         private readonly AuditLogger $audit,

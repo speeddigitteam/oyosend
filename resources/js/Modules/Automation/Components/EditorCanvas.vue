@@ -30,13 +30,17 @@ const { t } = useI18n();
 const { fitView, zoomIn, zoomOut, updateNodeInternals } = useVueFlow();
 
 function valid(connection: Connection): boolean {
-    return (
-        connect(nodes.value, edges.value, {
-            source: connection.source,
-            target: connection.target,
-            sourceHandle: connection.sourceHandle,
-        }).edges !== null
-    );
+    const result = connect(nodes.value, edges.value, {
+        source: connection.source,
+        target: connection.target,
+        sourceHandle: connection.sourceHandle,
+    });
+
+    // Vue Flow also runs this check over edges that are already in the model whenever
+    // the edge list is replaced. Each of those is a "duplicate" of itself and would be
+    // dropped, wiping every connection after the first change. A real duplicate drawn
+    // by hand still reaches onConnect() and is refused there with a message.
+    return result.edges !== null || result.refusal === 'duplicate';
 }
 
 function onConnect(connection: Connection): void {

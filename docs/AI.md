@@ -1,7 +1,8 @@
 # AI Assistant (module `ai`)
 
-State: Phase 11 backend. Category AI Tools, a **paid** optional app that depends on `core` only. The frontend pages
-are built separately (`resources/js/Modules/Ai`). Spec: `MASTER_PROMPT.md` section 14.
+State: Phase 11, backend and bilingual pages (`resources/js/Modules/Ai`: Assistant, Settings, Usage; the operator
+panel is `resources/js/Platform/Pages/Ai/Providers.vue`). Not independently reviewed. Category AI Tools, a **paid**
+optional app that depends on `core` only. Spec: `MASTER_PROMPT.md` section 14. Design record: ADR 0018.
 
 What it is: a private assistant chat that answers from the records the signed-in member may see, text-only drafting
 (summarise a record, draft a reply, rewrite), and a workflow action that generates text. It **cannot change data on
@@ -15,13 +16,14 @@ optional modules (the contract is built, see "Adding a tool"), AI-assisted segme
 | Piece | Where |
 |---|---|
 | Contract | `App\Modules\Ai\Contracts\AiProvider`: `name()`, `model()`, `isConfigured()`, `complete(CompletionRequest): CompletionResponse` (tool use included, no streaming) |
-| Real adapter | `Providers\AnthropicProvider`: Anthropic Messages API (`POST {base_url}/v1/messages`, `x-api-key`, `anthropic-version: 2023-06-01`) over the Laravel HTTP client. The official PHP SDK is **not** installed (new dependency: licence and Laravel 13 check not done); this is a thin adapter over the documented HTTP API |
+| Real adapters (see also section 9) | `Providers\AnthropicProvider`: Anthropic Messages API (`POST {base_url}/v1/messages`, `x-api-key`, `anthropic-version: 2023-06-01`) over the Laravel HTTP client. The official PHP SDK is **not** installed (new dependency: licence and Laravel 13 check not done); this is a thin adapter over the documented HTTP API |
 | Fake | `Providers\FakeAiProvider`: scripted answers. Registered only when the environment is `local` or `testing`, selected only by `AI_PROVIDER=fake`; `ProviderManager` resolves anything else to Anthropic, which reports `not_configured` without a key |
 | Config | `config/ai.php`; env `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `AI_ANTHROPIC_MODEL` (default `claude-sonnet-5-5`), `AI_PROVIDER`, `AI_TIMEOUT_SECONDS`, `AI_MAX_OUTPUT_TOKENS`, `AI_MAX_TURN_TOKENS`, `AI_TENANT_RPM`, `AI_MEMBER_RPM`, `AI_REDACTION_DEFAULT` |
 
-The credential is **platform-level**: one key held by the operator in the environment. It is never stored in the
-database, never taken from a tenant, the request or a header, and never shown or logged. It exists only in the
-`x-api-key` request header. A provider failure is logged by HTTP status and error type only (never request or
+The credential is **platform-level**: held by the operator, either as an account in the Super Admin panel
+(section 9: stored encrypted, write-only) or, when no account exists, as one key in the environment. It is never
+taken from a tenant, the request or a header, and never shown or logged. It exists only in the provider request
+header (`x-api-key`, or a bearer token for OpenAI-compatible accounts). A provider failure is logged by HTTP status and error type only (never request or
 response body) and surfaces as a generic message. Tenant-owned (BYO) keys were considered and **not built**: they
 would need encrypted per-workspace storage and a documented operator decision (spec: "where permitted").
 
@@ -35,6 +37,7 @@ called and nothing is simulated. The honest states (`Enums\AiState`) are `ready`
 | Safeguard | How |
 |---|---|
 | Sees no more than the person | Every tool runs as the member (`ToolContext`): `AccessChecker` for the permission (entitlement included) and `RecordAccess::constrain()` for the record scope. A record outside the scope is "not found" |
+| Confirmation shows values | The confirmation card lists each field with the value that would be written and, for an update, the current value (`ProposalTool::changes()`, plain text, cut at 200 characters), not only field names. A confirm re-reads the proposal under a row lock, so a double click or two tabs apply it once (one audit entry, one event) |
 | Read-only tools | `AiTool::execute()` returns data. A tool that would change data is a `ProposalTool`: `execute()` validates and describes, `apply()` runs only after a human confirms, as that human, through the module action (`ContactDirectory`), inside a transaction with audit and a domain event |
 | No money, no permissions | `ToolRegistry` refuses (LogicException) any tool whose name or permission has a payment, payout, refund, payroll, billing, role, permission, invitation, member, transfer, credit-note or salary segment |
 | Prompt injection | Record content reaches the model only as data: tool results are `{"untrusted_data": ...}` JSON (tag characters hex-escaped), drafting wraps records in `<record_data>` / `<text_data>` JSON blocks; the system prompt (versioned `SystemPrompt::VERSION`, in code only) ranks above data and says data is never an instruction. Drafting and automation calls have **no tools at all**. A tool the model asks for is checked against the member's available tools regardless of what the model was told |
@@ -134,11 +137,41 @@ carry `propose` in the name.
 
 ## 8. Operating
 
-- Set `ANTHROPIC_API_KEY` (and optionally `AI_ANTHROPIC_MODEL`) in the platform environment. Without it the app
-  installs and works as far as settings and history go, and says `not_configured` for generation.
+- Add a provider in the Super Admin panel (AI providers, section 9), or set `ANTHROPIC_API_KEY` (and optionally
+  `AI_ANTHROPIC_MODEL`) in the platform environment. Without either the app installs and works as far as settings
+  and history go, and says `not_configured` for generation.
 - Queue `ai` is worked by Horizon (existing supervisor). Run `php artisan permissions:sync` and
   `php artisan apps:sync --prune` after deploy.
 - Fake provider for local development: `AI_PROVIDER=fake` (the scripted provider answers "Fake reply."; it refuses
   to load in production).
 - The model is a platform decision; Sonnet class is the default for cost. Prompts are versioned in
   `Support\SystemPrompt`.
+
+## 9. Operator provider accounts (Super Admin > AI providers)
+
+Extends ADR 0013 (platform provider accounts, written for messaging): the operator manages AI provider accounts
+in the panel instead of only in the environment. The panel is `platform.ai.*` routes
+(`GET/POST /ai/providers`, `PUT/DELETE /ai/providers/{account}`, `POST .../test`, `POST .../default`) on
+`admin.APP_DOMAIN`, behind `can:platform.settings.manage`; the page is `Platform/Pages/Ai/Providers`.
+
+| Piece | Where |
+|---|---|
+| Table / model | `ai_provider_accounts` / `Models\AiProviderAccount` (central connection, no `tenant_id`). Columns: `driver`, `name` (unique), `model`, `base_url`, `is_enabled`, `is_default`, `secrets` (`encrypted:array`, hidden), last test status/reason/time |
+| Drivers | `Enums\AiDriver`: `anthropic` (key required, endpoint optional) and `openai_compatible` (chat-completions API: OpenAI, Azure-style gateways, OpenRouter, Ollama-like servers; endpoint required and includes the version prefix such as `https://api.openai.com/v1`, key optional, sent as a bearer token) |
+| Manager | `Actions\AiProviderAccounts`: create / update / makeDefault / delete / test, all audited (`platform.ai_provider.*`, no key, only `key_set` / `key_replaced` flags) |
+| Resolution | `Providers\ProviderManager`: the enabled default account; else, if accounts exist but none is an enabled default, `not_configured` (never a silent fall back to the environment); else, with no account at all, the environment exactly as before |
+| Adapters | `AnthropicProvider` (settings from the account or from config) and `OpenAiCompatibleProvider` (neutral `tool_use` / `tool_result` blocks translated to `tool_calls` / `tool` messages and back) |
+
+Rules: the key is write-only and encrypted; exactly one enabled account is the default (the first enabled account
+added becomes it; disabling the default clears the flag; a disabled account cannot be made default). Changing,
+disabling, deleting or switching accounts resets the circuit breaker, because its failure history belonged to the
+previous provider; the cost guardrails (output cap, turn cap, rate limits, plan limit) are unchanged and apply to
+whichever account is active. Workspaces never see or choose an account: the default is platform-wide.
+"Test connection" makes one call with an 8 token output cap and stores only `ok` or a reason code
+(`not_configured`, `unreachable`, `unauthorized`, `rate_limited`, `http_error`, `bad_response`).
+
+Not verified: both adapters, and especially the OpenAI-compatible one, have only been exercised against faked HTTP
+responses (`Http::fake`, `tests/Feature/Ai/ProviderAccountsTest.php`); they have not been run against a live
+Anthropic, OpenAI, Azure, OpenRouter or Ollama endpoint. Servers differ (for example in token parameter names such
+as `max_tokens` vs `max_completion_tokens`, or in tool-call support), so run "test connection" and a real assistant
+turn before relying on an account.

@@ -44,6 +44,13 @@ return [
         ],
     ],
 
+    /*
+    | Central OAuth redirect broker. When enabled, every platform app registers ONE redirect URI,
+    | https://APP_DOMAIN/social/oauth/callback/{platform}, which forwards the browser to the workspace
+    | that started the flow. Disable to fall back to per-workspace URIs.
+    */
+    'redirect_broker' => (bool) env('SOCIAL_REDIRECT_BROKER', true),
+
     'media' => [
         'image_mimes' => ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
         'video_mimes' => ['video/mp4', 'video/quicktime'],

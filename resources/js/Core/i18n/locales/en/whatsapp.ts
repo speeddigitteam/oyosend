@@ -178,6 +178,14 @@ export default {
         unreadCount: '{count} unread',
         unassignedLabel: 'Unassigned',
         windowOpen: 'Window open',
+        viewList: 'List',
+        viewBoard: 'Board',
+        col: {
+            unassigned: 'Unassigned',
+            active: 'In progress',
+            closed: 'Closed',
+        },
+        boardMore: '{count} more not shown',
     },
     start: {
         title: 'Start a conversation',
@@ -354,6 +362,7 @@ export default {
         audienceLink: 'Open consent records',
         membersTitle: 'Contacts on this list: {count} of {cap}',
         membersCaption: 'Contacts on this list',
+        hiddenMembers: '{count} members are contacts you may not see. They are on the list but are not shown here.',
         membersEmpty: 'No contacts on this list yet',
         membersEmptyBody: 'Search for contacts on the side and add them.',
         canReceive: 'Can receive',
@@ -450,6 +459,7 @@ export default {
         readRateHint: 'Read of delivered',
         reasonsTitle: 'Why messages were not sent',
         recipients: 'Recipients',
+        hiddenRecipients: '{count} recipients are contacts you may not see. They are part of this campaign but are not listed here.',
         state: 'State',
         anyState: 'Any state',
         columns: {

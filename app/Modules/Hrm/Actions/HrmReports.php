@@ -64,7 +64,7 @@ final class HrmReports
      * @param  Builder<AttendanceDay>  $days
      * @return LengthAwarePaginator<int, mixed>
      */
-    public function attendanceByEmployee(Builder $days, string $from, string $to, int $perPage = 25): LengthAwarePaginator
+    public function attendanceByEmployee(Builder $days, string $from, string $to, int $perPage = 25, ?int $page = null): LengthAwarePaginator
     {
         $statuses = fn (DayStatus $status): string => "SUM(CASE WHEN status = '{$status->value}' THEN 1 ELSE 0 END)";
 
@@ -86,7 +86,7 @@ final class HrmReports
                 'SUM(CASE WHEN late_minutes > 0 THEN 1 ELSE 0 END) as late_days',
             ]))
             ->orderBy('employee_id')
-            ->paginate($perPage);
+            ->paginate($perPage, ['*'], 'page', $page);
 
         $employees = Employee::query()->whereKey($page->pluck('employee_id')->all())->get(['id', 'employee_number', 'first_name', 'last_name'])->keyBy('id');
 

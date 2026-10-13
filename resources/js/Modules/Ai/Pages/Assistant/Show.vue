@@ -13,7 +13,7 @@ import Textarea from '@/Core/Components/Textarea.vue';
 import { useFormat } from '@/Core/composables/useFormat';
 import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
 import { route } from '@/Core/lib/route';
-import { canCompose, proposalTone } from '../../Components/aiFormat';
+import { canCompose, proposalFieldKey, proposalTone } from '../../Components/aiFormat';
 import AiNav from '../../Components/AiNav.vue';
 import AvailabilityNotice from '../../Components/AvailabilityNotice.vue';
 import ConversationList from '../../Components/ConversationList.vue';
@@ -142,6 +142,17 @@ function usedTools(message: ChatMessage): string[] {
                             <Badge :tone="proposalTone(proposal.status)">{{ t(`ai.proposal.status.${proposal.pending ? 'pending' : proposal.status}`) }}</Badge>
                         </div>
                         <p class="mt-1.5 text-sm break-words whitespace-pre-wrap text-ink">{{ proposal.summary }}</p>
+                        <dl v-if="proposal.pending && proposal.changes.length > 0" class="mt-2 grid gap-2" data-testid="proposal-changes">
+                            <div v-for="change in proposal.changes" :key="change.field" class="rounded-control bg-control-sunken px-2.5 py-2 text-xs">
+                                <dt class="font-semibold text-ink">{{ te(proposalFieldKey(change.field)) ? t(proposalFieldKey(change.field)) : change.field }}</dt>
+                                <dd v-if="change.old !== null" class="mt-0.5 break-words whitespace-pre-wrap text-ink-subtle">
+                                    {{ t('ai.proposal.oldValue') }}: {{ change.old }}
+                                </dd>
+                                <dd class="mt-0.5 break-words whitespace-pre-wrap text-ink">
+                                    {{ t('ai.proposal.newValue') }}: {{ change.new ?? t('ai.proposal.emptyValue') }}
+                                </dd>
+                            </div>
+                        </dl>
                         <p class="mt-1 text-xs text-ink-subtle">
                             <template v-if="proposal.pending">{{ t('ai.proposal.expires', { time: format.relative(proposal.expiresAt) }) }}</template>
                             <template v-else-if="proposal.decidedAt">{{ t('ai.proposal.decided', { time: format.relative(proposal.decidedAt) }) }}</template>

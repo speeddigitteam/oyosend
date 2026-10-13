@@ -88,7 +88,8 @@ final class SlaClock
     {
         $policy = $this->policyOf($ticket);
 
-        if ($ticket->sla_paused_at !== null || $policy === null || ! $policy->pause_on_waiting) {
+        // Nobody has answered yet: waiting on the customer cannot stop the first-response clock.
+        if ($ticket->sla_paused_at !== null || $ticket->first_responded_at === null || $policy === null || ! $policy->pause_on_waiting) {
             return false;
         }
 
@@ -120,6 +121,23 @@ final class SlaClock
         $ticket->sla_paused_at = null;
 
         return true;
+    }
+
+    /**
+     * Remembers that the resolution target was missed in the cycle that is ending (breach stamped by the
+     * monitor, or resolved after its due instant), so a reopen cannot turn a missed target into a met one.
+     */
+    public function keepFirstCycleBreach(Ticket $ticket): void
+    {
+        if ($ticket->resolution_first_breached_at !== null) {
+            return;
+        }
+
+        if ($ticket->resolution_breached_at !== null) {
+            $ticket->resolution_first_breached_at = $ticket->resolution_breached_at;
+        } elseif ($ticket->resolved_at !== null && $ticket->resolution_due_at !== null && $ticket->resolved_at->greaterThan($ticket->resolution_due_at)) {
+            $ticket->resolution_first_breached_at = $ticket->resolution_due_at;
+        }
     }
 
     /** A reopened ticket gets a fresh resolution target counted from `$now`. */
