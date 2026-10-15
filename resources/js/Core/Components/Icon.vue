@@ -66,6 +66,8 @@ import {
     Megaphone,
     FileText,
     Zap,
+    Phone,
+    History,
 } from 'lucide-vue-next';
 import type { Component } from 'vue';
 
@@ -86,6 +88,8 @@ const REGISTRY: Record<string, Component> = {
     'list-checks': ListChecks,
     blocks: Blocks,
     settings: Settings,
+    phone: Phone,
+    history: History,
     contact: Contact,
     network: Network,
     'credit-card': CreditCard,

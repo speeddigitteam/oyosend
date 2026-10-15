@@ -33,6 +33,7 @@ const catalogue: MessageSchema['catalogue'] = {
         automation: 'ওয়ার্কফ্লো অটোমেশন',
         ai: 'এআই',
         notes: 'নোট',
+        telephony: 'টেলিফোনি',
     },
     permissionGroups: {
         members: 'সদস্য',
@@ -140,6 +141,8 @@ const catalogue: MessageSchema['catalogue'] = {
         automation: 'ওয়ার্কফ্লো ও রান',
         automation_approvals: 'ওয়ার্কফ্লোর অনুমোদন',
         notes: 'নোট',
+        telephony_calls: 'কল',
+        telephony_settings: 'টেলিফোনি সেটিংস',
     },
     permissions: {
         'core.members.view': {
@@ -453,6 +456,9 @@ const catalogue: MessageSchema['catalogue'] = {
         'reports.saved.manage_all': { label: 'সব সংরক্ষিত রিপোর্ট পরিচালনা', description: 'অন্যদের সংরক্ষিত রিপোর্ট বদলাতে বা মুছতে পারবেন।' },
         'notes.notes.view': { label: 'নোট দেখা', description: 'অনুমোদিত রেকর্ড পরিসরের মধ্যে নোট দেখুন।' },
         'notes.notes.manage': { label: 'নোট যোগ ও সম্পাদনা', description: 'নোট তৈরি, সম্পাদনা, পিন ও মুছে ফেলুন।' },
+        'telephony.calls.view': { label: 'কল দেখা', description: 'অনুমোদিত রেকর্ড-পরিসরের মধ্যে কল লগ আর কন্টাক্টের কলগুলো দেখা।' },
+        'telephony.calls.make': { label: 'কল করা ও ধরা', description: 'ডায়ালার আর ব্রাউজার সফটফোন ব্যবহার করা, আর নিজের ফোন দিয়ে কল করা।' },
+        'telephony.settings.manage': { label: 'টেলিফোনি পরিচালনা', description: 'ফোন সিস্টেম যুক্ত করা, আর সদস্যদের এক্সটেনশন ও SIP পাসওয়ার্ড দেওয়া।' },
     },
     // How far a grant reaches, for permissions that can be narrowed.
     scopes: {
@@ -908,6 +914,11 @@ const catalogue: MessageSchema['catalogue'] = {
         'notes.note.created': 'একটি নোট তৈরি করেছেন',
         'notes.note.updated': 'একটি নোট আপডেট করেছেন',
         'notes.note.deleted': 'একটি নোট মুছেছেন',
+        'telephony.settings.saved': 'টেলিফোনি সেটিংস বদলেছেন',
+        'telephony.webhook_secret.rotated': 'টেলিফোনি ওয়েবহুকের নতুন গোপন কী তৈরি করেছেন',
+        'telephony.extension.created': 'টেলিফোনি এক্সটেনশন দিয়েছেন',
+        'telephony.extension.updated': 'টেলিফোনি এক্সটেনশন বদলেছেন',
+        'telephony.extension.deleted': 'টেলিফোনি এক্সটেনশন সরিয়েছেন',
     },
     // Automation triggers and actions registered by modules, by definition key.
     automation: {

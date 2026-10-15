@@ -227,6 +227,7 @@ const automation: MessageSchema['automation'] = {
         'whatsapp_marketing.campaign.completed': 'একটি হোয়াটসঅ্যাপ ক্যাম্পেইন সম্পন্ন হয়',
         'whatsapp_marketing.feedback.received': 'গ্রাহক একটি হোয়াটসঅ্যাপ কথোপকথনের রেটিং দেন',
         'notes.note.created': 'একটি নোট তৈরি হয়',
+        'telephony.call.ended': 'একটি কল শেষ হয়',
     },
     actions: {
         'ai.text.generate': 'এআই দিয়ে লেখা তৈরি করুন',

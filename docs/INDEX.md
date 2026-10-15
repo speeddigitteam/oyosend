@@ -43,6 +43,7 @@ and the code disagree, fix the page.
 | [`SUPPORT.md`](SUPPORT.md) | Customer Support (`support`) |
 | [`REPORTS.md`](REPORTS.md) | Reports & Analytics (`reports`) |
 | [`NOTES.md`](NOTES.md) | Notes (`notes`) |
+| [`TELEPHONY.md`](TELEPHONY.md) | Telephony (`telephony`): softphone, dialer, click-to-call, call log |
 
 ## Decisions (`adr/`)
 
@@ -77,3 +78,4 @@ and the code disagree, fix the page.
 | [0027](adr/0027-meta-ads-marketing-api-app.md) | Meta Ads: its own per-workspace encrypted token, a read-only `ConnectedPages` Social contract, safe pause / budget changes under a ceiling |
 | [0028](adr/0028-operator-managed-integration-credentials.md) | Operator-managed integration credentials in the panel: payment gateways and invoice issuer, encrypted and env-fallback |
 | [0029](adr/0029-social-and-meta-ads-panel-credentials.md) | Social and Meta Ads app credentials in the panel: config-override overlay, write-only secrets, shown-back public ids |
+| [0036](adr/0036-telephony-calls-dialer-and-softphone.md) | Telephony: call log, click-to-call, dialer and a JsSIP browser softphone through a PBX (Asterisk/FreeSWITCH) that holds a licensed Bangladeshi IPTSP's SIP trunk; PBX events are the call record; encrypted write-only credentials; each workspace configures its own PBX |

@@ -44,6 +44,7 @@ use App\Modules\Invoicing\Automation\Triggers\InvoiceIssuedTrigger;
 use App\Modules\Invoicing\Automation\Triggers\InvoiceOverdueTrigger;
 use App\Modules\Invoicing\Automation\Triggers\InvoicePaidTrigger;
 use App\Modules\Invoicing\Automation\Triggers\PaymentReceivedTrigger;
+use App\Modules\Telephony\Automation\Triggers\CallEndedTrigger;
 use App\Modules\Payroll\Automation\Actions\CreatePayItemAction;
 use App\Modules\Payroll\Automation\Actions\PrepareRunAction;
 use App\Modules\Payroll\Automation\Triggers\PayslipPaidTrigger;
@@ -357,6 +358,7 @@ describe('the application\'s own registry', function () {
             'whatsapp_marketing.message.read' => MessageReadTrigger::class,
             'whatsapp_marketing.conversation.assigned' => ConversationAssignedTrigger::class,
             'whatsapp_marketing.campaign.completed' => WhatsappMarketingCampaignCompletedTrigger::class,
+            'telephony.call.ended' => CallEndedTrigger::class,
         ])
             ->and($registry->actions())->toBe([
                 'crm.lead.assign' => CrmAssignLeadAction::class,

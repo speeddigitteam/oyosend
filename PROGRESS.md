@@ -664,3 +664,30 @@ reuses existing patterns (settings row, `TenantStorage`, browser-print documents
   field.
 - **Not done:** no browser pass; per-template visual polish is deliberately light (accent / spacing only); the
   letterhead has no adjustable content margins yet (bands sit flush, content flows between).
+
+## Telephony app added (2026-10-15)
+
+New first-party optional module `telephony` (category Customer Support, one free offer, depends on `core`): call log,
+click-to-call, a dialer and a browser softphone, through each workspace's own PBX (Asterisk/FreeSWITCH) that holds a
+licensed Bangladeshi IPTSP's SIP trunk. Decision record ADR 0036 (owner chose: own PBX, each workspace configures its
+own, build now against fakes). Doc: `docs/TELEPHONY.md` (linked from `docs/INDEX.md`; rows in `docs/MODULES.md`,
+`docs/DATABASE.md` section 3k4, `docs/SECURITY.md` 5d.12). **Built, unreviewed, never run against a live PBX.**
+
+- **Tables** (new migration `2026_10_15_000100_create_telephony_tables.php`): `telephony_settings`,
+  `telephony_extensions`, `telephony_calls`, `telephony_webhook_events`. Secrets encrypted and write-only. No recording.
+- **Permissions (3):** `telephony.calls.view` (scopable), `telephony.calls.make`, `telephony.settings.manage`. Totals
+  now `core` + 18 optional modules and 271 permissions (counts updated in CLAUDE.md, docs/MODULES.md and the tests).
+- **Softphone:** new dependency `jssip` 3.13.8 (MIT; its dependencies debug, events and sdp-transform are MIT). The
+  member's own SIP password is handed only to their browser on request (ADR 0036, SECURITY 5d.12).
+- **Bridge calls:** Asterisk ARI adapter behind `PbxClient`, with an SSRF guard (`PbxUrlGuard`, https, public addresses,
+  pinned) and a fake bound only in local/testing (`driver = fake`). New env flag `TELEPHONY_ALLOW_PRIVATE_PBX`.
+- **Call log:** PBX events (HMAC-signed, `tenant.callback`, replay window, idempotent) are the record; the member's
+  browser keeps unconfirmed rows live. Customer 360 section `telephony.calls` with a "Call" action, report
+  `telephony.calls_by_member`, trigger `telephony.call.ended`.
+- **Frontend:** `resources/js/Modules/Telephony/Pages/{Dialer,Calls/Index,Settings/Index}.vue`, `lib/{softphone,phone,http}.ts`;
+  i18n namespace `telephony` (en + bn), catalogue/shell/automation labels, server strings in `lang/bn.json`; `phone`
+  and `history` icons added to `Core/Components/Icon.vue`.
+- **Tests:** `tests/Feature/Telephony/TelephonyTest.php`, `tests/js/telephony.test.ts`; list/count updates in
+  RoutePipelineTest (stateless `telephony.events`), ModuleRegistryTest, AutomationRegistryTest, AppCatalogTest,
+  EntitlementTest and PlanManagementTest.
+- **Not done:** no live PBX/browser/IPTSP run; no hold, transfer, queues or IVR; no usage limit.

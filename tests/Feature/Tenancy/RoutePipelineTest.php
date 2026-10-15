@@ -85,6 +85,7 @@ const STATELESS_WORKSPACE_ROUTES = [
     'email_marketing.signup.confirm.show', 'email_marketing.signup.confirm.store',
     // Automation: inbound workflow webhooks (HMAC-signed, replay-windowed).
     'automation.hooks.receive',
+    'telephony.events',
     // Social: Facebook lead-ad webhook (HMAC-signed with the Meta app secret over the raw body) and its handshake.
     'social.leadads.webhook.receive', 'social.leadads.webhook.verify',
 ];

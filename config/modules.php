@@ -10,6 +10,7 @@ use App\Modules\Hrm\HrmServiceProvider;
 use App\Modules\Invoicing\InvoicingServiceProvider;
 use App\Modules\MetaAds\MetaAdsServiceProvider;
 use App\Modules\Notes\NotesServiceProvider;
+use App\Modules\Telephony\TelephonyServiceProvider;
 use App\Modules\Payroll\PayrollServiceProvider;
 use App\Modules\Projects\ProjectsServiceProvider;
 use App\Modules\Reports\ReportsServiceProvider;
@@ -54,6 +55,7 @@ return [
         WhatsappMarketingServiceProvider::class,
         ReportsServiceProvider::class,
         NotesServiceProvider::class,
+        TelephonyServiceProvider::class,
     ],
 
 ];

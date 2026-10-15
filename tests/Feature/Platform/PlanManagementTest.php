@@ -128,10 +128,13 @@ describe('creating a plan', function () {
                     ['key' => 'communication', 'name' => 'Communication'],
                     ['key' => 'email_marketing', 'name' => 'Email Marketing'],
                     ['key' => 'social', 'name' => 'Social Media'],
+                    ['key' => 'meta_ads', 'name' => 'Meta Ads'],
                     ['key' => 'sms_marketing', 'name' => 'SMS Marketing'],
                     ['key' => 'support', 'name' => 'Customer Support'],
                     ['key' => 'whatsapp_marketing', 'name' => 'WhatsApp Business'],
                     ['key' => 'reports', 'name' => 'Reports & Analytics'],
+                    ['key' => 'notes', 'name' => 'Notes'],
+                    ['key' => 'telephony', 'name' => 'Telephony'],
                 ])
                 ->where('limits', [
                     ['key' => 'core.members', 'kind' => 'gauge'],
@@ -149,6 +152,7 @@ describe('creating a plan', function () {
                     ['key' => 'email_marketing.subscribers', 'kind' => 'gauge'],
                     ['key' => 'social.scheduled_posts_per_month', 'kind' => 'metered'],
                     ['key' => 'social.connected_accounts', 'kind' => 'gauge'],
+                    ['key' => 'meta_ads.ad_accounts', 'kind' => 'gauge'],
                     ['key' => 'sms_marketing.segments_per_month', 'kind' => 'metered'],
                     ['key' => 'sms_marketing.contacts', 'kind' => 'gauge'],
                     ['key' => 'support.tickets_per_month', 'kind' => 'metered'],
@@ -175,10 +179,13 @@ describe('creating a plan', function () {
                 ['key' => 'communication', 'name' => 'Communication'],
                 ['key' => 'email_marketing', 'name' => 'Email Marketing'],
                 ['key' => 'social', 'name' => 'Social Media'],
+                ['key' => 'meta_ads', 'name' => 'Meta Ads'],
                 ['key' => 'sms_marketing', 'name' => 'SMS Marketing'],
                 ['key' => 'support', 'name' => 'Customer Support'],
                 ['key' => 'whatsapp_marketing', 'name' => 'WhatsApp Business'],
                 ['key' => 'reports', 'name' => 'Reports & Analytics'],
+                ['key' => 'notes', 'name' => 'Notes'],
+                ['key' => 'telephony', 'name' => 'Telephony'],
             ]));
     });
 
@@ -418,6 +425,7 @@ describe('editing a plan', function () {
                     ['key' => 'email_marketing.subscribers', 'kind' => 'gauge'],
                     ['key' => 'social.scheduled_posts_per_month', 'kind' => 'metered'],
                     ['key' => 'social.connected_accounts', 'kind' => 'gauge'],
+                    ['key' => 'meta_ads.ad_accounts', 'kind' => 'gauge'],
                     ['key' => 'sms_marketing.segments_per_month', 'kind' => 'metered'],
                     ['key' => 'sms_marketing.contacts', 'kind' => 'gauge'],
                     ['key' => 'support.tickets_per_month', 'kind' => 'metered'],

@@ -27,6 +27,7 @@ export default {
         automation: 'Workflow Automation',
         ai: 'AI',
         notes: 'Notes',
+        telephony: 'Telephony',
     },
     permissionGroups: {
         members: 'Members',
@@ -134,6 +135,8 @@ export default {
         automation: 'Workflows and runs',
         automation_approvals: 'Workflow approvals',
         notes: 'Notes',
+        telephony_calls: 'Calls',
+        telephony_settings: 'Telephony settings',
     },
     permissions: {
         'core.members.view': {
@@ -447,6 +450,9 @@ export default {
         'reports.saved.manage_all': { label: 'Manage all saved reports', description: 'Change or delete saved reports that other people saved.' },
         'notes.notes.view': { label: 'View notes', description: 'See notes within the granted record scope.' },
         'notes.notes.manage': { label: 'Add and edit notes', description: 'Create, edit, pin and delete notes.' },
+        'telephony.calls.view': { label: 'View calls', description: 'See the call log within the granted record scope, and calls on a contact.' },
+        'telephony.calls.make': { label: 'Make and take calls', description: 'Use the dialer and the browser softphone, and call through your own phone.' },
+        'telephony.settings.manage': { label: 'Manage telephony', description: 'Connect the phone system, and give members extensions and SIP passwords.' },
     },
     // How far a grant reaches, for permissions that can be narrowed.
     scopes: {
@@ -902,6 +908,11 @@ export default {
         'notes.note.created': 'Created a note',
         'notes.note.updated': 'Updated a note',
         'notes.note.deleted': 'Deleted a note',
+        'telephony.settings.saved': 'Changed the telephony settings',
+        'telephony.webhook_secret.rotated': 'Created a new telephony webhook secret',
+        'telephony.extension.created': 'Gave a telephony extension',
+        'telephony.extension.updated': 'Changed a telephony extension',
+        'telephony.extension.deleted': 'Removed a telephony extension',
     },
     // Automation triggers and actions registered by modules, by definition key.
     automation: {

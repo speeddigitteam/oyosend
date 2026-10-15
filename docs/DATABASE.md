@@ -750,6 +750,20 @@ Migration `app/Modules/Notes/Database/Migrations/2026_10_13_000100_create_notes_
 
 See `docs/NOTES.md`.
 
+## 3k4. Telephony tables
+
+Migration `app/Modules/Telephony/Database/Migrations/2026_10_15_000100_create_telephony_tables.php`, loaded by
+`TelephonyServiceProvider` (ADR 0036). All tenant-owned; every unique index leads with `tenant_id`.
+
+| Table | Notes |
+|---|---|
+| `telephony_settings` | One row per workspace (`UNIQUE(tenant_id)`): `driver`, `wss_url`, `sip_domain`, `api_url`, `api_username`, `origination_context`, `caller_id`, JSON `stun_urls`, `turn_url`, `turn_username`; `api_secret`, `turn_credential` and `webhook_secret` are **encrypted** (model casts) and write-only |
+| `telephony_extensions` | A member's SIP extension: `membership_id` -> `tenant_memberships` (cascade), `extension`, encrypted write-only `sip_password`, optional `bridge_phone` (E.164). `UNIQUE(tenant_id, membership_id)`, `UNIQUE(tenant_id, extension)` |
+| `telephony_calls` | The call log: `direction`, `mode`, `status`, `remote_number` (E.164), `extension`, `contact_id` -> `contacts` (`nullOnDelete`), `client_call_id` (SIP Call-ID from the browser), `pbx_call_id`, `started_at`, `answered_at`, `ended_at`, `duration_seconds`, `confirmed_at` (set by a PBX event), record-owner columns. `UNIQUE(tenant_id, pbx_call_id)`, `UNIQUE(tenant_id, client_call_id)`; indexes on `started_at`, contact, owner, department and branch. No recording column |
+| `telephony_webhook_events` | PBX events already applied: `event_key` (SHA-256 of the event id), `received_at`. `UNIQUE(tenant_id, event_key)` makes a redelivery a no-op |
+
+See `docs/TELEPHONY.md`.
+
 ## 4. Later tables (outline only)
 
 Names come from spec section 23. Nothing below is designed in detail or migrated. Spec 3.4 names plans, apps and

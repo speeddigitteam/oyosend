@@ -565,6 +565,25 @@ Decision record: ADR 0019. Procedures: `docs/DEPLOYMENT.md` section 8, `docs/BAC
   `*testing`. It writes synthetic data only.
 - None of these commands is reachable from the web.
 
+## 5d.12. Telephony: PBX credentials, softphone password, events (ADR 0036)
+
+- Each workspace enters its own PBX. The ARI password, the TURN credential, the webhook secret and every member's SIP
+  password are encrypted at rest, hidden from serialization and write-only: pages learn only whether one is stored, an
+  empty field keeps it, and the webhook secret is shown once when it is generated.
+- **A member's SIP password reaches that member's browser**, because a browser softphone cannot register without it.
+  It is served only by `GET /telephony/softphone/credentials`, only for the signed-in member's own extension, as JSON
+  with `Cache-Control: no-store`, never in shared page props and never logged. The PBX should restrict each extension to
+  its own calls; changing the password is one action.
+- The ARI URL is server-side request forgery checked (`PbxUrlGuard`): https only, no credentials, query or fragment in
+  the URL, and every resolved address public (loopback, private, link-local, reserved and IPv6 transition ranges are
+  refused) unless the environment sets `TELEPHONY_ALLOW_PRIVATE_PBX`. The connection is pinned to the checked
+  addresses and redirects are not followed. A PBX error never reaches the page: the member sees a fixed message.
+- PBX events arrive on a stateless `tenant.callback` route: HMAC-SHA256 over `{timestamp}.{body}` with the workspace's
+  secret, a 300-second replay window, a 16 KB cap and an event-id table that makes redelivery a no-op. The body cannot
+  pick the tenant (the host does) or a member outside the workspace (an extension maps to one inside it).
+- Browser reports about a call are accepted only from the call's owner and are ignored once the PBX confirmed the
+  call, so the log of consequence is the PBX's. No call is recorded.
+
 ## 5e. Browser security headers
 
 `App\Core\Http\Middleware\SecurityHeaders`, appended to the `web` group:

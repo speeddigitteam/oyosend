@@ -231,6 +231,7 @@ export default {
         'whatsapp_marketing.campaign.completed': 'A WhatsApp campaign completes',
         'whatsapp_marketing.feedback.received': 'A customer rates a WhatsApp conversation',
         'notes.note.created': 'A note is created',
+        'telephony.call.ended': 'A call ends',
     },
     actions: {
         'ai.text.generate': 'Generate text with AI',

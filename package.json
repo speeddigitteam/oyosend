@@ -37,5 +37,8 @@
         "vue-tsc": "^3.3.12",
         "ziggy-js": "^2.6.4"
     },
-    "name": "oyosend"
+    "name": "oyosend",
+    "dependencies": {
+        "jssip": "3.13.8"
+    }
 }
