@@ -113,6 +113,12 @@ const DECLARED_BY_TALENT = [
     'talent.tasks.complete',
 ];
 
+const DECLARED_BY_TELEPHONY = [
+    'telephony.calls.make',
+    'telephony.calls.view',
+    'telephony.settings.manage',
+];
+
 const DECLARED_BY_AI = [
     'ai.assistant.use',
     'ai.drafts.generate',
@@ -345,10 +351,10 @@ it('creates the permissions the registered modules declare', function () {
 
     sort($result['created']);
 
-    expect($result['created'])->toBe([...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_EMAIL_MARKETING, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_META_ADS, ...DECLARED_BY_NOTES, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SMS_MARKETING, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT, ...DECLARED_BY_WHATSAPP_MARKETING])
+    expect($result['created'])->toBe([...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_EMAIL_MARKETING, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_META_ADS, ...DECLARED_BY_NOTES, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SMS_MARKETING, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT, ...DECLARED_BY_TELEPHONY, ...DECLARED_BY_WHATSAPP_MARKETING])
         ->and($result['stale'])->toBe([])
         ->and($result['pruned'])->toBe([])
-        ->and(($this->names)())->toBe([...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_EMAIL_MARKETING, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_META_ADS, ...DECLARED_BY_NOTES, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SMS_MARKETING, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT, ...DECLARED_BY_WHATSAPP_MARKETING])
+        ->and(($this->names)())->toBe([...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_EMAIL_MARKETING, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_META_ADS, ...DECLARED_BY_NOTES, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SMS_MARKETING, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT, ...DECLARED_BY_TELEPHONY, ...DECLARED_BY_WHATSAPP_MARKETING])
         ->and(Permission::query()->where('guard_name', 'web')->where('module', 'core')->count())->toBe(count(DECLARED_BY_CORE))
         ->and(Permission::query()->where('guard_name', 'web')->where('module', 'crm')->count())->toBe(count(DECLARED_BY_CRM))
         ->and(Permission::query()->where('guard_name', 'web')->where('module', 'hrm')->count())->toBe(count(DECLARED_BY_HRM))
@@ -425,7 +431,7 @@ describe('permissions no module declares any more', function () {
             ->and(Permission::query()->whereKey($this->legacy->id)->exists())->toBeFalse()
             ->and(DB::table('role_has_permissions')->where('permission_id', $this->legacy->id)->count())->toBe(0)
             // Everything still declared survives, grants included.
-            ->and(($this->names)())->toBe([...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_EMAIL_MARKETING, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_META_ADS, ...DECLARED_BY_NOTES, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SMS_MARKETING, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT, ...DECLARED_BY_WHATSAPP_MARKETING])
+            ->and(($this->names)())->toBe([...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_EMAIL_MARKETING, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_META_ADS, ...DECLARED_BY_NOTES, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SMS_MARKETING, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT, ...DECLARED_BY_TELEPHONY, ...DECLARED_BY_WHATSAPP_MARKETING])
             ->and(app(RoleManager::class)->grantedNames($this->roleOf($this->acme, Role::MANAGER)))
             ->toBe(['core.apps.view', 'core.contacts.manage', 'core.contacts.view', 'core.members.invite', 'core.members.view', 'core.organization.view', 'core.roles.view']);
     });
@@ -442,7 +448,7 @@ describe('permissions no module declares any more', function () {
 
 describe('php artisan permissions:sync', function () {
     it('reports what it added', function () {
-        $declared = [...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_EMAIL_MARKETING, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_META_ADS, ...DECLARED_BY_NOTES, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SMS_MARKETING, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT, ...DECLARED_BY_WHATSAPP_MARKETING];
+        $declared = [...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_EMAIL_MARKETING, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_META_ADS, ...DECLARED_BY_NOTES, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SMS_MARKETING, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT, ...DECLARED_BY_TELEPHONY, ...DECLARED_BY_WHATSAPP_MARKETING];
 
         $this->artisan('permissions:sync')
             ->expectsOutputToContain(count($declared).' permission(s) added.')
@@ -470,6 +476,6 @@ describe('php artisan permissions:sync', function () {
             ->doesntExpectOutputToContain('Re-run with --prune')
             ->assertSuccessful();
 
-        expect(($this->names)())->toBe([...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_EMAIL_MARKETING, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_META_ADS, ...DECLARED_BY_NOTES, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SMS_MARKETING, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT, ...DECLARED_BY_WHATSAPP_MARKETING]);
+        expect(($this->names)())->toBe([...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_EMAIL_MARKETING, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_META_ADS, ...DECLARED_BY_NOTES, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SMS_MARKETING, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT, ...DECLARED_BY_TELEPHONY, ...DECLARED_BY_WHATSAPP_MARKETING]);
     });
 });

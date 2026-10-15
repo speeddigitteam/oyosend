@@ -10,7 +10,6 @@ use App\Modules\Hrm\HrmServiceProvider;
 use App\Modules\Invoicing\InvoicingServiceProvider;
 use App\Modules\MetaAds\MetaAdsServiceProvider;
 use App\Modules\Notes\NotesServiceProvider;
-use App\Modules\Telephony\TelephonyServiceProvider;
 use App\Modules\Payroll\PayrollServiceProvider;
 use App\Modules\Projects\ProjectsServiceProvider;
 use App\Modules\Reports\ReportsServiceProvider;
@@ -18,6 +17,7 @@ use App\Modules\SmsMarketing\SmsMarketingServiceProvider;
 use App\Modules\Social\SocialServiceProvider;
 use App\Modules\Support\SupportServiceProvider;
 use App\Modules\Talent\TalentServiceProvider;
+use App\Modules\Telephony\TelephonyServiceProvider;
 use App\Modules\WhatsappMarketing\WhatsappMarketingServiceProvider;
 
 return [
