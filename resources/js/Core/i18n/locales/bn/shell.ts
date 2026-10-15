@@ -140,6 +140,7 @@ const shell: MessageSchema['shell'] = {
         telephonyDialer: 'ডায়ালার',
         telephonyCalls: 'কল',
         telephonySettings: 'টেলিফোনি সেটিংস',
+        links: 'লিংক',
         tenants: 'ওয়ার্কস্পেস',
         plans: 'প্ল্যান',
         invoices: 'ইনভয়েস',

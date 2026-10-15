@@ -69,6 +69,7 @@ import {
     Zap,
     Phone,
     History,
+    Link,
 } from 'lucide-vue-next';
 import type { Component } from 'vue';
 
@@ -149,6 +150,7 @@ const REGISTRY: Record<string, Component> = {
     'megaphone': Megaphone,
     'file-text': FileText,
     'zap': Zap,
+    link: Link,
 };
 
 defineProps<{ name: string }>();

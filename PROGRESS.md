@@ -936,3 +936,24 @@ through `AiGateway`. Side finding recorded in the ADR: `SecurityHeaders` sends `
 which also blocks the Telephony softphone's `getUserMedia`. The owner then decided that voice is part of the paid AI app (new permission
 `ai.voice.use`, switch on `ai_settings`) and that the member preference needs no workspace override. Still waiting
 for the stage 1 engine decision before building.
+
+## Links app (2026-10-15)
+
+New optional app `links` (owner's request: one organised place for the team's tools, email addresses and useful
+website links). Free, Productivity, depends on `core` only; same shape as Notes (`docs/LINKS.md`).
+
+- One `links` table: `kind` (website / tool / email / document / other), `title`, `address`, optional `description`
+  and free-text `folder`, `is_pinned`, record-owner columns. Two scopable permissions `links.links.view|manage`
+  (one more optional app, two more permissions). Trigger `links.link.created`, report `links.by_kind`, no Customer
+  360 section.
+- Security: an email link takes only an address, every other kind only an `http`/`https` URL (validated server-side;
+  `linkHref()` checks again before any `href`). No secret field; the form tells people to use a password manager.
+  Nothing is fetched from a saved address.
+- Page `Modules/Links/Pages/Index`: search, kind filters with counts, folder filter, pinned section, cards with copy /
+  pin / edit / delete, one add/edit modal. en + bn strings, App Store text in both languages, `link` icon.
+- New migration `2026_11_23_000100_create_links_tables` (nothing edited in place). The development database needs
+  `php artisan migrate --path=app/Modules/Links/Database/Migrations` and `php artisan permissions:sync` /
+  `apps:sync` before a workspace can install it; until then the app is simply not entitled anywhere.
+- Demo Business and Enterprise plans include `links`. Count tests updated (module lists, permission total, catalogue
+  app total, plan module list, trigger list, `DECLARED_BY_LINKS`).
+- Not verified in a browser.

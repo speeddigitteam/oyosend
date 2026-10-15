@@ -135,6 +135,7 @@ describe('creating a plan', function () {
                     ['key' => 'reports', 'name' => 'Reports & Analytics'],
                     ['key' => 'notes', 'name' => 'Notes'],
                     ['key' => 'telephony', 'name' => 'Telephony'],
+                    ['key' => 'links', 'name' => 'Links'],
                 ])
                 ->where('limits', [
                     ['key' => 'core.members', 'kind' => 'gauge'],
@@ -186,6 +187,7 @@ describe('creating a plan', function () {
                 ['key' => 'reports', 'name' => 'Reports & Analytics'],
                 ['key' => 'notes', 'name' => 'Notes'],
                 ['key' => 'telephony', 'name' => 'Telephony'],
+                ['key' => 'links', 'name' => 'Links'],
             ]));
     });
 

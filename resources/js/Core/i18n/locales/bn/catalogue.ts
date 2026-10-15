@@ -34,6 +34,7 @@ const catalogue: MessageSchema['catalogue'] = {
         ai: 'এআই',
         notes: 'নোট',
         telephony: 'টেলিফোনি',
+        links: 'লিংক',
     },
     permissionGroups: {
         members: 'সদস্য',
@@ -144,6 +145,7 @@ const catalogue: MessageSchema['catalogue'] = {
         notes: 'নোট',
         telephony_calls: 'কল',
         telephony_settings: 'টেলিফোনি সেটিংস',
+        links: 'লিংক',
     },
     permissions: {
         'core.members.view': {
@@ -469,6 +471,8 @@ const catalogue: MessageSchema['catalogue'] = {
         'telephony.calls.view': { label: 'কল দেখা', description: 'অনুমোদিত রেকর্ড-পরিসরের মধ্যে কল লগ আর কন্টাক্টের কলগুলো দেখা।' },
         'telephony.calls.make': { label: 'কল করা ও ধরা', description: 'ডায়ালার আর ব্রাউজার সফটফোন ব্যবহার করা, আর নিজের ফোন দিয়ে কল করা।' },
         'telephony.settings.manage': { label: 'টেলিফোনি পরিচালনা', description: 'ফোন সিস্টেম যুক্ত করা, আর সদস্যদের এক্সটেনশন ও SIP পাসওয়ার্ড দেওয়া।' },
+        'links.links.view': { label: 'লিংক দেখা', description: 'অনুমোদিত রেকর্ড-পরিসরের মধ্যে সেভ করা লিংক দেখা।' },
+        'links.links.manage': { label: 'লিংক যোগ ও সম্পাদনা', description: 'লিংক সেভ, সম্পাদনা, পিন ও মুছে ফেলা।' },
     },
     // How far a grant reaches, for permissions that can be narrowed.
     scopes: {
@@ -933,6 +937,9 @@ const catalogue: MessageSchema['catalogue'] = {
         'telephony.extension.created': 'টেলিফোনি এক্সটেনশন দিয়েছেন',
         'telephony.extension.updated': 'টেলিফোনি এক্সটেনশন বদলেছেন',
         'telephony.extension.deleted': 'টেলিফোনি এক্সটেনশন সরিয়েছেন',
+        'links.link.created': 'একটি লিংক সেভ করেছেন',
+        'links.link.updated': 'একটি লিংক আপডেট করেছেন',
+        'links.link.deleted': 'একটি লিংক মুছেছেন',
     },
     // Automation triggers and actions registered by modules, by definition key.
     automation: {

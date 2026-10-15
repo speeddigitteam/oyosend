@@ -138,6 +138,7 @@ export default {
         telephonyDialer: 'Dialer',
         telephonyCalls: 'Calls',
         telephonySettings: 'Telephony settings',
+        links: 'Links',
         tenants: 'Workspaces',
         plans: 'Plans',
         invoices: 'Invoices',

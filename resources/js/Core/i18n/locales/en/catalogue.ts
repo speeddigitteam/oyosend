@@ -28,6 +28,7 @@ export default {
         ai: 'AI',
         notes: 'Notes',
         telephony: 'Telephony',
+        links: 'Links',
     },
     permissionGroups: {
         members: 'Members',
@@ -138,6 +139,7 @@ export default {
         notes: 'Notes',
         telephony_calls: 'Calls',
         telephony_settings: 'Telephony settings',
+        links: 'Links',
     },
     permissions: {
         'core.members.view': {
@@ -463,6 +465,8 @@ export default {
         'telephony.calls.view': { label: 'View calls', description: 'See the call log within the granted record scope, and calls on a contact.' },
         'telephony.calls.make': { label: 'Make and take calls', description: 'Use the dialer and the browser softphone, and call through your own phone.' },
         'telephony.settings.manage': { label: 'Manage telephony', description: 'Connect the phone system, and give members extensions and SIP passwords.' },
+        'links.links.view': { label: 'View links', description: 'See saved links within the granted record scope.' },
+        'links.links.manage': { label: 'Add and edit links', description: 'Save, edit, pin and delete links.' },
     },
     // How far a grant reaches, for permissions that can be narrowed.
     scopes: {
@@ -927,6 +931,9 @@ export default {
         'telephony.extension.created': 'Gave a telephony extension',
         'telephony.extension.updated': 'Changed a telephony extension',
         'telephony.extension.deleted': 'Removed a telephony extension',
+        'links.link.created': 'Saved a link',
+        'links.link.updated': 'Updated a link',
+        'links.link.deleted': 'Deleted a link',
     },
     // Automation triggers and actions registered by modules, by definition key.
     automation: {

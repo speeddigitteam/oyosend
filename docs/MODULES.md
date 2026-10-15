@@ -59,7 +59,7 @@ vocabulary for tenant-authored bot flows, and a chunked, per-recipient-idempoten
 
 ## 0. Registered modules
 
-The registry (`config/modules.php`) holds **`core` plus 18 optional modules and 273 declared permissions**. `php artisan permissions:sync`
+The registry (`config/modules.php`) holds **`core` plus 19 optional modules and 275 declared permissions**. `php artisan permissions:sync`
 writes the permissions; `apps:sync` writes the catalogue. Only `ai` is a paid app; every other optional app has one
 free offer (`included` or `free`). Counts below come from the compiled manifests.
 
@@ -84,6 +84,7 @@ free offer (`included` or `free`). Counts below come from the compiled manifests
 | `reports` | Reports & Analytics | `core` | 4 | `reports.saved_reports` | none | 0 / 0 | consumes all | `REPORTS.md` |
 | `notes` | Notes | `core` | 2 | none | none | 1 / 0 | 1 | `NOTES.md` |
 | `telephony` | Telephony | `core` | 3 | none | none | 1 / 0 | 1 | `TELEPHONY.md` |
+| `links` | Links | `core` | 2 | none | none | 1 / 0 | 1 | `LINKS.md` |
 
 Cross-module rules this build established (each is enforced by code and tests, not by convention alone):
 

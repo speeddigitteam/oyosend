@@ -2437,5 +2437,12 @@
     "Write both the question and its answer, or neither.": "প্রশ্ন আর উত্তর দুটোই লিখুন, নয়তো কোনোটিই নয়।",
     "Write the article in English, Bengali or both.": "লেখাটি ইংরেজি, বাংলা বা দুই ভাষাতেই লিখুন।",
     "Give the article an address: lower-case letters, digits and hyphens.": "লেখার একটি ঠিকানা দিন: ছোট হাতের ইংরেজি অক্ষর, সংখ্যা আর হাইফেন।",
-    "Upload the picture again.": "ছবিটি আবার আপলোড করুন।"
+    "Upload the picture again.": "ছবিটি আবার আপলোড করুন।",
+    "Link saved.": "লিংক সংরক্ষণ করা হয়েছে।",
+    "Link deleted.": "লিংক মুছে ফেলা হয়েছে।",
+    "Links by kind": "ধরন অনুযায়ী লিংক",
+    "Links saved in the period by kind, with how many are pinned. Only the links you may see are counted.": "সময়সীমায় সেভ করা লিংক, ধরন অনুযায়ী, কতগুলো পিন করা তা সহ। শুধু আপনি যে লিংকগুলো দেখতে পারেন সেগুলো গোনা হয়।",
+    "Links": "লিংক",
+    "Website": "ওয়েবসাইট",
+    "Tool": "টুল"
 }

@@ -47,6 +47,7 @@ use App\Modules\Invoicing\Automation\Triggers\InvoiceIssuedTrigger;
 use App\Modules\Invoicing\Automation\Triggers\InvoiceOverdueTrigger;
 use App\Modules\Invoicing\Automation\Triggers\InvoicePaidTrigger;
 use App\Modules\Invoicing\Automation\Triggers\PaymentReceivedTrigger;
+use App\Modules\Links\Automation\Triggers\LinkCreatedTrigger;
 use App\Modules\MetaAds\Automation\Triggers\ConnectionNeedsReauthorizationTrigger;
 use App\Modules\Notes\Automation\Triggers\NoteCreatedTrigger;
 use App\Modules\Payroll\Automation\Actions\CreatePayItemAction;
@@ -380,6 +381,7 @@ describe('the application\'s own registry', function () {
             'whatsapp_marketing.feedback.received' => FeedbackReceivedTrigger::class,
             'notes.note.created' => NoteCreatedTrigger::class,
             'telephony.call.ended' => CallEndedTrigger::class,
+            'links.link.created' => LinkCreatedTrigger::class,
         ])
             ->and($registry->actions())->toBe([
                 'crm.lead.assign' => CrmAssignLeadAction::class,

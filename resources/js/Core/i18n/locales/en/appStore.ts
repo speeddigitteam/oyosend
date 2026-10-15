@@ -195,6 +195,16 @@ export default {
             ],
             releaseNotes: 'Initial Reports & Analytics release.',
         },
+        links: {
+            name: 'Links',
+            description: 'Keep the websites, tools, email addresses and documents your team uses in one organised place.',
+            features: [
+                'Websites, tools, email addresses and documents in one place',
+                'Folders, pinned links and search',
+                'Per-record ownership and scopes',
+            ],
+            releaseNotes: 'Initial Links release.',
+        },
     },
     terms: {
         category: {

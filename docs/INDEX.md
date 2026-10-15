@@ -45,6 +45,7 @@ and the code disagree, fix the page.
 | [`REPORTS.md`](REPORTS.md) | Reports & Analytics (`reports`) |
 | [`NOTES.md`](NOTES.md) | Notes (`notes`) |
 | [`TELEPHONY.md`](TELEPHONY.md) | Telephony (`telephony`): softphone, dialer, click-to-call, call log |
+| [`LINKS.md`](LINKS.md) | Links (`links`): saved websites, tools, email addresses and documents |
 
 ## Decisions (`adr/`)
 

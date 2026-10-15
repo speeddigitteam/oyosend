@@ -771,6 +771,17 @@ Migration `app/Modules/Telephony/Database/Migrations/2026_10_15_000100_create_te
 
 See `docs/TELEPHONY.md`.
 
+## 3k5. Links tables
+
+Migration `app/Modules/Links/Database/Migrations/2026_11_23_000100_create_links_tables.php`, loaded by
+`LinksServiceProvider`.
+
+| Table | Notes |
+|---|---|
+| `links` | One saved link. `tenant_id` FK; `kind` varchar(20) (`website`/`tool`/`email`/`document`/`other`), `title` varchar(150), `address` varchar(2048) (an http(s) URL, or an email address for `email`; validated in the controller), nullable `description` varchar(500) and `folder` varchar(60), `is_pinned`; record-owner columns `owner_id` -> `tenant_memberships`, `department_id` -> `departments`, `branch_id` -> `branches` (all `nullOnDelete`). Indexes lead with `tenant_id` (`is_pinned`+`title`, `kind`, `folder` and each owner column). No unique index. No secret column |
+
+See `docs/LINKS.md`.
+
 ## 4. Later tables (outline only)
 
 Names come from spec section 23. Nothing below is designed in detail or migrated. Spec 3.4 names plans, apps and
