@@ -11,13 +11,21 @@ export default {
         panel: 'এই প্যানেলে সেট করা ক্রেডেনশিয়াল',
         environment: 'সার্ভার এনভায়রনমেন্ট ব্যবহার করছে',
         none: 'কোনো ক্রেডেনশিয়াল নেই, তাই এটি উপলব্ধ নয়',
+        switch: 'উপরের মেটা অ্যাপ ব্যবহার করে; এখানে শুধু এই সুইচটি সেট করা হয়',
     },
     fields: {
         client_id: 'অ্যাপ আইডি / ক্লায়েন্ট আইডি',
+        client_key: 'ক্লায়েন্ট কী',
         client_secret: 'অ্যাপ সিক্রেট / ক্লায়েন্ট সিক্রেট',
         webhook_verify_token: 'ওয়েবহুক ভেরিফাই টোকেন',
         app_id: 'অ্যাপ আইডি',
         app_secret: 'অ্যাপ সিক্রেট',
+    },
+    flags: {
+        publishing: {
+            label: 'ইনস্টাগ্রামে প্রকাশ চালু',
+            hint: 'মেটা ফেসবুক অ্যাপের জন্য instagram_basic ও instagram_content_publish অনুমোদন করার পরেই চালু করুন। তার আগে পর্যন্ত ইনস্টাগ্রাম উপলব্ধ নয় হিসেবে দেখায়।',
+        },
     },
     publicHint: 'আপনাকে ফিরে দেখানো হয়, যাতে OAuth রিডাইরেক্ট URI মিলিয়ে নেওয়া যায়। এটি সিক্রেট নয়।',
     secretStored: 'সংরক্ষিত — রাখতে চাইলে খালি রাখুন',
@@ -39,6 +47,22 @@ export default {
             x: {
                 name: 'X',
                 description: 'পোস্ট করার জন্য X অ্যাপ।',
+            },
+            instagram: {
+                name: 'Instagram',
+                description: 'ইনস্টাগ্রাম প্রফেশনাল অ্যাকাউন্টে প্রকাশ। এটি ওপরের ফেসবুক অ্যাপ ব্যবহার করে, তাই এর নিজস্ব কোনো ক্রেডেনশিয়াল নেই।',
+            },
+            tiktok: {
+                name: 'TikTok',
+                description: 'Content Posting API-এর জন্য টিকটক অ্যাপ।',
+            },
+            youtube: {
+                name: 'YouTube',
+                description: 'ইউটিউবে ভিডিও আপলোডের জন্য গুগল OAuth ক্লায়েন্ট।',
+            },
+            pinterest: {
+                name: 'Pinterest',
+                description: 'পিন তৈরির জন্য পিন্টারেস্ট অ্যাপ।',
             },
         },
         meta_ads: {

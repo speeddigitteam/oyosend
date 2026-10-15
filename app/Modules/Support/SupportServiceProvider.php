@@ -36,6 +36,7 @@ use App\Modules\Support\Automation\Triggers\TicketResolvedTrigger;
 use App\Modules\Support\Automation\Triggers\TicketSlaBreachedTrigger;
 use App\Modules\Support\Contracts\InboundTicketReceiver;
 use App\Modules\Support\CustomerRecords\TicketsSection;
+use App\Modules\Support\Inbox\LiveChatInboxSource;
 use App\Modules\Support\Inbox\TicketInboxSource;
 use App\Modules\Support\Jobs\MonitorSla;
 use App\Modules\Support\Jobs\RunMaintenance;
@@ -46,6 +47,9 @@ use App\Modules\Support\Models\AutomationActionReceipt;
 use App\Modules\Support\Models\Calendar;
 use App\Modules\Support\Models\CannedResponse;
 use App\Modules\Support\Models\Category;
+use App\Modules\Support\Models\ChatConversation;
+use App\Modules\Support\Models\ChatMessage;
+use App\Modules\Support\Models\ChatSetting;
 use App\Modules\Support\Models\CsatSurvey;
 use App\Modules\Support\Models\KbArticle;
 use App\Modules\Support\Models\KbArticleVersion;
@@ -61,13 +65,15 @@ use App\Modules\Support\Models\Ticket;
 use App\Modules\Support\Models\TicketEvent;
 use App\Modules\Support\Models\TicketTag;
 use App\Modules\Support\Reporting\ReportProviders;
+use App\Modules\Support\Support\ChatAccess;
+use App\Modules\Support\Support\LiveChatLimits;
 use App\Modules\Support\Support\TicketAccess;
 use App\Modules\Support\Widgets\SupportOverviewWidget;
 
 /**
  * Customer Support (category Customer Support): tickets with queues and assignment, conversation threads
  * with internal notes, canned responses, SLA policies on business-hours calendars, satisfaction surveys,
- * a knowledge base, merge and split, and reports.
+ * a knowledge base, merge and split, reports, and a website live chat widget (ADR 0032).
  *
  * Customers are the shared contacts and companies of the workspace; the app has no customer table. It
  * depends on nothing but `core`. Channel integrations hand messages to `Contracts\InboundTicketReceiver`.
@@ -85,6 +91,8 @@ final class SupportServiceProvider extends ModuleServiceProvider
         $this->app->tag(SupportContactMergeReference::class, ContactMergeReference::class);
         $this->app->tag(TicketsSection::class, CustomerRecordProvider::TAG);
         $this->app->tag(TicketInboxSource::class, InboxSource::TAG);
+        $this->app->scoped(ChatAccess::class);
+        $this->app->tag(LiveChatInboxSource::class, InboxSource::TAG);
     }
 
     protected function describe(): ModuleManifest
@@ -92,7 +100,7 @@ final class SupportServiceProvider extends ModuleServiceProvider
         return new ModuleManifest(
             key: 'support',
             name: 'Customer Support',
-            version: '1.0.0',
+            version: '1.2.0',
             dependencies: ['core'],
             permissions: [
                 new PermissionDefinition('support.tickets.view', 'support_tickets', scopable: true),
@@ -114,6 +122,7 @@ final class SupportServiceProvider extends ModuleServiceProvider
             ],
             navigation: [
                 new NavigationItem('supportTickets', 'support.tickets.index', 'life-buoy', 'support.tickets.view', 'apps', 60, 'support.tickets.*'),
+                new NavigationItem('supportLiveChat', 'support.live_chat.index', 'message-circle', 'support.tickets.view', 'apps', 60, 'support.live_chat.*'),
                 new NavigationItem('supportKb', 'support.kb.index', 'book-open', 'support.kb.view', 'apps', 61, 'support.kb.*'),
                 new NavigationItem('supportCanned', 'support.canned.index', 'message-square-text', 'support.canned.view', 'apps', 62, 'support.canned.*'),
                 new NavigationItem('supportReports', 'support.reports.index', 'chart-no-axes-combined', 'support.reports.view', 'apps', 63, 'support.reports.*'),
@@ -155,6 +164,9 @@ final class SupportServiceProvider extends ModuleServiceProvider
                 'support_kb_article' => KbArticle::class,
                 'support_kb_article_version' => KbArticleVersion::class,
                 'support_automation_receipt' => AutomationActionReceipt::class,
+                'support_chat_setting' => ChatSetting::class,
+                'support_chat_conversation' => ChatConversation::class,
+                'support_chat_message' => ChatMessage::class,
             ],
             limits: [
                 new LimitDefinition(TicketManager::LIMIT),
@@ -175,9 +187,10 @@ final class SupportServiceProvider extends ModuleServiceProvider
                 'SLA targets on business-hours calendars with pause while waiting',
                 'Satisfaction surveys with single-use links',
                 'Knowledge base with versions, merge and split, and support reports',
+                'Website live chat widget answered from the Live chat page and the unified inbox',
             ],
             offers: [new AppOffer('included', 'Included', AppBillingType::Free)],
-            releaseNotes: 'Initial Customer Support release.',
+            releaseNotes: '1.2.0: from a website chat, a member can save the visitor as a shared contact (or link the existing one with the same email address) and turn the chat into a ticket with the transcript as an internal note. 1.1.0: website live chat. A chat widget for the workspace website (allowed origins, greeting, visitor details), a Live chat page, and the chats in the unified inbox with replies. 1.0.0: initial Customer Support release.',
             routes: [
                 'support.tickets.index',
                 'support.tickets.create',
@@ -228,6 +241,18 @@ final class SupportServiceProvider extends ModuleServiceProvider
                 'support.settings.update',
                 'support.csat.show',
                 'support.csat.store',
+                'support.live_chat.index',
+                'support.live_chat.reply',
+                'support.live_chat.close',
+                'support.live_chat.contact',
+                'support.live_chat.ticket',
+                'support.live_chat.settings',
+                'support.live_chat.settings.update',
+                'support.live_chat.widget',
+                'support.live_chat.frame',
+                'support.live_chat.api.start',
+                'support.live_chat.api.send',
+                'support.live_chat.api.poll',
             ],
             scheduledJobs: [
                 new ScheduledJobDefinition('support.sla', MonitorSla::class, ScheduledJobFrequency::EveryMinute),
@@ -241,5 +266,6 @@ final class SupportServiceProvider extends ModuleServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
         $this->loadTenantRoutes(__DIR__.'/routes.php');
         $this->loadTenantCallbackRoutes(__DIR__.'/callbacks.php');
+        LiveChatLimits::register();
     }
 }

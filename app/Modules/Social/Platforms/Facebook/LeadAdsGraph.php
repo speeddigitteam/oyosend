@@ -17,7 +17,7 @@ use Illuminate\Http\Client\Response;
  *  - `GET /{page-id}/leadgen_forms`            the Page's lead forms and their questions
  *  - `GET /{leadgen-id}`                       one lead: `field_data`, `ad_id`, `form_id`, `created_time`, ...
  *  - `GET /{form-id}/leads`                    a form's leads (with a `time_created` filter), for missed webhooks
- *  - `POST|DELETE /{page-id}/subscribed_apps`  subscribe the app to the Page's `leadgen` webhook field
+ *  - `GET|POST|DELETE /{page-id}/subscribed_apps`  add or remove the Page's `leadgen` webhook field, keeping the others
  *  - `GET /debug_token`                        the permissions the Page token holds (app access token)
  *
  * Needs `leads_retrieval`, `pages_manage_ads`, `pages_show_list` and, to subscribe, `pages_manage_metadata`,
@@ -124,11 +124,26 @@ final class LeadAdsGraph
         return array_slice($leads, 0, $limit);
     }
 
-    /** @throws LeadAdsGraphException */
+    /**
+     * Add `leadgen` to the Page's webhook fields. The call sets the whole list, so the fields other features
+     * subscribed (comments' `feed`, direct messages) are read first and kept ({@see FacebookPageSubscriptions}).
+     *
+     * @throws LeadAdsGraphException
+     */
     public function subscribe(string $pageId, string $token): void
     {
+        $current = [];
+
+        try {
+            $current = FacebookPageSubscriptions::fieldsOf($this->get($token, $this->url($pageId.'/subscribed_apps')));
+        } catch (LeadAdsGraphException $exception) {
+            if (in_array($exception->kind, [LeadAdsGraphException::TOKEN, LeadAdsGraphException::PERMISSION], true)) {
+                throw $exception;
+            }
+        }
+
         $response = $this->send(fn (): Response => $this->client($token)->asForm()->post($this->url($pageId.'/subscribed_apps'), [
-            'subscribed_fields' => 'leadgen',
+            'subscribed_fields' => implode(',', FacebookPageSubscriptions::merge($current, ['leadgen'])),
         ]));
 
         $this->ensure($response);
@@ -138,10 +153,29 @@ final class LeadAdsGraph
         }
     }
 
-    /** @throws LeadAdsGraphException */
+    /**
+     * Remove `leadgen` from the Page's webhook fields, keeping every other feature's; the app leaves the Page only
+     * when nothing else is subscribed. Without the current list nothing is changed (never a blind removal).
+     *
+     * @throws LeadAdsGraphException
+     */
     public function unsubscribe(string $pageId, string $token): void
     {
-        $this->ensure($this->send(fn (): Response => $this->client($token)->delete($this->url($pageId.'/subscribed_apps'))));
+        $remaining = FacebookPageSubscriptions::merge(
+            FacebookPageSubscriptions::fieldsOf($this->get($token, $this->url($pageId.'/subscribed_apps'))),
+            [],
+            ['leadgen'],
+        );
+
+        if ($remaining === []) {
+            $this->ensure($this->send(fn (): Response => $this->client($token)->delete($this->url($pageId.'/subscribed_apps'))));
+
+            return;
+        }
+
+        $this->ensure($this->send(fn (): Response => $this->client($token)->asForm()->post($this->url($pageId.'/subscribed_apps'), [
+            'subscribed_fields' => implode(',', $remaining),
+        ])));
     }
 
     /**

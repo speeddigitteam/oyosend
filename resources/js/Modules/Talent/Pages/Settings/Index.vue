@@ -124,40 +124,48 @@ function openTemplate(template: Template | null): void {
         <TalentTabList :label="t('talent.settings.tabsLabel')" :items="tabs" />
 
         <TabsContent value="general">
+            <!-- One full-width box: the fields lay out by the box's own width (container queries), so they never
+                 stretch across the whole page; the save sits in the box's footer. -->
             <Card :title="t('talent.settings.numbers')" :description="t('talent.settings.numbersHint')">
-                <form class="grid max-w-xl gap-4" novalidate @submit.prevent="save">
-                    <Input
-                        v-model="form.default_probation_days"
-                        inputmode="numeric"
-                        :label="t('talent.settings.defaultProbationDays')"
-                        :hint="t('talent.settings.defaultProbationHint')"
-                        :error="form.errors.default_probation_days"
-                    />
-                    <Input
-                        v-model="form.probation_reminder_days"
-                        inputmode="numeric"
-                        :label="t('talent.settings.probationReminderDays')"
-                        :hint="t('talent.settings.probationReminderHint')"
-                        :error="form.errors.probation_reminder_days"
-                    />
-                    <Input
-                        v-model="form.certification_reminder_days"
-                        inputmode="numeric"
-                        :label="t('talent.settings.certificationReminderDays')"
-                        :hint="t('talent.settings.certificationReminderHint')"
-                        :error="form.errors.certification_reminder_days"
-                    />
-                    <Input
-                        v-model="form.candidate_retention_months"
-                        inputmode="numeric"
-                        :label="t('talent.settings.candidateRetentionMonths')"
-                        :hint="t('talent.settings.candidateRetentionHint')"
-                        :error="form.errors.candidate_retention_months"
-                    />
-                    <div>
-                        <Button type="submit" variant="primary" :loading="form.processing" :disabled="invalid">{{ t('talent.common.save') }}</Button>
+                <form id="talent-settings-general" class="@container" novalidate @submit.prevent="save">
+                    <div class="grid gap-4 @2xl:grid-cols-2 @6xl:grid-cols-4">
+                        <Input
+                            v-model="form.default_probation_days"
+                            inputmode="numeric"
+                            :label="t('talent.settings.defaultProbationDays')"
+                            :hint="t('talent.settings.defaultProbationHint')"
+                            :error="form.errors.default_probation_days"
+                        />
+                        <Input
+                            v-model="form.probation_reminder_days"
+                            inputmode="numeric"
+                            :label="t('talent.settings.probationReminderDays')"
+                            :hint="t('talent.settings.probationReminderHint')"
+                            :error="form.errors.probation_reminder_days"
+                        />
+                        <Input
+                            v-model="form.certification_reminder_days"
+                            inputmode="numeric"
+                            :label="t('talent.settings.certificationReminderDays')"
+                            :hint="t('talent.settings.certificationReminderHint')"
+                            :error="form.errors.certification_reminder_days"
+                        />
+                        <Input
+                            v-model="form.candidate_retention_months"
+                            inputmode="numeric"
+                            :label="t('talent.settings.candidateRetentionMonths')"
+                            :hint="t('talent.settings.candidateRetentionHint')"
+                            :error="form.errors.candidate_retention_months"
+                        />
                     </div>
                 </form>
+                <template #footer>
+                    <div class="flex justify-end">
+                        <Button type="submit" form="talent-settings-general" variant="primary" :loading="form.processing" :disabled="invalid">
+                            {{ t('talent.common.save') }}
+                        </Button>
+                    </div>
+                </template>
             </Card>
         </TabsContent>
 

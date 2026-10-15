@@ -216,7 +216,7 @@ function remove(): void {
                                 <Download class="size-4" aria-hidden="true" />
                             </a>
                             <Button v-if="abilities.uploadDocument" size="sm" variant="ghost" @click="askRemove(document)">
-                                <Trash2 class="size-4" aria-hidden="true" />
+                                <template #icon><Trash2 class="size-4" aria-hidden="true" /></template>
                                 <span class="sr-only">{{ t('talent.documents.remove', { name: document.title }) }}</span>
                             </Button>
                         </div>

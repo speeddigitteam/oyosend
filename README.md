@@ -104,6 +104,26 @@ written to `storage/logs/laravel.log`. Mail is queued, so the queue listener has
 Subscriptions move in time (next invoice, overdue, expiry) only when `php artisan billing:run` runs. In
 production the scheduler runs it hourly; locally run it by hand, or `php artisan schedule:work`.
 
+**Realtime inbox (optional, ADR 0035).** Without it the unified inbox refreshes itself every 15/20 seconds, as
+always. With a Reverb server running, new messages appear at once. The application side is built, but the Reverb
+server package (`laravel/reverb`) is **not installed yet**: its current release would downgrade Guzzle 8 to 7 (the
+open decision in ADR 0035). Once it is installed, add to `.env` (any letters and digits for the id, key and secret):
+
+```dotenv
+BROADCAST_CONNECTION=reverb
+REVERB_APP_ID=100001
+REVERB_APP_KEY=localkey
+REVERB_APP_SECRET=localsecret
+REVERB_HOST=localhost
+REVERB_PORT=8080
+REVERB_SCHEME=http
+```
+
+then run `php artisan config:clear` and, in a second terminal next to `composer dev`, `php artisan reverb:start
+--port=8080`. `composer dev` does not start Reverb on purpose: its runner stops every process when one exits, so a
+missing or unconfigured Reverb would take the whole dev stack down. The queue listener of `composer dev` sends the
+signals (queue `notifications`). With anything else in `.env` realtime is off and nothing changes.
+
 ## Local setup with Laravel Sail (not verified)
 
 `compose.yaml` (MySQL, Redis, Mailpit) is committed and `.env.example` already carries Sail's values, but Docker
@@ -159,6 +179,7 @@ are then created in the panel; workspaces can also sign up on the central site.
 | Command | Does |
 |---|---|
 | `composer dev` | App server on `:8000`, queue listener, Vite |
+| `php artisan reverb:start --port=8080` | Realtime server for the inbox, in its own terminal; only once `laravel/reverb` is installed (see above, ADR 0035) |
 | `composer test` | Pest (`php artisan test`) against `oyosend_testing` |
 | `composer lint` | `pint --test` (run `vendor/bin/pint` to fix) |
 | `composer analyse` | Larastan |

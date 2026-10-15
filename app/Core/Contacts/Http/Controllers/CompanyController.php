@@ -8,7 +8,9 @@ use App\Core\Access\AccessChecker;
 use App\Core\Access\Enums\AccessScope;
 use App\Core\Access\RecordAccess;
 use App\Core\Contacts\ContactDirectory;
+use App\Core\Contacts\Http\DirectoryPresenter;
 use App\Core\Contacts\Models\Company;
+use App\Core\Contacts\Models\Contact;
 use App\Core\Identity\Enums\MembershipStatus;
 use App\Core\Identity\Models\TenantMembership;
 use App\Core\Identity\Models\User;
@@ -27,10 +29,14 @@ use Inertia\Response;
  */
 final class CompanyController
 {
+    /** People shown on a company's page; the rest are one click away on the filtered people list. */
+    private const int PEOPLE_SHOWN = 60;
+
     public function __construct(
         private readonly RecordAccess $records,
         private readonly AccessChecker $access,
         private readonly ContactDirectory $directory,
+        private readonly DirectoryPresenter $presenter,
     ) {}
 
     public function index(Request $request): Response
@@ -59,32 +65,46 @@ final class CompanyController
             ->orderBy('id')
             ->paginate(25)
             ->withQueryString()
-            ->through(fn (Company $company): array => [
-                'id' => $company->id,
-                'name' => $company->name,
-                'email' => $company->email,
-                'phone' => $company->phone,
-                'website' => $company->website,
-                'industry' => $company->industry,
-                'taxId' => $company->tax_id,
-                'address' => $company->address,
-                'city' => $company->city,
-                'country' => $company->country,
-                'notes' => $company->notes,
-                'contacts' => (int) $company->getAttribute('contacts_count'),
-                'owner' => $company->owner === null ? null : [
-                    'id' => $company->owner->id,
-                    'name' => $company->owner->user->name,
-                ],
-                'editable' => $this->records->allows($actor, ContactController::MANAGE, $company),
-                'deletable' => $this->records->allows($actor, ContactController::DELETE, $company),
-                'createdAt' => $company->created_at->toIso8601String(),
-            ]);
+            ->through(fn (Company $company): array => $this->presenter->company($company, $actor, (int) $company->getAttribute('contacts_count')));
 
         return Inertia::render('Core/Pages/Contacts/Companies', [
             'companies' => $companies,
             'filters' => ['search' => $search],
-            'owners' => $this->ownerOptions($actor),
+            'owners' => $this->presenter->ownerOptions($actor),
+            'canCreate' => $actor->can(ContactController::MANAGE),
+        ]);
+    }
+
+    /**
+     * A company's own page (Odoo's company form): what is recorded about it and, under "Contacts", the people of it
+     * the viewer can see, where more can be added with the company already chosen.
+     */
+    public function show(Request $request, Company $company): Response
+    {
+        /** @var User $actor */
+        $actor = $request->user('web');
+
+        $this->records->authorize($actor, ContactController::VIEW, $company);
+
+        $people = $this->records->constrain(Contact::query(), $actor, ContactController::VIEW)
+            ->where('company_id', $company->id)
+            ->with(['company:id,name', 'owner.user:id,name'])
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->orderBy('id')
+            ->limit(self::PEOPLE_SHOWN + 1)
+            ->get();
+
+        $company->load('owner.user:id,name');
+        $total = $people->count() > self::PEOPLE_SHOWN
+            ? $this->records->constrain(Contact::query(), $actor, ContactController::VIEW)->where('company_id', $company->id)->count()
+            : $people->count();
+
+        return Inertia::render('Core/Pages/Contacts/CompanyShow', [
+            'company' => $this->presenter->company($company, $actor, $total),
+            'people' => $people->take(self::PEOPLE_SHOWN)->map(fn (Contact $contact): array => $this->presenter->contact($contact, $actor))->values()->all(),
+            'companies' => $this->presenter->companyOptions($actor),
+            'owners' => $this->presenter->ownerOptions($actor),
             'canCreate' => $actor->can(ContactController::MANAGE),
         ]);
     }
@@ -129,7 +149,10 @@ final class CompanyController
 
         Toast::success(__('Company deleted.'));
 
-        return back();
+        // From the company's own page there is nothing to go back to.
+        $from = rtrim((string) parse_url(url()->previous(), PHP_URL_PATH), '/');
+
+        return $from === '/companies/'.$company->id ? redirect()->route('core.contacts.companies.index') : back();
     }
 
     /**
@@ -171,24 +194,5 @@ final class CompanyController
         }
 
         return ['attributes' => $attributes, 'owner' => $owner];
-    }
-
-    /**
-     * @return list<array{id: string, name: string}>
-     */
-    private function ownerOptions(User $actor): array
-    {
-        if ($this->access->scopeFor($actor, ContactController::MANAGE) !== AccessScope::All) {
-            return [];
-        }
-
-        return TenantMembership::query()
-            ->where('status', MembershipStatus::Active)
-            ->with('user:id,name')
-            ->get()
-            ->map(fn (TenantMembership $membership): array => ['id' => $membership->id, 'name' => $membership->user->name])
-            ->sortBy('name')
-            ->values()
-            ->all();
     }
 }

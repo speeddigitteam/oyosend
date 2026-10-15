@@ -22,12 +22,14 @@ use App\Modules\Support\Http\Requests\TicketStoreRequest;
 use App\Modules\Support\Http\Requests\TicketUpdateRequest;
 use App\Modules\Support\Models\Attachment;
 use App\Modules\Support\Models\CannedResponse;
+use App\Modules\Support\Models\ChatConversation;
 use App\Modules\Support\Models\Message;
 use App\Modules\Support\Models\Queue;
 use App\Modules\Support\Models\Tag;
 use App\Modules\Support\Models\Ticket;
 use App\Modules\Support\Models\TicketEvent;
 use App\Modules\Support\Models\TicketTag;
+use App\Modules\Support\Support\ChatAccess;
 use App\Modules\Support\Support\PlaceholderRenderer;
 use App\Modules\Support\Support\SupportPermissions;
 use App\Modules\Support\Support\TicketAccess;
@@ -49,6 +51,7 @@ final class TicketController
         private readonly AttachmentStore $attachments,
         private readonly SupportControllerSupport $support,
         private readonly SupportSettings $settings,
+        private readonly ChatAccess $chats,
     ) {}
 
     public function index(Request $request): Response
@@ -234,6 +237,9 @@ final class TicketController
                 'createdBy' => $ticket->creator?->user->name,
                 'mergedInto' => $ticket->merged_into_id === null ? null : $this->reference($actor, $ticket->merged_into_id),
                 'splitFrom' => $ticket->split_from_id === null ? null : $this->reference($actor, $ticket->split_from_id),
+                // The website chat this ticket was made from, when the member reaches that chat (ADR 0032 amendment).
+                'fromChat' => $this->chats->constrain(ChatConversation::query(), $actor, SupportPermissions::TICKETS_VIEW)
+                    ->where('ticket_id', $ticket->id)->value('id'),
                 'mergedTickets' => $this->access->constrain(Ticket::query(), $actor, SupportPermissions::TICKETS_VIEW)->where('merged_into_id', $ticket->id)->orderBy('number')->get(['id', 'number', 'subject'])
                     ->map(fn (Ticket $merged): array => ['id' => $merged->id, 'number' => $merged->number, 'subject' => $merged->subject])->all(),
                 'splitTickets' => $this->access->constrain(Ticket::query(), $actor, SupportPermissions::TICKETS_VIEW)->where('split_from_id', $ticket->id)->orderBy('number')->get(['id', 'number', 'subject'])

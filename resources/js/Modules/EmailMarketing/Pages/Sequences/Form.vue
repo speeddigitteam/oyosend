@@ -101,18 +101,25 @@ function save(): void {
         :description="t('emailMarketing.sequences.formDescription')"
     />
 
-    <form class="grid max-w-4xl gap-3" novalidate @submit.prevent="save">
+    <!-- Full width: the details across the top, then one box per step in order. Each box lays out its own content by
+         its own width (container queries): on a wide box the step's settings sit beside its content, like the campaign
+         form's two-thirds editor; on a narrow one they stack. One save for the whole sequence below the boxes. -->
+    <form class="grid gap-3" novalidate @submit.prevent="save">
         <Card :title="t('emailMarketing.campaigns.details')">
-            <div class="grid gap-4 sm:grid-cols-2">
-                <Input v-model="form.name" :label="t('emailMarketing.fields.name')" maxlength="150" required :error="errors.name" />
-                <Select
-                    v-model="form.list_id"
-                    :options="listOptions"
-                    :label="t('emailMarketing.sequences.trigger')"
-                    :hint="t('emailMarketing.sequences.triggerHint')"
-                    :error="errors.list_id"
-                />
-                <Textarea v-model="form.description" class="sm:col-span-2" :label="t('emailMarketing.fields.description')" maxlength="500" optional :error="errors.description" />
+            <div class="@container">
+                <div class="grid gap-4 @2xl:grid-cols-2 @5xl:grid-cols-3">
+                    <Input v-model="form.name" :label="t('emailMarketing.fields.name')" maxlength="150" required :error="errors.name" />
+                    <Select
+                        v-model="form.list_id"
+                        :options="listOptions"
+                        :label="t('emailMarketing.sequences.trigger')"
+                        :hint="t('emailMarketing.sequences.triggerHint')"
+                        :error="errors.list_id"
+                    />
+                    <div class="@2xl:col-span-2 @5xl:col-span-1">
+                        <Textarea v-model="form.description" :label="t('emailMarketing.fields.description')" maxlength="500" optional :error="errors.description" />
+                    </div>
+                </div>
             </div>
             <p v-if="errors.sequence" class="mt-3 text-sm text-danger" role="alert">{{ errors.sequence }}</p>
         </Card>
@@ -120,50 +127,60 @@ function save(): void {
         <Card v-for="(step, index) in form.steps" :key="index" :title="t('emailMarketing.sequences.stepTitle', { number: index + 1 })">
             <template #actions>
                 <Button size="sm" variant="ghost" icon :disabled="index === 0" :aria-label="t('emailMarketing.editor.moveUp')" @click="form.steps = moveItem(form.steps, index, -1)">
-                    <ArrowUp class="size-4" aria-hidden="true" />
+                    <template #icon><ArrowUp class="size-4" aria-hidden="true" /></template>
                 </Button>
                 <Button size="sm" variant="ghost" icon :disabled="index === form.steps.length - 1" :aria-label="t('emailMarketing.editor.moveDown')" @click="form.steps = moveItem(form.steps, index, 1)">
-                    <ArrowDown class="size-4" aria-hidden="true" />
+                    <template #icon><ArrowDown class="size-4" aria-hidden="true" /></template>
                 </Button>
                 <Button size="sm" variant="ghost" icon :disabled="form.steps.length === 1" :aria-label="t('emailMarketing.editor.remove')" @click="form.steps.splice(index, 1)">
-                    <Trash2 class="size-4" aria-hidden="true" />
+                    <template #icon><Trash2 class="size-4" aria-hidden="true" /></template>
                 </Button>
             </template>
-            <div class="grid gap-4 sm:grid-cols-4">
-                <Input
-                    v-model="step.value"
-                    inputmode="numeric"
-                    :label="index === 0 ? t('emailMarketing.sequences.delayFirst') : t('emailMarketing.sequences.delayAfter')"
-                    :error="errors[`steps.${index}.delay_minutes`] ?? (minutes(step) > props.form.maxDelayMinutes ? t('emailMarketing.sequences.delayTooLong') : undefined)"
-                />
-                <Select v-model="step.unit" :options="unitOptions" :label="t('emailMarketing.sequences.unit')" />
-                <Input v-model="step.subject" class="sm:col-span-2" :label="t('emailMarketing.fields.subject')" maxlength="200" required :error="errors[`steps.${index}.subject`]" />
-                <Input v-model="step.preheader" class="sm:col-span-4" :label="t('emailMarketing.fields.preheader')" maxlength="200" optional />
-            </div>
-            <div class="mt-4">
-                <BlockEditor
-                    v-model="step.blocks"
-                    :variables="props.form.editor.variables"
-                    :errors="errors"
-                    :error-prefix="`steps.${index}.blocks`"
-                    :max="props.form.editor.maxBlocks"
-                    :max-text="props.form.editor.maxText"
-                />
+            <div class="@container">
+                <div class="grid gap-4 @4xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                    <!-- The settings lay out by their own column's width: four across when stacked on a wide box, two in
+                         the side column. -->
+                    <div class="@container">
+                        <div class="grid content-start gap-4 @xs:grid-cols-2 @2xl:grid-cols-4">
+                            <Input
+                                v-model="step.value"
+                                inputmode="numeric"
+                                :label="index === 0 ? t('emailMarketing.sequences.delayFirst') : t('emailMarketing.sequences.delayAfter')"
+                                :error="errors[`steps.${index}.delay_minutes`] ?? (minutes(step) > props.form.maxDelayMinutes ? t('emailMarketing.sequences.delayTooLong') : undefined)"
+                            />
+                            <Select v-model="step.unit" :options="unitOptions" :label="t('emailMarketing.sequences.unit')" />
+                            <div class="@xs:col-span-2">
+                                <Input v-model="step.subject" :label="t('emailMarketing.fields.subject')" maxlength="200" required :error="errors[`steps.${index}.subject`]" />
+                            </div>
+                            <div class="@xs:col-span-2 @2xl:col-span-4">
+                                <Input v-model="step.preheader" :label="t('emailMarketing.fields.preheader')" maxlength="200" optional />
+                            </div>
+                        </div>
+                    </div>
+                    <BlockEditor
+                        v-model="step.blocks"
+                        :variables="props.form.editor.variables"
+                        :errors="errors"
+                        :error-prefix="`steps.${index}.blocks`"
+                        :max="props.form.editor.maxBlocks"
+                        :max-text="props.form.editor.maxText"
+                    />
+                </div>
             </div>
         </Card>
 
-        <div>
+        <!-- Adding a step on the left; the one save for the whole sequence on the right. -->
+        <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <Button :disabled="form.steps.length >= props.form.maxSteps" @click="addStep">
                 <template #icon><Plus class="size-4" aria-hidden="true" /></template>
                 {{ t('emailMarketing.sequences.addStep') }}
             </Button>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-2">
-            <Button type="submit" variant="primary" :loading="form.processing" :disabled="invalid">{{ t('emailMarketing.common.save') }}</Button>
-            <Button variant="ghost" :href="sequence ? route('email_marketing.sequences.show', { sequence: sequence.id }) : route('email_marketing.sequences.index')">
-                {{ t('emailMarketing.common.cancel') }}
-            </Button>
+            <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
+                <Button variant="ghost" :href="sequence ? route('email_marketing.sequences.show', { sequence: sequence.id }) : route('email_marketing.sequences.index')">
+                    {{ t('emailMarketing.common.cancel') }}
+                </Button>
+                <Button type="submit" variant="primary" :loading="form.processing" :disabled="invalid">{{ t('emailMarketing.common.save') }}</Button>
+            </div>
         </div>
     </form>
 </template>

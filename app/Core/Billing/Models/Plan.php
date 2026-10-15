@@ -23,7 +23,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $id
  * @property string $key
  * @property string $name
+ * @property string|null $name_bn
  * @property string|null $description
+ * @property string|null $description_bn
  * @property string $currency
  * @property int|null $monthly_amount
  * @property int|null $yearly_amount
@@ -49,7 +51,7 @@ class Plan extends Model
      * @var list<string>
      */
     protected $fillable = [
-        'key', 'name', 'description', 'currency', 'monthly_amount', 'yearly_amount', 'trial_days',
+        'key', 'name', 'name_bn', 'description', 'description_bn', 'currency', 'monthly_amount', 'yearly_amount', 'trial_days',
         'modules', 'limits', 'is_public', 'is_active', 'sort_order',
     ];
 
@@ -123,6 +125,19 @@ class Plan extends Model
     /**
      * A plan nobody ever pays for: every interval it is sold for costs nothing.
      */
+    /**
+     * The name in a language: the Bengali one on Bengali pages when the operator wrote one, else the name.
+     */
+    public function nameIn(string $locale): string
+    {
+        return $locale === 'bn' && filled($this->name_bn) ? (string) $this->name_bn : $this->name;
+    }
+
+    public function descriptionIn(string $locale): ?string
+    {
+        return $locale === 'bn' && filled($this->description_bn) ? (string) $this->description_bn : $this->description;
+    }
+
     public function isFree(): bool
     {
         return ($this->monthly_amount ?? 0) === 0 && ($this->yearly_amount ?? 0) === 0;

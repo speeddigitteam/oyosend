@@ -29,7 +29,7 @@ in the code. Anything not built is listed in [section 12](#12-not-built-yet). De
 | Guard → provider | none (no sign-in; sign-up only) | `web` → `users` | `platform` → `platform_users` |
 | Tenant context | none (ended if one leaked) | resolved from the subdomain | none; default guard switched to `platform` |
 | Inertia middleware | `HandleCentralInertia` | `HandleTenantInertia` | `HandlePlatformInertia` |
-| Pages (under `resources/js`) | `Core/Pages/Central/*` | `Core/Pages/*`, `Modules/<M>/Pages/*` | `Platform/Pages/*` |
+| Pages (under `resources/js`) | `Core/Pages/Central/*` (sign-up); the website is Blade, `resources/views/site` (`docs/WEBSITE.md`) | `Core/Pages/*`, `Modules/<M>/Pages/*` | `Platform/Pages/*` |
 
 Host rules live in `app/Core/Tenancy/Support/TenantHost.php`:
 
@@ -491,7 +491,7 @@ strategy, and the gaps that must be closed before the first move, are in `docs/D
 | Customer-facing payment gateway for invoices | owner decision | Invoicing records manual payments only; per-tenant gateway credentials cannot live in the database (CLAUDE.md), see `docs/INVOICING.md` |
 | Notification centre, message outbox, email, interaction timeline | 8 | Built as the optional `communication` app (`docs/COMMUNICATION.md`); other modules are not rewired to call its `Notifier` / `InteractionRecorder` contracts yet |
 | SMS, email and WhatsApp providers | 8 / 9 | Adapters `twilio`, `http_sms`, `smtp`, `whatsapp_cloud` and the platform mailer, configured by operator provider accounts stored encrypted (ADR 0013) or environment references. **None of the SMS/SMTP/WhatsApp adapters has run against a live provider**; SMS delivery receipts are not consumed |
-| Realtime (Reverb) | later | Not installed; `BROADCAST_CONNECTION=log` |
+| Realtime (Reverb) | built for the inbox; server pending | The unified inbox's signals, the signed private channel and the page client are built (ADR 0035, `pusher/pusher-php-server`, `laravel-echo`, `pusher-js`). The `laravel/reverb` server package is not installed (its release would downgrade Guzzle 8); `BROADCAST_CONNECTION=log` keeps it off |
 | Automation engine | 10 | Built as the optional `automation` app, backend and Vue Flow editor (`docs/WORKFLOWS.md`); Communication registers `communication.message.send` (transactional templates only) and `communication.interaction.log`; run-history retention is not built, and nothing listens to `automation.run.failed` / `automation.approval.requested` to notify anyone |
 | General file manager | — | `TenantStorage` backs workspace logos and CRM/Projects private attachments; no general browser exists |
 | Global data search | — | Scout installed (`database` driver), no searchable model; Ctrl/Cmd+K is navigation only. Contacts are searched with `LIKE` on their own page |

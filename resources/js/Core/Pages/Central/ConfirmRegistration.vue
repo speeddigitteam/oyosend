@@ -125,7 +125,7 @@ function create(): void {
             <Button v-if="registrationOpen" variant="primary" :href="route('central.register')">
                 {{ t('register.invalid.again') }}
             </Button>
-            <Button :variant="registrationOpen ? 'ghost' : 'secondary'" :href="route('central.home')">
+            <Button :variant="registrationOpen ? 'ghost' : 'secondary'" :href="route('central.home')" native>
                 {{ t('register.invalid.home') }}
             </Button>
         </div>

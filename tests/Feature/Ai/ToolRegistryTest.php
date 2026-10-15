@@ -86,6 +86,8 @@ it('registers the built-in tools and exposes only proposing tools for changes', 
     expect(array_keys($tools))->toBe([
         'contacts_search', 'contacts_get', 'companies_search', 'companies_get',
         'contacts_propose_create', 'contacts_propose_update',
+        // WhatsApp's read-only conversation tool, behind its opt-in data scope.
+        'whatsapp_conversation_get',
     ]);
 
     foreach ($tools as $name => $tool) {

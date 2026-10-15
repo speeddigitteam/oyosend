@@ -7,7 +7,6 @@ import Card from '@/Core/Components/Card.vue';
 import Input from '@/Core/Components/Input.vue';
 import PageHeader from '@/Core/Components/PageHeader.vue';
 import Select, { type SelectOption } from '@/Core/Components/Select.vue';
-import FormSection from '@/Core/Components/Settings/FormSection.vue';
 import RegionalFields from '@/Core/Components/Settings/RegionalFields.vue';
 import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
 import { countryOptions } from '@/Core/lib/countries';
@@ -63,77 +62,86 @@ function submit(): void {
 </script>
 
 <template>
-    <div class="max-w-3xl">
+    <div>
         <PageHeader
             :eyebrow="t('workspace.onboarding.eyebrow')"
             :title="t('workspace.onboarding.title', { workspace: workspace.name })"
             :description="t('workspace.onboarding.description')"
         />
 
-        <form novalidate @submit.prevent="submit">
-            <Card>
-                <FormSection :title="t('workspace.sections.company.title')" :description="t('workspace.sections.company.description')">
-                    <Input
-                        v-model="form.name"
-                        name="name"
-                        :label="t('workspace.fields.name')"
-                        :hint="t('workspace.fields.nameHint')"
-                        :error="form.errors.name"
-                        autocomplete="organization"
-                        maxlength="255"
-                        required
-                    />
-                    <Input
-                        v-model="form.legal_name"
-                        name="legal_name"
-                        :label="t('workspace.fields.legalName')"
-                        :hint="t('workspace.fields.legalNameHint')"
-                        :error="form.errors.legal_name"
-                        autocomplete="off"
-                        maxlength="255"
-                        optional
-                    />
-                    <Input
-                        v-model="form.phone"
-                        type="tel"
-                        name="phone"
-                        :label="t('workspace.fields.phone')"
-                        :error="form.errors.phone"
-                        autocomplete="tel"
-                        inputmode="tel"
-                        maxlength="40"
-                        optional
-                    />
-                    <Select
-                        v-model="form.country"
-                        name="country"
-                        :options="countries"
-                        :label="t('workspace.fields.country')"
-                        :error="form.errors.country"
-                        autocomplete="country"
-                        optional
-                    />
-                </FormSection>
-
-                <FormSection :title="t('workspace.sections.regional.title')" :description="t('workspace.sections.regional.description')" divided>
-                    <RegionalFields
-                        v-model:locale="form.locale"
-                        v-model:timezone="form.timezone"
-                        v-model:currency="form.currency"
-                        :timezones="timezones"
-                        :currencies="currencies"
-                        :errors="form.errors"
-                        suggest-device-timezone
-                    />
-                </FormSection>
-
-                <template #footer>
-                    <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
-                        <p class="mr-auto max-w-md text-[0.8125rem] text-ink-subtle">{{ t('workspace.onboarding.later') }}</p>
-                        <Button type="submit" variant="primary" :loading="form.processing">{{ t('workspace.onboarding.submit') }}</Button>
+        <!-- Full width like the platform Settings page: one box per part, side by side on wide screens, one save beneath
+             them. Each box lays out its own fields by its own width (container queries), not the screen's. -->
+        <form novalidate class="grid gap-3 lg:grid-cols-2" @submit.prevent="submit">
+            <Card :title="t('workspace.sections.company.title')" :description="t('workspace.sections.company.description')">
+                <div class="@container">
+                    <div class="grid content-start gap-4 @lg:grid-cols-2">
+                        <Input
+                            v-model="form.name"
+                            name="name"
+                            :label="t('workspace.fields.name')"
+                            :hint="t('workspace.fields.nameHint')"
+                            :error="form.errors.name"
+                            autocomplete="organization"
+                            maxlength="255"
+                            required
+                        />
+                        <Input
+                            v-model="form.legal_name"
+                            name="legal_name"
+                            :label="t('workspace.fields.legalName')"
+                            :hint="t('workspace.fields.legalNameHint')"
+                            :error="form.errors.legal_name"
+                            autocomplete="off"
+                            maxlength="255"
+                            optional
+                        />
+                        <Input
+                            v-model="form.phone"
+                            type="tel"
+                            name="phone"
+                            :label="t('workspace.fields.phone')"
+                            :error="form.errors.phone"
+                            autocomplete="tel"
+                            inputmode="tel"
+                            maxlength="40"
+                            optional
+                        />
+                        <Select
+                            v-model="form.country"
+                            name="country"
+                            :options="countries"
+                            :label="t('workspace.fields.country')"
+                            :error="form.errors.country"
+                            autocomplete="country"
+                            optional
+                        />
                     </div>
-                </template>
+                </div>
             </Card>
+
+            <Card :title="t('workspace.sections.regional.title')" :description="t('workspace.sections.regional.description')">
+                <!-- RegionalFields widens its time zone and preview with `sm:col-span-2`, a screen breakpoint. Stacked with
+                     flex (where a span means nothing) until the box itself is wide enough for two columns; from @2xl the
+                     screen is always past `sm`, so the spans land in a two-column grid as intended. -->
+                <div class="@container">
+                    <div class="flex flex-col gap-4 @2xl:grid @2xl:grid-cols-2">
+                        <RegionalFields
+                            v-model:locale="form.locale"
+                            v-model:timezone="form.timezone"
+                            v-model:currency="form.currency"
+                            :timezones="timezones"
+                            :currencies="currencies"
+                            :errors="form.errors"
+                            suggest-device-timezone
+                        />
+                    </div>
+                </div>
+            </Card>
+
+            <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 px-1 lg:col-span-2">
+                <p class="mr-auto max-w-md text-[0.8125rem] text-ink-subtle">{{ t('workspace.onboarding.later') }}</p>
+                <Button type="submit" variant="primary" :loading="form.processing">{{ t('workspace.onboarding.submit') }}</Button>
+            </div>
         </form>
     </div>
 </template>

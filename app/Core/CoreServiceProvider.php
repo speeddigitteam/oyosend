@@ -34,6 +34,7 @@ use App\Core\Communication\Contracts\ChannelGateway;
 use App\Core\Communication\Contracts\ChannelNumberDirectory;
 use App\Core\Communication\Contracts\ChannelNumberRegistry;
 use App\Core\Communication\Contracts\ConsentRecorder;
+use App\Core\Communication\Contracts\InboxSignals;
 use App\Core\Communication\Contracts\InteractionRecorder;
 use App\Core\Communication\Contracts\MarketingAudience;
 use App\Core\Communication\Contracts\MediaGateway;
@@ -43,6 +44,7 @@ use App\Core\Communication\Contracts\UnsubscribeLinks;
 use App\Core\Communication\NullChannelGateway;
 use App\Core\Communication\NullChannelNumbers;
 use App\Core\Communication\NullConsentRecorder;
+use App\Core\Communication\NullInboxSignals;
 use App\Core\Communication\NullInteractionRecorder;
 use App\Core\Communication\NullMarketingAudience;
 use App\Core\Communication\NullMediaGateway;
@@ -82,11 +84,17 @@ use App\Core\Social\Contracts\ConnectedPages;
 use App\Core\Social\NullConnectedPages;
 use App\Core\Tenancy\Models\Tenant;
 use App\Core\Tenancy\Support\TenantHost;
+use App\Core\Website\Models\BlogPost;
+use App\Core\Website\Models\WebsiteEnquiry;
+use App\Core\Website\SiteApps;
+use App\Core\Website\Support\WebsiteTextLoader;
+use App\Core\Website\WebsiteTexts;
 use App\Platform\Models\PlatformUser;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\CanResetPassword;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
+use Illuminate\Contracts\Translation\Loader;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
@@ -168,6 +176,8 @@ final class CoreServiceProvider extends ModuleServiceProvider
                 'app_installation' => AppInstallation::class,
                 'app_entitlement' => AppEntitlement::class,
                 'subscription_item' => SubscriptionItem::class,
+                'website_enquiry' => WebsiteEnquiry::class,
+                'blog_post' => BlogPost::class,
             ],
             limits: [
                 // Seats: everyone in the workspace, and everyone invited who can still join.
@@ -203,6 +213,22 @@ final class CoreServiceProvider extends ModuleServiceProvider
         $this->app->scoped(PlatformSettings::class);
         $this->app->scoped(IntegrationCredentials::class);
 
+        // The website's words an operator changed in the Super Admin panel, laid over lang/{locale}/site*.php by the
+        // translation loader, so every template keeps calling __() (docs/WEBSITE.md). Platform data: central cache.
+        $this->app->extend('translation.loader', static fn (Loader $loader, $app): Loader => new WebsiteTextLoader(
+            $loader,
+            static fn (): array => $app->make(WebsiteTexts::class)->overrides(),
+        ));
+        $this->app->singleton(WebsiteTexts::class, static function ($app): WebsiteTexts {
+            $loader = $app->make('translation.loader');
+
+            return new WebsiteTexts(
+                $app->make('cache.central'),
+                $loader instanceof WebsiteTextLoader ? $loader->files() : $loader,
+                $app->make(SiteApps::class),
+            );
+        });
+
         // What other modules call to notify members and to append to the interaction timeline. The
         // `communication` module rebinds both; until then (or without it) they honestly record nothing.
         $this->app->bindIf(Notifier::class, NullNotifier::class);
@@ -216,6 +242,8 @@ final class CoreServiceProvider extends ModuleServiceProvider
         $this->app->bindIf(ChannelNumberRegistry::class, NullChannelNumbers::class);
         $this->app->bindIf(MediaGateway::class, NullMediaGateway::class);
         $this->app->bindIf(TemplateCatalogue::class, NullTemplateCatalogue::class);
+        // ADR 0035: the realtime "a conversation changed" signal for open inbox pages; `communication` rebinds it.
+        $this->app->bindIf(InboxSignals::class, NullInboxSignals::class);
         // Outside enquiries into the CRM and the CRM's customer groups as a campaign audience (ADR 0023).
         // The `crm` module rebinds both; without it a capture is honestly `unavailable` and the audience empty.
         $this->app->bindIf(LeadIntake::class, NullLeadIntake::class);

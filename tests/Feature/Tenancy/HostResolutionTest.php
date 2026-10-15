@@ -64,10 +64,10 @@ it('never resolves a tenant on the central host', function () {
     $tenant = $this->createTenant('acme');
     $tenant->domains()->create(['domain' => 'localhost', 'type' => Domain::TYPE_CUSTOM]);
 
-    $this->get('http://localhost/')
+    $this->get('http://localhost/register')
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
-            ->component('Core/Pages/Central/Welcome')
+            ->component('Core/Pages/Central/Register')
             ->where('app.area', 'central')
             ->where('domain', 'localhost')
             ->missing('tenant')
@@ -163,7 +163,7 @@ it('serves each request in the context of its own host', function () {
     expect($context())->toBe($globex->id);
 
     // The central site and the admin panel both drop the tenant a previous request left active.
-    $this->get('http://localhost/')
+    $this->get('http://localhost/register')
         ->assertInertia(fn (AssertableInertia $page) => $page->where('app.area', 'central')->missing('tenant'));
     expect($context())->toBeNull();
 

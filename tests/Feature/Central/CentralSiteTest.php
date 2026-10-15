@@ -10,12 +10,14 @@ beforeEach(function () {
     $this->acme = $this->createTenant('acme', ['name' => 'Acme Trading']);
 });
 
-describe('the welcome page', function () {
+// The home page is the server-rendered website (tests/Feature/Central/WebsiteTest.php); the sign-up page is the
+// central site's Inertia page.
+describe('the central site', function () {
     it('renders with the platform defaults and no workspace data', function () {
-        $this->get('http://localhost/')
+        $this->get('http://localhost/register')
             ->assertOk()
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->component('Core/Pages/Central/Welcome')
+                ->component('Core/Pages/Central/Register')
                 ->where('domain', 'localhost')
                 ->where('app.area', 'central')
                 ->where('app.name', config('app.name'))
@@ -37,7 +39,7 @@ describe('the welcome page', function () {
 
 describe('each area only tells the browser about its own routes', function () {
     it('lists central routes on the central site', function () {
-        $html = $this->get('http://localhost/')->getContent();
+        $html = $this->get('http://localhost/register')->getContent();
 
         expect($html)->toContain('central.workspace.find')
             ->not->toContain('core.members.index', 'auth.login', 'platform.dashboard', 'platform.login', 'horizon.');
@@ -131,7 +133,7 @@ describe('choosing a language', function () {
             ->assertCookie('locale', 'bn');
 
         $this->withCookie('locale', 'bn')
-            ->get('http://localhost/')
+            ->get('http://localhost/register')
             ->assertInertia(fn (AssertableInertia $page) => $page->where('app.locale', 'bn'))
             ->assertSee('<html lang="bn"', escape: false);
     });
@@ -144,7 +146,7 @@ describe('choosing a language', function () {
 
     it('ignores a cookie holding an unsupported language', function () {
         $this->withCookie('locale', 'fr')
-            ->get('http://localhost/')
+            ->get('http://localhost/register')
             ->assertInertia(fn (AssertableInertia $page) => $page->where('app.locale', 'en'));
     });
 

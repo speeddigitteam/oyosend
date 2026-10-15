@@ -1,25 +1,32 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { Building2, Info, Lock, Plus, SearchX, UsersRound, X } from 'lucide-vue-next';
-import { computed, nextTick, ref } from 'vue';
+import { Building2, Info, LayoutGrid, List, Lock, Plus, UsersRound, X } from 'lucide-vue-next';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Button from '@/Core/Components/Button.vue';
+import Avatar from '@/Core/Components/Avatar.vue';
 import Card from '@/Core/Components/Card.vue';
 import ConfirmDialog from '@/Core/Components/ConfirmDialog.vue';
+import ContactCard from '@/Core/Components/Contacts/ContactCard.vue';
 import ContactMergeDialog from '@/Core/Components/Contacts/ContactMergeDialog.vue';
 import ContactFormDialog from '@/Core/Components/Contacts/ContactFormDialog.vue';
 import DetailsDialog from '@/Core/Components/Contacts/DetailsDialog.vue';
 import DirectorySearch from '@/Core/Components/Contacts/DirectorySearch.vue';
 import DirectoryTabs from '@/Core/Components/Contacts/DirectoryTabs.vue';
 import { useDirectoryFilters } from '@/Core/Components/Contacts/filters';
+import { contactDetails } from '@/Core/Components/Contacts/details';
 import { ADD_BUTTON, actionsSelector, mailHref, peopleOfCompanyUrl, telHref } from '@/Core/Components/Contacts/links';
+import PeopleEmpty from '@/Core/Components/Contacts/PeopleEmpty.vue';
 import RowActions from '@/Core/Components/Contacts/RowActions.vue';
 import { screenAtLeast } from '@/Core/Components/Contacts/screen';
 import type { ContactRow, DetailItem, DirectoryOption } from '@/Core/Components/Contacts/types';
-import DataTable, { type Column } from '@/Core/Components/DataTable.vue';
+import { type DirectoryView, initialsOf, SORT_COLUMNS, sortKeyOf, storedView, storeView } from '@/Core/Components/Contacts/view';
+import DataTable, { type Column, type SortState } from '@/Core/Components/DataTable.vue';
 import EmptyState from '@/Core/Components/EmptyState.vue';
 import PageHeader from '@/Core/Components/PageHeader.vue';
 import Pagination from '@/Core/Components/Pagination.vue';
+import SegmentedControl from '@/Core/Components/SegmentedControl.vue';
+import Select from '@/Core/Components/Select.vue';
 import { useFocusReturn } from '@/Core/Components/Team/focus';
 import { useFormat } from '@/Core/composables/useFormat';
 import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
@@ -33,7 +40,7 @@ const props = defineProps<{
     /** By first name, then last name; 25 to a page. Only the contacts this person's permission reaches. */
     contacts: Paginated<ContactRow>;
     /** The filters the server applied to this response. */
-    filters: { search: string; company: DirectoryOption | null };
+    filters: { search: string; company: DirectoryOption | null; sort: string; direction: 'asc' | 'desc' };
     /** Companies a contact can be put in. Empty unless the person may add or change contacts. */
     companies: DirectoryOption[];
     /** Members a contact can be handed to. Empty unless the person manages every contact. */
@@ -54,7 +61,7 @@ const searchBox = ref<InstanceType<typeof DirectorySearch> | null>(null);
 
 const { search, loading, apply } = useDirectoryFilters({
     url: () => route('core.contacts.index'),
-    applied: () => ({ search: props.filters.search, company: props.filters.company?.id ?? '' }),
+    applied: () => ({ search: props.filters.search, company: props.filters.company?.id ?? '', sort: props.filters.sort, direction: props.filters.direction }),
     list: () => props.contacts,
     only: ['contacts', 'filters'],
 });
@@ -91,6 +98,48 @@ const count = computed(() => {
     return t(`${key}.${total === 1 ? 'one' : 'other'}`, { count: format.number(total) });
 });
 
+/*
+ * List or cards (Odoo's list and kanban views), remembered in this browser.
+ */
+const view = ref<DirectoryView>(storedView());
+watch(view, storeView);
+
+const viewOptions = computed(() => [
+    { value: 'list' as const, label: t('contacts.views.list'), icon: List },
+    { value: 'grid' as const, label: t('contacts.views.grid'), icon: LayoutGrid },
+]);
+
+/*
+ * Sorting happens on the server, so it holds across pages. The list sorts from its column headers, the grid from
+ * a select with the same choices.
+ */
+const sortState = computed<SortState>(() => ({ key: SORT_COLUMNS[props.filters.sort] ?? 'name', direction: props.filters.direction }));
+
+function sortBy(state: SortState | null): void {
+    const key = state ? sortKeyOf(state.key) : null;
+
+    apply(key ? { sort: key, direction: state?.direction ?? 'asc' } : { sort: 'name', direction: 'asc' });
+}
+
+const sortOptions = computed(() => [
+    { value: 'name:asc', label: t('contacts.sort.nameAsc') },
+    { value: 'name:desc', label: t('contacts.sort.nameDesc') },
+    { value: 'company:asc', label: t('contacts.sort.company') },
+    { value: 'city:asc', label: t('contacts.sort.city') },
+    { value: 'created:desc', label: t('contacts.sort.newest') },
+    { value: 'created:asc', label: t('contacts.sort.oldest') },
+]);
+
+const gridSort = computed({
+    get: () => `${props.filters.sort}:${props.filters.direction}`,
+    set: (value: string | number | null) => {
+        const [sort, direction] = String(value).split(':');
+        apply({ sort: sort ?? 'name', direction: direction === 'desc' ? 'desc' : 'asc' });
+    },
+});
+
+const countryLabel = (code: string | null): string | null => countryName(code, page.props.app.locale) || null;
+
 /** Says why some rows, or all of them, cannot be changed. */
 const accessNote = computed(() => {
     if (!props.canCreate) {
@@ -112,11 +161,12 @@ const desktop = screenAtLeast('72rem');
 const roomy = screenAtLeast('90rem');
 
 const columns = computed<Column[]>(() => [
-    { key: 'name', label: t('contacts.fields.name') },
-    { key: 'company', label: t('contacts.fields.company'), hideable: true, hiddenByDefault: !tablet },
-    { key: 'email', label: t('contacts.fields.email'), hideable: true, hiddenByDefault: !tablet },
+    { key: 'name', label: t('contacts.fields.name'), sortable: true },
+    { key: 'company', label: t('contacts.fields.company'), sortable: true, hideable: true, hiddenByDefault: !tablet },
+    { key: 'email', label: t('contacts.fields.email'), sortable: true, hideable: true, hiddenByDefault: !tablet },
     { key: 'phone', label: t('contacts.fields.phone'), class: 'whitespace-nowrap', hideable: true, hiddenByDefault: !desktop },
     { key: 'jobTitle', label: t('contacts.fields.jobTitle'), hideable: true, hiddenByDefault: !roomy },
+    { key: 'location', label: t('contacts.fields.location'), sortable: true, hideable: true, hiddenByDefault: !roomy },
     { key: 'owner', label: t('contacts.fields.owner'), hideable: true, hiddenByDefault: !roomy },
     { key: 'actions', label: t('contacts.list.actions'), srOnly: true, align: 'right', class: 'w-px' },
 ]);
@@ -136,32 +186,9 @@ function openDetails(contact: ContactRow): void {
 
 useFocusReturn(detailsOpen, () => actionsSelector(detailsTarget.value?.id));
 
-const details = computed<DetailItem[]>(() => {
-    const contact = detailsTarget.value;
-
-    if (!contact) {
-        return [];
-    }
-
-    return [
-        { key: 'jobTitle', label: t('contacts.fields.jobTitle'), value: contact.jobTitle },
-        {
-            key: 'company',
-            label: t('contacts.fields.company'),
-            value: contact.company?.name ?? null,
-            href: contact.company ? peopleOfCompanyUrl(contact.company.id) : undefined,
-            link: 'page',
-        },
-        { key: 'email', label: t('contacts.fields.email'), value: contact.email, href: mailHref(contact.email), link: 'contact' },
-        { key: 'phone', label: t('contacts.fields.phone'), value: contact.phone, href: telHref(contact.phone), link: 'contact' },
-        { key: 'address', label: t('contacts.fields.address'), value: contact.address, multiline: true },
-        { key: 'city', label: t('contacts.fields.city'), value: contact.city },
-        { key: 'country', label: t('contacts.fields.country'), value: countryName(contact.country, page.props.app.locale) },
-        { key: 'notes', label: t('contacts.fields.notes'), value: contact.notes, multiline: true },
-        { key: 'owner', label: t('contacts.fields.owner'), value: contact.owner?.name ?? t('contacts.list.noOwner') },
-        { key: 'added', label: t('contacts.fields.added'), value: format.date(contact.createdAt) },
-    ];
-});
+const details = computed<DetailItem[]>(() =>
+    detailsTarget.value ? contactDetails(detailsTarget.value, t, page.props.app.locale, (value) => format.date(value)) : [],
+);
 
 /*
  * Adding and changing share one form.
@@ -250,8 +277,9 @@ function destroy(): void {
         :title="t('contacts.people.title')"
         :description="t('contacts.people.description', { workspace })"
     >
-        <template v-if="canCreate" #actions>
-            <Button variant="primary" data-directory-add @click="openCreate">
+        <template #actions>
+            <SegmentedControl v-if="!untouched" v-model="view" :options="viewOptions" :label="t('contacts.views.label')" icon-only />
+            <Button v-if="canCreate" variant="primary" data-directory-add @click="openCreate">
                 <template #icon><Plus class="size-4" aria-hidden="true" /></template>
                 {{ t('contacts.people.add') }}
             </Button>
@@ -273,7 +301,18 @@ function destroy(): void {
     </Card>
 
     <Card v-else flush :aria-busy="loading || undefined">
-        <DataTable :columns="columns" :rows="contacts.data" row-key="id" :caption="t('contacts.people.caption')" storage-key="contacts" class="pt-4">
+        <DataTable
+            v-if="view === 'list'"
+            :columns="columns"
+            :rows="contacts.data"
+            row-key="id"
+            :caption="t('contacts.people.caption')"
+            storage-key="contacts"
+            sort-mode="server"
+            :sort="sortState"
+            class="pt-4"
+            @update:sort="sortBy"
+        >
             <template #toolbar>
                 <DirectorySearch ref="searchBox" v-model="search" :label="t('contacts.people.search')" :loading="loading" @submit="apply()" @clear="apply()" />
 
@@ -295,23 +334,34 @@ function destroy(): void {
             </template>
 
             <template #cell-name="{ row }">
-                <!-- Asks the column for 11rem and then fills whatever it gets, so long names truncate instead of widening the table. -->
-                <div class="w-44 min-w-full">
-                    <p class="truncate text-sm font-medium text-ink" :title="row.name">{{ row.name }}</p>
+                <!-- Asks the column for 13rem and then fills whatever it gets, so long names truncate instead of widening the table. -->
+                <div class="flex w-52 min-w-full items-start gap-2.5 md:items-center">
+                    <Avatar :initials="initialsOf(row.name)" :name="row.name" size="sm" />
+                    <div class="min-w-0 flex-1">
+                        <!-- The name opens the details, as a row does in Odoo's list. -->
+                        <button
+                            type="button"
+                            class="block max-w-full truncate rounded-chip text-left text-sm font-medium text-ink underline-offset-4 hover:text-brand-text hover:underline"
+                            :title="row.name"
+                            @click="openDetails(row)"
+                        >
+                            {{ row.name }}
+                        </button>
 
-                    <!-- Small screens: the other columns start hidden, so the ways to reach someone sit here. -->
-                    <ul v-if="row.company || row.email || row.phone" class="mt-0.5 flex flex-col gap-0.5 text-[0.8125rem] text-ink-muted md:hidden">
-                        <li v-if="row.company" class="truncate">
-                            <Link :href="peopleOfCompanyUrl(row.company.id)" :class="LINK">{{ row.company.name }}</Link>
-                        </li>
-                        <li v-if="row.email" class="truncate">
-                            <a :href="mailHref(row.email)" :class="LINK">{{ row.email }}</a>
-                        </li>
-                        <li v-if="row.phone" class="truncate">
-                            <a v-if="telHref(row.phone)" :href="telHref(row.phone)" :class="LINK">{{ row.phone }}</a>
-                            <template v-else>{{ row.phone }}</template>
-                        </li>
-                    </ul>
+                        <!-- Small screens: the other columns start hidden, so the ways to reach someone sit here. -->
+                        <ul v-if="row.company || row.email || row.phone" class="mt-0.5 flex flex-col gap-0.5 text-[0.8125rem] text-ink-muted md:hidden">
+                            <li v-if="row.company" class="truncate">
+                                <Link :href="peopleOfCompanyUrl(row.company.id)" :class="LINK">{{ row.company.name }}</Link>
+                            </li>
+                            <li v-if="row.email" class="truncate">
+                                <a :href="mailHref(row.email)" :class="LINK">{{ row.email }}</a>
+                            </li>
+                            <li v-if="row.phone" class="truncate">
+                                <a v-if="telHref(row.phone)" :href="telHref(row.phone)" :class="LINK">{{ row.phone }}</a>
+                                <template v-else>{{ row.phone }}</template>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
             </template>
 
@@ -345,6 +395,13 @@ function destroy(): void {
                 <span v-else class="text-ink-subtle" aria-hidden="true">—</span>
             </template>
 
+            <template #cell-location="{ row }">
+                <span v-if="row.city || row.country" class="block w-32 min-w-full truncate text-ink-muted">
+                    {{ [row.city, countryLabel(row.country)].filter(Boolean).join(', ') }}
+                </span>
+                <span v-else class="text-ink-subtle" aria-hidden="true">—</span>
+            </template>
+
             <template #cell-owner="{ row }">
                 <span v-if="row.owner" class="block w-28 min-w-full truncate text-ink-muted" :title="row.owner.name">{{ row.owner.name }}</span>
                 <span v-else class="whitespace-nowrap text-ink-subtle">{{ t('contacts.list.noOwner') }}</span>
@@ -365,26 +422,46 @@ function destroy(): void {
             </template>
 
             <template #empty>
-                <EmptyState v-if="searched" :title="t('contacts.list.noMatch.title', { query: shownQuery })" :description="t('contacts.list.noMatch.body')">
-                    <template #icon><SearchX /></template>
-                    <Button size="sm" @click="clearFilters">
-                        {{ filters.company ? t('contacts.list.clearFilters') : t('contacts.list.clearSearch') }}
-                    </Button>
-                </EmptyState>
-                <EmptyState
-                    v-else-if="filters.company"
-                    :title="t('contacts.people.empty.companyTitle', { company: filters.company.name })"
-                    :description="t('contacts.people.empty.companyBody')"
-                >
-                    <template #icon><Building2 /></template>
-                    <Button v-if="canCreate" size="sm" @click="openCreate">{{ t('contacts.people.add') }}</Button>
-                    <Button size="sm" variant="ghost" @click="clearCompany">{{ t('contacts.people.empty.showAll') }}</Button>
-                </EmptyState>
-                <EmptyState v-else :title="t('common.table.empty')">
-                    <template #icon><UsersRound /></template>
-                </EmptyState>
+                <PeopleEmpty :query="shownQuery" :company="filters.company" :can-create="canCreate" @clear-filters="clearFilters" @clear-company="clearCompany" @create="openCreate" />
             </template>
         </DataTable>
+
+        <!-- Cards (Odoo's kanban): the same people, page and filters as the list. -->
+        <div v-else class="pt-4">
+            <div class="flex flex-wrap items-center gap-2 px-5 pb-3">
+                <DirectorySearch ref="searchBox" v-model="search" :label="t('contacts.people.search')" :loading="loading" @submit="apply()" @clear="apply()" />
+                <p
+                    v-if="filters.company"
+                    class="glass-well flex max-w-full min-w-0 items-center gap-2 rounded-control py-0.5 pr-0.5 pl-2.5 text-[0.8125rem] text-ink"
+                >
+                    <Building2 class="size-3.5 shrink-0 text-ink-subtle" aria-hidden="true" />
+                    <span class="sr-only">{{ t('contacts.fields.company') }}:</span>
+                    <span class="min-w-0 truncate" :title="filters.company.name">{{ filters.company.name }}</span>
+                    <Button icon size="sm" variant="ghost" @click="clearCompany">
+                        <template #icon><X class="size-4" aria-hidden="true" /></template>
+                        {{ t('contacts.people.clearCompany') }}
+                    </Button>
+                </p>
+                <p class="eyebrow tabular px-1" role="status">{{ count }}</p>
+                <Select v-model="gridSort" :options="sortOptions" :aria-label="t('contacts.sort.label')" class="ml-auto w-full sm:w-52" />
+            </div>
+
+            <ul v-if="contacts.data.length" class="grid gap-3 border-t border-line p-3 sm:grid-cols-2 sm:p-4 xl:grid-cols-3 2xl:grid-cols-4" :aria-label="t('contacts.people.caption')">
+                <li v-for="contact in contacts.data" :key="contact.id" class="min-w-0">
+                    <ContactCard
+                        :contact="contact"
+                        :country-label="countryLabel(contact.country)"
+                        @view="openDetails(contact)"
+                        @edit="openEdit(contact)"
+                        @duplicates="openDuplicates(contact)"
+                        @delete="askDelete(contact)"
+                    />
+                </li>
+            </ul>
+            <div v-else class="border-t border-line">
+                <PeopleEmpty :query="shownQuery" :company="filters.company" :can-create="canCreate" @clear-filters="clearFilters" @clear-company="clearCompany" @create="openCreate" />
+            </div>
+        </div>
 
         <Pagination :meta="contacts" />
 

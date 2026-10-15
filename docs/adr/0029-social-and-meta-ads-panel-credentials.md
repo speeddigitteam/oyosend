@@ -1,6 +1,7 @@
 # 0029 — Social and Meta Ads credentials in the panel
 
-Status: accepted (follows ADR 0028, extends ADR 0013). Date: 2026-10-13.
+Status: accepted (follows ADR 0028, extends ADR 0013; extended by ADR 0033, which adds TikTok, YouTube and Pinterest
+credentials and non-secret panel switches, the first being Instagram publishing). Date: 2026-10-13.
 
 ## Context
 

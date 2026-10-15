@@ -252,7 +252,7 @@ onBeforeUnmount(() => {
 
             <div class="flex flex-wrap items-center gap-2">
                 <Button variant="primary" size="sm" :disabled="!canRun" :loading="loading" data-testid="ai-run" @click="run(false)">
-                    <Sparkles class="size-4" aria-hidden="true" />
+                    <template #icon><Sparkles class="size-4" aria-hidden="true" /></template>
                     {{ t(`socialAi.run.${operation}`) }}
                 </Button>
                 <p v-if="!hasSource" class="text-xs text-ink-subtle" data-testid="ai-needs">{{ sourceHint }}</p>
@@ -266,7 +266,7 @@ onBeforeUnmount(() => {
                     <p class="mt-1 text-ink-muted">{{ result?.state === 'invalid' && result.detail ? result.detail : stateText('body') }}</p>
                     <div class="mt-2 flex flex-wrap items-center gap-2">
                         <Button v-if="result?.retryable" size="sm" @click="run(false)">
-                            <RefreshCw class="size-4" aria-hidden="true" />
+                            <template #icon><RefreshCw class="size-4" aria-hidden="true" /></template>
                             {{ t('socialAi.tryAgain') }}
                         </Button>
                         <Link v-if="result?.settingsUrl" :href="result.settingsUrl" class="text-brand-text hover:underline" data-testid="ai-settings-link">
@@ -299,23 +299,23 @@ onBeforeUnmount(() => {
 
                     <div class="flex flex-wrap items-center gap-2">
                         <Button v-if="result.hashtags.length > 0" variant="primary" size="sm" :disabled="picked.length === 0 || remainingSlots <= 0" data-testid="ai-accept" @click="addTags">
-                            <Hash class="size-4" aria-hidden="true" />
+                            <template #icon><Hash class="size-4" aria-hidden="true" /></template>
                             {{ t('socialAi.addTags', { count: format.number(picked.length) }) }}
                         </Button>
                         <Button v-else-if="result.text !== ''" variant="primary" size="sm" data-testid="ai-accept" @click="useText">
-                            <Check class="size-4" aria-hidden="true" />
+                            <template #icon><Check class="size-4" aria-hidden="true" /></template>
                             {{ t('socialAi.useText') }}
                         </Button>
                         <Button size="sm" :loading="loading" data-testid="ai-regenerate" @click="run(true)">
-                            <RefreshCw class="size-4" aria-hidden="true" />
+                            <template #icon><RefreshCw class="size-4" aria-hidden="true" /></template>
                             {{ t('socialAi.regenerate') }}
                         </Button>
                         <Button size="sm" variant="ghost" data-testid="ai-copy" @click="copy">
-                            <Copy class="size-4" aria-hidden="true" />
+                            <template #icon><Copy class="size-4" aria-hidden="true" /></template>
                             {{ copied ? t('socialAi.copied') : t('socialAi.copy') }}
                         </Button>
                         <Button v-if="applied === 'text' && previousBody !== null" size="sm" variant="ghost" @click="undo">
-                            <Undo2 class="size-4" aria-hidden="true" />
+                            <template #icon><Undo2 class="size-4" aria-hidden="true" /></template>
                             {{ t('socialAi.undo') }}
                         </Button>
                     </div>

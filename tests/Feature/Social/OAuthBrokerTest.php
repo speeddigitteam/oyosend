@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Core\Tenancy\Enums\TenantStatus;
 use App\Modules\Social\Models\SocialAccount;
 use App\Modules\Social\Support\OAuthBroker;
+use Tests\Support\Fixtures\FakeSocialPlatform;
 use Tests\Support\InteractsWithSocial;
 
 uses(InteractsWithSocial::class);
@@ -161,3 +162,20 @@ it('shows the single central redirect URI on the accounts page', function () {
         expect($row['uri'])->toBe($this->centralUrl('/social/oauth/callback/'.$row['platform']));
     }
 });
+
+it('accepts the platform keys of ADR 0033 on the broker and the workspace callback (no allow-list)', function (string $platform) {
+    // Each new adapter uses the same broker URI pattern; a fake stands in for the real adapter here.
+    $this->fakePlatform(new FakeSocialPlatform($platform));
+    $this->actingAsOwner($this->tenant);
+
+    $response = $this->post(($this->url)('/accounts/connect/'.$platform))->assertRedirect();
+    parse_str((string) parse_url((string) $response->headers->get('Location'), PHP_URL_QUERY), $query);
+
+    expect($query['redirect_uri'])->toBe($this->centralUrl('/social/oauth/callback/'.$platform));
+
+    $hop = $this->get($this->centralUrl('/social/oauth/callback/'.$platform.'?code=ok&state='.urlencode((string) $query['state'])));
+    expect((string) $hop->headers->get('Location'))->toStartWith(($this->url)('/accounts/callback/'.$platform.'?'));
+
+    $this->get((string) $hop->headers->get('Location'))->assertRedirect(($this->url)('/accounts'));
+    expect($this->inTenant($this->tenant, fn () => SocialAccount::query()->sole()->platform))->toBe($platform);
+})->with(['instagram', 'tiktok', 'youtube', 'pinterest']);

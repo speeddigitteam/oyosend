@@ -167,7 +167,7 @@ describe('the application\'s own registry', function () {
             ->and($registry->get('payroll')->permissions)->toHaveCount(22)
             ->and($registry->get('talent')->permissions)->toHaveCount(30)
             ->and($registry->get('talent')->dependencies)->toBe(['core', 'hrm'])
-            ->and(array_keys($registry->permissions()))->toHaveCount(271)
+            ->and(array_keys($registry->permissions()))->toHaveCount(273)
             ->and($corePermissions)->toEqualCanonicalizing([
                 'core.members.view', 'core.members.invite', 'core.members.manage',
                 'core.roles.view', 'core.roles.manage', 'core.audit.view', 'core.settings.manage',

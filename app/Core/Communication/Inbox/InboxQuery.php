@@ -16,6 +16,9 @@ final readonly class InboxQuery
      * @param  list<InboxState>  $states  Only conversations in one of these states.
      * @param  'me'|'unassigned'|null  $owner
      * @param  string  $search  Trimmed, at most 100 characters; empty means no search.
+     * @param  bool  $unread  Only conversations whose item would carry `unread > 0` (the source's own unread notion:
+     *                        unread messages, or a reply awaited). A source without one returns nothing. Applies to
+     *                        `items()` and `counts()` alike.
      */
     public function __construct(
         public User $user,
@@ -24,6 +27,7 @@ final readonly class InboxQuery
         public ?string $owner = null,
         public string $search = '',
         public int $limit = 25,
+        public bool $unread = false,
     ) {}
 
     /** @return list<string> */

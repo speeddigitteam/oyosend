@@ -69,6 +69,8 @@
     --accent: #c9481f;
     --accent-text: #ab3813;
     --accent-soft: rgb(245 221 214 / 0.65);
+    /* Text on a solid accent mark (an unread count). */
+    --accent-ink: #ffffff;
 
     --ok: #136c45;
     --ok-soft: rgb(211 228 221 / 0.65);
@@ -80,6 +82,12 @@
     --info-soft: rgb(217 227 235 / 0.64);
 
     --ring: rgb(15 107 87 / 0.32);
+
+    /* Chat (the unified inbox): the message area, its quiet wallpaper and the two kinds of bubble. */
+    --chat-surface: rgb(236 231 223 / 0.45);
+    --chat-wallpaper: rgb(21 31 27 / 0.06);
+    --chat-in: rgb(255 255 255 / 0.94);
+    --chat-out: rgb(220 236 230 / 0.96);
 
     /* Backdrop: wide colour fields plus the discs that sit behind the glass. */
     --field-a: #d2e6d9;
@@ -127,6 +135,7 @@
     --accent: #ff8f61;
     --accent-text: #ff8f61;
     --accent-soft: rgb(74 50 36 / 0.57);
+    --accent-ink: #1f0d05;
 
     --ok: #5ad69b;
     --ok-soft: rgb(30 65 49 / 0.57);
@@ -138,6 +147,11 @@
     --info-soft: rgb(40 60 71 / 0.57);
 
     --ring: rgb(63 201 164 / 0.4);
+
+    --chat-surface: rgb(5 10 8 / 0.3);
+    --chat-wallpaper: rgb(255 255 255 / 0.045);
+    --chat-in: rgb(37 48 44 / 0.95);
+    --chat-out: rgb(17 61 51 / 0.95);
 
     --field-a: #123c33;
     --field-b: #45210f;
@@ -176,6 +190,10 @@
     --color-accent: var(--accent);
     --color-accent-text: var(--accent-text);
     --color-accent-soft: var(--accent-soft);
+    --color-accent-ink: var(--accent-ink);
+    --color-chat-surface: var(--chat-surface);
+    --color-chat-in: var(--chat-in);
+    --color-chat-out: var(--chat-out);
     --color-ok: var(--ok);
     --color-ok-soft: var(--ok-soft);
     --color-warn: var(--warn);
@@ -344,6 +362,33 @@
     border: 1px solid var(--line);
 }
 
+/*
+| The message area of the unified inbox: a faint warm surface with a quiet line pattern. The pattern is an SVG used
+| as a mask, so its colour is a token (`--chat-wallpaper`) that follows the theme, and it stays put while the
+| messages scroll over it (put the scroller inside, absolutely positioned). tests/js/contrast.test.ts includes both
+| layers when it checks the text on the area and on the bubbles.
+*/
+@utility chat-wallpaper {
+    position: relative;
+    isolation: isolate;
+    background-color: var(--chat-surface);
+
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        background-color: var(--chat-wallpaper);
+        -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='168' height='168' viewBox='0 0 168 168' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 20h22a6 6 0 0 1 6 6v10a6 6 0 0 1-6 6H31l-7 6v-6h-4a6 6 0 0 1-6-6V26a6 6 0 0 1 6-6z'/%3E%3Ccircle cx='112' cy='28' r='7'/%3E%3Cpath d='M78 64v12M72 70h12'/%3E%3Cpath d='M124 86c4-6 8-6 12 0s8 6 12 0'/%3E%3Cpath d='M24 114l8-8 8 8 8-8'/%3E%3Cpath d='M100 118h26a5 5 0 0 1 5 5v8a5 5 0 0 1-5 5h-3v6l-7-6h-16a5 5 0 0 1-5-5v-8a5 5 0 0 1 5-5z'/%3E%3Ccircle cx='64' cy='148' r='2.5'/%3E%3Cpath d='M146 142l6 6M152 142l-6 6'/%3E%3Ccircle cx='150' cy='46' r='2'/%3E%3Ccircle cx='36' cy='76' r='2'/%3E%3C/svg%3E");
+        mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='168' height='168' viewBox='0 0 168 168' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 20h22a6 6 0 0 1 6 6v10a6 6 0 0 1-6 6H31l-7 6v-6h-4a6 6 0 0 1-6-6V26a6 6 0 0 1 6-6z'/%3E%3Ccircle cx='112' cy='28' r='7'/%3E%3Cpath d='M78 64v12M72 70h12'/%3E%3Cpath d='M124 86c4-6 8-6 12 0s8 6 12 0'/%3E%3Cpath d='M24 114l8-8 8 8 8-8'/%3E%3Cpath d='M100 118h26a5 5 0 0 1 5 5v8a5 5 0 0 1-5 5h-3v6l-7-6h-16a5 5 0 0 1-5-5v-8a5 5 0 0 1 5-5z'/%3E%3Ccircle cx='64' cy='148' r='2.5'/%3E%3Cpath d='M146 142l6 6M152 142l-6 6'/%3E%3Ccircle cx='150' cy='46' r='2'/%3E%3Ccircle cx='36' cy='76' r='2'/%3E%3C/svg%3E");
+        -webkit-mask-size: 168px 168px;
+        mask-size: 168px 168px;
+        -webkit-mask-repeat: repeat;
+        mask-repeat: repeat;
+    }
+}
+
 /* Small mono caption used for section labels, table headers and metadata. */
 @utility eyebrow {
     font-family: var(--font-mono);
@@ -458,6 +503,314 @@
     opacity: var(--grain-opacity);
     mix-blend-mode: var(--grain-blend);
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/*
+|--------------------------------------------------------------------------
+| Public website (resources/views/site, docs/WEBSITE.md)
+|--------------------------------------------------------------------------
+|
+| The website's text sits on glass or on the backdrop's colour fields; its
+| discs are placed by each section behind glass, so the contrast rules above
+| hold there too.
+|
+*/
+
+/* A section further down waits, faded and lowered, until it scrolls into view (resources/js/site.ts). */
+[data-reveal] {
+    transition:
+        opacity 0.7s cubic-bezier(0.22, 0.8, 0.26, 1),
+        transform 0.7s cubic-bezier(0.22, 0.8, 0.26, 1);
+}
+
+.reveal-pending {
+    opacity: 0;
+    transform: translateY(16px);
+}
+
+/* The home page's hero: soft brand-coloured light drifting behind the headline and the start card. */
+.site-aurora {
+    position: absolute;
+    inset: -25% -10% -5%;
+    z-index: -1;
+    pointer-events: none;
+    filter: blur(64px);
+}
+
+.site-aurora > span {
+    position: absolute;
+    border-radius: 9999px;
+    animation: site-drift 20s ease-in-out infinite alternate;
+}
+
+@keyframes site-drift {
+    to {
+        transform: translate(4vw, -3vw) scale(1.12);
+    }
+}
+
+/* The hero title's last words take turns (resources/js/site.ts): the old ones lift away, the new ones rise in. */
+.site-rotate {
+    display: inline-block;
+    transition:
+        opacity 0.35s ease,
+        transform 0.35s ease,
+        filter 0.35s ease;
+}
+
+.site-rotate.is-leaving {
+    opacity: 0;
+    transform: translateY(-0.18em);
+    filter: blur(4px);
+}
+
+.site-rotate.is-entering {
+    opacity: 0;
+    transform: translateY(0.22em);
+    filter: blur(4px);
+    transition: none;
+}
+
+/*
+| Scroll-driven, set by resources/js/site.ts: --hero goes 0 to 1 as the hero leaves the window, --rise 0 to 1 as
+| the product arrives. Without the script (or with reduced motion) both stay where everything is plainly visible.
+*/
+.site-hero-body {
+    opacity: calc(1 - var(--hero, 0) * 1.1);
+    transform: translateY(calc(var(--hero, 0) * -48px)) scale(calc(1 - var(--hero, 0) * 0.04));
+}
+
+.site-stage {
+    transform-origin: 50% 0;
+    transform: translateY(calc((1 - var(--rise, 1)) * 90px)) rotateX(calc((1 - var(--rise, 1)) * 22deg)) scale(calc(0.88 + var(--rise, 1) * 0.12));
+    will-change: transform;
+}
+
+.site-assistant {
+    transform: translate(calc((1 - var(--rise, 1)) * 56px), calc((1 - var(--rise, 1)) * 40px));
+    opacity: calc(0.4 + var(--rise, 1) * 0.6);
+}
+
+/* The workspace inside the product frame: the backdrop's colour fields, so its glass reads as glass. */
+.site-screen {
+    background:
+        radial-gradient(520px 360px at 0% 0%, var(--field-a) 0%, transparent 62%),
+        radial-gradient(460px 320px at 100% 0%, var(--field-b) 0%, transparent 58%),
+        radial-gradient(520px 420px at 100% 100%, var(--field-c) 0%, transparent 56%), var(--canvas);
+}
+
+/*
+|--------------------------------------------------------------------------
+| The blog's article (resources/views/site/pages/post.blade.php)
+|--------------------------------------------------------------------------
+|
+| `site-prose` sets the HTML App\Core\Website\Blog\BlogMarkdown builds: a
+| measure that reads easily, headings the table of contents can land on
+| below the floating header, and only the app's tokens. It always sits on
+| glass, so the contrast the tokens guarantee holds.
+|
+*/
+
+.site-prose {
+    font-size: 1.0625rem;
+    line-height: 1.75;
+    color: var(--ink);
+    overflow-wrap: break-word;
+}
+
+:lang(bn) .site-prose {
+    font-size: 1.125rem;
+    line-height: 1.9;
+}
+
+.site-prose > * + * {
+    margin-top: 1.25em;
+}
+
+.site-prose h2,
+.site-prose h3,
+.site-prose h4 {
+    scroll-margin-top: 6.5rem;
+    color: var(--ink);
+}
+
+.site-prose h2 {
+    margin-top: 2.2em;
+    font-size: 1.625rem;
+    letter-spacing: -0.025em;
+}
+
+.site-prose h3 {
+    margin-top: 1.8em;
+    font-size: 1.25rem;
+}
+
+.site-prose h4 {
+    margin-top: 1.6em;
+    font-family: var(--font-sans);
+    font-size: 1.0625rem;
+    font-weight: 600;
+}
+
+.site-prose > :first-child {
+    margin-top: 0;
+}
+
+.site-prose :is(h2, h3, h4) + * {
+    margin-top: 0.75em;
+}
+
+.site-prose a {
+    color: var(--brand-text);
+    font-weight: 500;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+}
+
+.site-prose a:hover {
+    text-decoration-thickness: 2px;
+}
+
+.site-prose strong {
+    font-weight: 650;
+}
+
+.site-prose :is(ul, ol) {
+    padding-left: 1.4em;
+}
+
+.site-prose ul {
+    list-style: disc;
+}
+
+.site-prose ol {
+    list-style: decimal;
+}
+
+.site-prose li + li {
+    margin-top: 0.45em;
+}
+
+.site-prose li::marker {
+    color: var(--brand-text);
+    font-weight: 600;
+}
+
+.site-prose li > :is(ul, ol) {
+    margin-top: 0.45em;
+}
+
+.site-prose blockquote {
+    border-left: 3px solid var(--brand);
+    border-radius: 0 0.875rem 0.875rem 0;
+    background: var(--brand-soft);
+    padding: 1em 1.25em;
+    font-size: 1.0625em;
+    color: var(--ink);
+}
+
+.site-prose blockquote > * + * {
+    margin-top: 0.75em;
+}
+
+.site-prose code {
+    border-radius: 0.375rem;
+    background: var(--hover);
+    padding: 0.12em 0.4em;
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+}
+
+.site-prose pre {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 0.875rem;
+    background: var(--control-sunken);
+    padding: 1em 1.25em;
+    font-size: 0.9em;
+    line-height: 1.6;
+}
+
+.site-prose pre code {
+    background: none;
+    padding: 0;
+    font-size: inherit;
+}
+
+.site-prose hr {
+    margin-block: 2.5em;
+    border: 0;
+    border-top: 1px solid var(--line-strong);
+}
+
+.site-prose img {
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--line);
+    border-radius: 0.875rem;
+}
+
+/* A wide table scrolls inside the article; the page never scrolls sideways. */
+.site-prose table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    font-size: 0.9375em;
+    line-height: 1.5;
+}
+
+.site-prose :is(th, td) {
+    border-bottom: 1px solid var(--line);
+    padding: 0.6em 0.9em;
+    text-align: left;
+    vertical-align: top;
+}
+
+.site-prose th {
+    border-bottom-color: var(--line-strong);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.site-prose del {
+    color: var(--ink-muted);
+}
+
+/* How far through the article the reader is: the browser ties it to the scroll position; where it cannot, it hides. */
+.site-progress {
+    display: none;
+}
+
+@supports (animation-timeline: scroll()) {
+    .site-progress {
+        display: block;
+        position: fixed;
+        inset: 0 0 auto;
+        z-index: 60;
+        height: 3px;
+        transform-origin: 0 50%;
+        background: var(--brand);
+        animation: site-progress linear both;
+        animation-timeline: scroll(root block);
+    }
+
+    @keyframes site-progress {
+        from {
+            transform: scaleX(0);
+        }
+
+        to {
+            transform: scaleX(1);
+        }
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .site-progress {
+        display: none;
+    }
 }
 
 /*

@@ -23,11 +23,14 @@ use App\Modules\Communication\Automation\Triggers\MessageDeliveredTrigger;
 use App\Modules\Communication\Automation\Triggers\MessageFailedTrigger;
 use App\Modules\CRM\Automation\Actions\AssignLeadAction as CrmAssignLeadAction;
 use App\Modules\CRM\Automation\Actions\CreateFollowUpAction;
+use App\Modules\CRM\Automation\Actions\CreateLeadAction;
 use App\Modules\CRM\Automation\Actions\MoveDealStageAction;
 use App\Modules\CRM\Automation\Triggers\ActivityCompletedTrigger;
 use App\Modules\CRM\Automation\Triggers\DealWonTrigger;
 use App\Modules\CRM\Automation\Triggers\LeadCreatedTrigger as CrmLeadCreatedTrigger;
 use App\Modules\CRM\Automation\Triggers\LeadQualifiedTrigger;
+use App\Modules\CRM\Automation\Triggers\QuoteAcceptedTrigger;
+use App\Modules\CRM\Automation\Triggers\SalesOrderStatusChangedTrigger;
 use App\Modules\EmailMarketing\Automation\Actions\AddToListAction;
 use App\Modules\EmailMarketing\Automation\Triggers\CampaignSentTrigger;
 use App\Modules\EmailMarketing\Automation\Triggers\SubscriberSubscribedTrigger;
@@ -44,6 +47,8 @@ use App\Modules\Invoicing\Automation\Triggers\InvoiceIssuedTrigger;
 use App\Modules\Invoicing\Automation\Triggers\InvoiceOverdueTrigger;
 use App\Modules\Invoicing\Automation\Triggers\InvoicePaidTrigger;
 use App\Modules\Invoicing\Automation\Triggers\PaymentReceivedTrigger;
+use App\Modules\MetaAds\Automation\Triggers\ConnectionNeedsReauthorizationTrigger;
+use App\Modules\Notes\Automation\Triggers\NoteCreatedTrigger;
 use App\Modules\Telephony\Automation\Triggers\CallEndedTrigger;
 use App\Modules\Payroll\Automation\Actions\CreatePayItemAction;
 use App\Modules\Payroll\Automation\Actions\PrepareRunAction;
@@ -66,6 +71,10 @@ use App\Modules\Social\Automation\Triggers\PostApprovedTrigger;
 use App\Modules\Social\Automation\Triggers\PostFailedTrigger;
 use App\Modules\Social\Automation\Triggers\PostPublishedTrigger;
 use App\Modules\Social\Automation\Triggers\PostScheduledTrigger;
+use App\Modules\Social\Comments\Automation\CommentReceivedTrigger;
+use App\Modules\Social\Comments\Automation\HideCommentAction;
+use App\Modules\Social\Comments\Automation\ReplyToCommentAction;
+use App\Modules\Social\LeadAds\Automation\LeadAdReceivedTrigger;
 use App\Modules\Support\Automation\Actions\AddInternalNoteAction;
 use App\Modules\Support\Automation\Actions\AssignTicketAction;
 use App\Modules\Support\Automation\Actions\CreateTicketAction;
@@ -91,8 +100,13 @@ use App\Modules\WhatsappMarketing\Automation\Actions\SendTemplateAction;
 use App\Modules\WhatsappMarketing\Automation\Actions\TagConversationAction;
 use App\Modules\WhatsappMarketing\Automation\Triggers\CampaignCompletedTrigger as WhatsappMarketingCampaignCompletedTrigger;
 use App\Modules\WhatsappMarketing\Automation\Triggers\ConversationAssignedTrigger;
+use App\Modules\WhatsappMarketing\Automation\Triggers\FeedbackReceivedTrigger;
 use App\Modules\WhatsappMarketing\Automation\Triggers\MessageReadTrigger;
 use App\Modules\WhatsappMarketing\Automation\Triggers\MessageReceivedTrigger;
+use App\Modules\WhatsappMarketing\Reminders\Actions\SendAppointmentReminderAction;
+use App\Modules\WhatsappMarketing\Reminders\Actions\SendInvoiceNotificationAction;
+use App\Modules\WhatsappMarketing\Reminders\Actions\SendOrderConfirmationAction;
+use App\Modules\WhatsappMarketing\Reminders\Actions\SendPaymentReminderAction;
 
 /*
  * Small definitions, declared inline: each one is wrong (or right) in exactly one way.
@@ -305,6 +319,8 @@ describe('the application\'s own registry', function () {
             'crm.lead.qualified' => LeadQualifiedTrigger::class,
             'crm.deal.won' => DealWonTrigger::class,
             'crm.activity.completed' => ActivityCompletedTrigger::class,
+            'crm.quote.accepted' => QuoteAcceptedTrigger::class,
+            'crm.sales_order.status_changed' => SalesOrderStatusChangedTrigger::class,
             'projects.project.created' => ProjectCreatedTrigger::class,
             'projects.task.created' => TaskCreatedTrigger::class,
             'projects.task.completed' => TaskCompletedTrigger::class,
@@ -346,6 +362,9 @@ describe('the application\'s own registry', function () {
             'social.post.published' => PostPublishedTrigger::class,
             'social.post.failed' => PostFailedTrigger::class,
             'social.account.needs_reauthorization' => AccountNeedsReauthorizationTrigger::class,
+            'social.comment.received' => CommentReceivedTrigger::class,
+            'social.lead_ad.received' => LeadAdReceivedTrigger::class,
+            'meta_ads.connection.needs_reauthorization' => ConnectionNeedsReauthorizationTrigger::class,
             'sms_marketing.campaign.launched' => CampaignLaunchedTrigger::class,
             'sms_marketing.campaign.completed' => CampaignCompletedTrigger::class,
             'support.ticket.created' => TicketCreatedTrigger::class,
@@ -358,10 +377,13 @@ describe('the application\'s own registry', function () {
             'whatsapp_marketing.message.read' => MessageReadTrigger::class,
             'whatsapp_marketing.conversation.assigned' => ConversationAssignedTrigger::class,
             'whatsapp_marketing.campaign.completed' => WhatsappMarketingCampaignCompletedTrigger::class,
+            'whatsapp_marketing.feedback.received' => FeedbackReceivedTrigger::class,
+            'notes.note.created' => NoteCreatedTrigger::class,
             'telephony.call.ended' => CallEndedTrigger::class,
         ])
             ->and($registry->actions())->toBe([
                 'crm.lead.assign' => CrmAssignLeadAction::class,
+                'crm.lead.create' => CreateLeadAction::class,
                 'crm.activity.create_follow_up' => CreateFollowUpAction::class,
                 'crm.deal.move_stage' => MoveDealStageAction::class,
                 'projects.project.create' => CreateProjectAction::class,
@@ -379,6 +401,8 @@ describe('the application\'s own registry', function () {
                 'communication.interaction.log' => LogInteractionAction::class,
                 'email_marketing.subscriber.add_to_list' => AddToListAction::class,
                 'social.post.create_draft' => CreateDraftPostAction::class,
+                'social.comment.reply' => ReplyToCommentAction::class,
+                'social.comment.hide' => HideCommentAction::class,
                 'sms_marketing.group.add_contact' => AddContactToGroupAction::class,
                 'support.ticket.create' => CreateTicketAction::class,
                 'support.ticket.assign' => AssignTicketAction::class,
@@ -386,6 +410,10 @@ describe('the application\'s own registry', function () {
                 'whatsapp_marketing.template.send' => SendTemplateAction::class,
                 'whatsapp_marketing.conversation.assign' => AssignConversationAction::class,
                 'whatsapp_marketing.conversation.add_tag' => TagConversationAction::class,
+                'whatsapp_marketing.send_order_confirmation' => SendOrderConfirmationAction::class,
+                'whatsapp_marketing.send_invoice_notification' => SendInvoiceNotificationAction::class,
+                'whatsapp_marketing.send_appointment_reminder' => SendAppointmentReminderAction::class,
+                'whatsapp_marketing.send_payment_reminder' => SendPaymentReminderAction::class,
             ])
             ->and(app(AutomationRegistry::class))->toBe($registry);
     });

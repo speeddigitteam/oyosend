@@ -24,6 +24,9 @@ const TENANT_INDEX_EXEMPT_UNIQUE = [
     'invoices.invoices_number_unique' => 'platform invoice numbers are one sequence for the issuer, not per workspace',
     'payments.payments_gateway_gateway_reference_unique' => 'a gateway reference identifies one payment platform-wide (callback lookup)',
     'payments.payments_reference_unique' => 'our payment reference is global; the callback finds the tenant from it',
+    'social_comment_page_claims.social_comment_page_claims_page_unique' => 'a Facebook Page feeds one workspace only; the central Meta webhook finds the workspace from the Page id (ADR 0025)',
+    'social_comment_page_claims.social_comment_page_claims_account_unique' => 'one claim per connected account; account ids are globally unique ULIDs (ADR 0025)',
+    'social_comment_page_claims.social_comment_page_claims_instagram_unique' => 'an Instagram webhook names only the Instagram account id, which must route to exactly one claim (ADR 0031)',
     'tenant_domains.tenant_domains_domain_unique' => 'a hostname maps to exactly one tenant',
     'workspace_registrations.workspace_registrations_token_hash_unique' => 'confirmation link is resolved from the token alone, before the workspace exists',
 ];

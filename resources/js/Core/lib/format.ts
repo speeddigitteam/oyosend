@@ -7,7 +7,7 @@ export interface FormatContext {
     currency: string;
 }
 
-export type DateStyle = 'date' | 'datetime' | 'time' | 'short';
+export type DateStyle = 'date' | 'datetime' | 'time' | 'short' | 'weekday';
 export type CanonicalIntegerString = `${bigint}`;
 export type MoneyMinorUnits = number | CanonicalIntegerString;
 
@@ -69,6 +69,8 @@ const DATE_OPTIONS: Record<DateStyle, Intl.DateTimeFormatOptions> = {
     datetime: { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' },
     time: { hour: 'numeric', minute: '2-digit' },
     short: { day: 'numeric', month: 'short' },
+    // The name of the day alone ("Tuesday"), for dates within the last week.
+    weekday: { weekday: 'long' },
 };
 
 export function formatDate(value: string | Date | null | undefined, context: FormatContext, style: DateStyle = 'date'): string {

@@ -19,6 +19,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $account_id
  * @property string $platform
  * @property string $external_id
+ * @property string|null $instagram_id The Instagram professional account linked to the Page, while its direct
+ *                                     messages are captured (ADR 0031); unique, so it feeds one workspace only.
  */
 class PageClaim extends Model
 {
@@ -27,5 +29,5 @@ class PageClaim extends Model
     protected $table = 'social_comment_page_claims';
 
     /** @var list<string> */
-    protected $fillable = ['tenant_id', 'account_id', 'platform', 'external_id'];
+    protected $fillable = ['tenant_id', 'account_id', 'platform', 'external_id', 'instagram_id'];
 }

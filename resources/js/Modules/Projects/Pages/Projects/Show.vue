@@ -146,7 +146,7 @@ function confirmPlanningCancellation(): void {
                         <div class="mt-1 flex items-center justify-between gap-2"><p class="text-xs text-ink-subtle">{{ milestone.dueDate ? format.date(milestone.dueDate) : t('projects.common.notSet') }}</p><span class="font-mono text-xs text-ink-subtle">{{ format.number(milestone.completedTaskCount) }}/{{ format.number(milestone.taskCount) }}</span></div>
                         <div v-if="milestone.approvalPending || milestone.approvalRequestable || (project.editable && milestone.status === 'open')" class="mt-2 flex flex-wrap gap-1">
                             <span v-if="milestone.approvalPending" class="rounded-chip bg-warn-soft px-2 py-1 text-xs text-warn">{{ t('projects.approvals.pending') }}</span>
-                            <Button v-if="milestone.approvalRequestable" size="sm" variant="ghost" @click="selectedMilestone = milestone"><ShieldCheck class="size-4" aria-hidden="true" />{{ t('projects.approvals.request') }}</Button>
+                            <Button v-if="milestone.approvalRequestable" size="sm" variant="ghost" @click="selectedMilestone = milestone"><template #icon><ShieldCheck class="size-4" aria-hidden="true" /></template>{{ t('projects.approvals.request') }}</Button>
                             <template v-if="project.editable && milestone.status === 'open'"><Button size="sm" variant="ghost" :disabled="planningSaving" @click="requestPlanningCancellation({ kind: 'milestone', id: milestone.id, name: milestone.name })">{{ t('projects.common.cancel') }}</Button><Button size="sm" :disabled="planningSaving" @click="updateMilestone(milestone, 'completed')">{{ t('projects.milestones.complete') }}</Button></template>
                         </div>
                     </li>

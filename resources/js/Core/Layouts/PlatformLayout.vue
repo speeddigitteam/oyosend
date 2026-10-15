@@ -80,6 +80,14 @@ const ENTRIES: PanelEntry[] = [
         ability: 'platform.audit.view',
     },
     {
+        key: 'website',
+        label: 'platformWebsite',
+        route: 'platform.website.messages.index',
+        active: 'platform.website.*',
+        icon: 'globe',
+        ability: 'platform.website.view',
+    },
+    {
         key: 'settings',
         label: 'platformSettings',
         route: 'platform.settings.edit',

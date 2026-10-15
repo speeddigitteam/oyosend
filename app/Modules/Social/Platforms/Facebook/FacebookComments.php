@@ -30,7 +30,7 @@ use Throwable;
  *  - `DELETE /{comment-id}`                delete
  *  - `POST|DELETE /{comment-id}/likes`     like / unlike as the Page
  *  - `POST /{comment-id}/private_replies`  one private reply per comment (needs `pages_messaging`)
- *  - `POST /{page-id}/subscribed_apps`     subscribe the Page to `feed` webhook events
+ *  - `GET|POST /{page-id}/subscribed_apps` add `feed` to the Page's webhook fields, keeping the others
  *
  * Permissions: `pages_read_engagement` (read), `pages_manage_engagement` (reply, hide, delete, like),
  * `pages_manage_metadata` (webhook subscription) and, for private replies only, `pages_messaging`, each
@@ -205,7 +205,19 @@ final class FacebookComments implements CommentProvider
 
     public function subscribe(AccountCredentials $account): void
     {
-        $this->send(fn (): Response => $this->request($account)->asForm()->post($this->url($account->externalId.'/subscribed_apps'), ['subscribed_fields' => 'feed']));
+        // The call sets the Page's whole field list: keep what other features subscribed (lead ads, direct messages).
+        $current = [];
+
+        try {
+            $current = FacebookPageSubscriptions::fieldsOf($this->send(fn (): Response => $this->request($account)->get($this->url($account->externalId.'/subscribed_apps'))));
+        } catch (CommentActionFailed $failure) {
+            if ($failure->needsReauthorization()) {
+                throw $failure;
+            }
+        }
+
+        $fields = FacebookPageSubscriptions::merge($current, ['feed']);
+        $this->send(fn (): Response => $this->request($account)->asForm()->post($this->url($account->externalId.'/subscribed_apps'), ['subscribed_fields' => implode(',', $fields)]));
     }
 
     /** @param Closure(): Response $call */

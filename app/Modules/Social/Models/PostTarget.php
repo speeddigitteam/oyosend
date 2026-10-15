@@ -21,6 +21,7 @@ use Illuminate\Support\Carbon;
  * @property string $post_id
  * @property string $account_id
  * @property string|null $body_override
+ * @property array<string, mixed>|null $options Publishing options chosen for this account (TikTok privacy, interactions, disclosure); null = none chosen
  * @property TargetStatus $status
  * @property int $attempts
  * @property Carbon|null $next_attempt_at
@@ -50,7 +51,7 @@ class PostTarget extends Model
 
     /** @var list<string> */
     protected $fillable = [
-        'post_id', 'account_id', 'body_override', 'status', 'attempts', 'next_attempt_at', 'claimed_at', 'published_at',
+        'post_id', 'account_id', 'body_override', 'options', 'status', 'attempts', 'next_attempt_at', 'claimed_at', 'published_at',
         'external_id', 'external_url', 'last_error', 'last_error_code', 'needs_manual_check', 'idempotency_key',
         'metrics_synced_at', 'remote_id', 'remote_state', 'upload_offset', 'remote_meta', 'remote_started_at',
     ];
@@ -60,6 +61,7 @@ class PostTarget extends Model
     {
         return [
             'status' => TargetStatus::class,
+            'options' => 'array',
             'attempts' => 'integer',
             'next_attempt_at' => 'datetime',
             'claimed_at' => 'datetime',

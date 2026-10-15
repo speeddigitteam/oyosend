@@ -15,8 +15,6 @@ import Select, { type SelectOption } from '@/Core/Components/Select.vue';
 import { useFormat } from '@/Core/composables/useFormat';
 import PlatformLayout from '@/Core/Layouts/PlatformLayout.vue';
 import { route } from '@/Core/lib/route';
-import FormRule from '@/Platform/Components/FormRule.vue';
-import FormSection from '@/Platform/Components/FormSection.vue';
 import { amountFor, intervalsOf } from '@/Platform/Components/Plans/prices';
 
 defineOptions({ layout: PlatformLayout });
@@ -132,7 +130,7 @@ function submit(): void {
 </script>
 
 <template>
-    <div class="max-w-4xl">
+    <div>
         <PageHeader
             :eyebrow="t('shell.nav.tenants')"
             :title="t('platformWorkspaces.create.title')"
@@ -146,57 +144,54 @@ function submit(): void {
             </template>
         </PageHeader>
 
-        <form novalidate @submit.prevent="submit">
-            <Card>
-                <FormSection
-                    :title="t('platformWorkspaces.create.workspace.title')"
-                    :description="t('platformWorkspaces.create.workspace.description')"
-                >
-                    <div class="flex flex-col gap-4">
-                        <Input
-                            v-model="form.name"
-                            name="name"
-                            :label="t('platformWorkspaces.create.name')"
-                            :error="form.errors.name"
-                            autocomplete="off"
-                            maxlength="255"
-                            required
-                        />
+        <!-- Full width like the platform Settings page: one box per part, two side by side on wide screens, one save
+             beneath them. Each box lays out its own fields by its own width (container queries), not the screen's. -->
+        <form novalidate class="grid gap-3 lg:grid-cols-2" @submit.prevent="submit">
+            <Card :title="t('platformWorkspaces.create.workspace.title')" :description="t('platformWorkspaces.create.workspace.description')">
+                <div class="flex flex-col gap-4">
+                    <Input
+                        v-model="form.name"
+                        name="name"
+                        :label="t('platformWorkspaces.create.name')"
+                        :error="form.errors.name"
+                        autocomplete="off"
+                        maxlength="255"
+                        required
+                    />
 
-                        <Field
-                            :for="slugId"
-                            :label="t('platformWorkspaces.create.slug')"
-                            :hint="t('platformWorkspaces.create.slugHint')"
-                            :error="form.errors.slug"
-                        >
-                            <!-- The field and the rest of the address read as one line; the domain wraps under it when there is no room. -->
-                            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                <div class="min-w-40 flex-1">
-                                    <Input
-                                        :id="slugId"
-                                        v-model="form.slug"
-                                        name="slug"
-                                        mono
-                                        autocomplete="off"
-                                        autocapitalize="none"
-                                        spellcheck="false"
-                                        maxlength="63"
-                                        required
-                                        :aria-invalid="form.errors.slug ? 'true' : undefined"
-                                        :aria-describedby="form.errors.slug ? `${slugId}-error` : `${slugId}-hint`"
-                                        @input="slugEdited = true"
-                                    />
-                                </div>
-                                <span class="font-mono text-[0.8125rem] break-all text-ink-muted">.{{ domain }}</span>
+                    <Field
+                        :for="slugId"
+                        :label="t('platformWorkspaces.create.slug')"
+                        :hint="t('platformWorkspaces.create.slugHint')"
+                        :error="form.errors.slug"
+                    >
+                        <!-- The field and the rest of the address read as one line; the domain wraps under it when there is no room. -->
+                        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <div class="min-w-40 flex-1">
+                                <Input
+                                    :id="slugId"
+                                    v-model="form.slug"
+                                    name="slug"
+                                    mono
+                                    autocomplete="off"
+                                    autocapitalize="none"
+                                    spellcheck="false"
+                                    maxlength="63"
+                                    required
+                                    :aria-invalid="form.errors.slug ? 'true' : undefined"
+                                    :aria-describedby="form.errors.slug ? `${slugId}-error` : `${slugId}-hint`"
+                                    @input="slugEdited = true"
+                                />
                             </div>
-                        </Field>
-                    </div>
-                </FormSection>
+                            <span class="font-mono text-[0.8125rem] break-all text-ink-muted">.{{ domain }}</span>
+                        </div>
+                    </Field>
+                </div>
+            </Card>
 
-                <FormRule />
-
-                <FormSection :title="t('platformWorkspaces.create.owner.title')" :description="t('platformWorkspaces.create.owner.description')">
-                    <div class="grid content-start gap-4 sm:grid-cols-2">
+            <Card :title="t('platformWorkspaces.create.owner.title')" :description="t('platformWorkspaces.create.owner.description')">
+                <div class="@container">
+                    <div class="grid content-start gap-4 @lg:grid-cols-2">
                         <Input
                             v-model="form.owner_email"
                             type="email"
@@ -221,15 +216,12 @@ function submit(): void {
                             required
                         />
                     </div>
-                </FormSection>
+                </div>
+            </Card>
 
-                <FormRule />
-
-                <FormSection
-                    :title="t('platformWorkspaces.create.language.title')"
-                    :description="t('platformWorkspaces.create.language.description')"
-                >
-                    <div class="sm:max-w-xs">
+            <Card :title="t('platformWorkspaces.create.language.title')" :description="t('platformWorkspaces.create.language.description')">
+                <div class="@container">
+                    <div class="@sm:max-w-xs">
                         <Select
                             v-model="form.locale"
                             name="locale"
@@ -238,52 +230,49 @@ function submit(): void {
                             :error="form.errors.locale"
                         />
                     </div>
-                </FormSection>
-
-                <FormRule />
-
-                <FormSection :title="t('platformWorkspaces.create.plan.title')" :description="t('platformWorkspaces.create.plan.description')">
-                    <div class="flex flex-col gap-4">
-                        <div class="sm:max-w-xs">
-                            <Select
-                                v-model="form.plan_id"
-                                name="plan_id"
-                                :options="planOptions"
-                                :label="t('platformWorkspaces.create.planField')"
-                                :error="form.errors.plan_id"
-                                optional
-                            />
-                        </div>
-
-                        <template v-if="plan">
-                            <Field :label="t('platformWorkspaces.create.interval')" :hint="price" :error="form.errors.interval">
-                                <div>
-                                    <SegmentedControl
-                                        v-model="form.interval"
-                                        :options="intervalOptions"
-                                        :label="t('platformWorkspaces.create.interval')"
-                                    />
-                                </div>
-                            </Field>
-
-                            <p v-if="planEffect" class="glass-well rounded-control px-4 py-3 text-[0.8125rem] text-ink-muted" aria-live="polite">
-                                {{ planEffect }}
-                            </p>
-                        </template>
-                    </div>
-                </FormSection>
-
-                <template #footer>
-                    <div class="flex flex-wrap items-center justify-end gap-2">
-                        <Button variant="ghost" :href="route('platform.tenants.index')" :disabled="form.processing">
-                            {{ t('common.actions.cancel') }}
-                        </Button>
-                        <Button type="submit" variant="primary" :loading="form.processing">
-                            {{ t('platformWorkspaces.create.submit') }}
-                        </Button>
-                    </div>
-                </template>
+                </div>
             </Card>
+
+            <Card :title="t('platformWorkspaces.create.plan.title')" :description="t('platformWorkspaces.create.plan.description')">
+                <div class="@container flex flex-col gap-4">
+                    <div class="@sm:max-w-xs">
+                        <Select
+                            v-model="form.plan_id"
+                            name="plan_id"
+                            :options="planOptions"
+                            :label="t('platformWorkspaces.create.planField')"
+                            :error="form.errors.plan_id"
+                            optional
+                        />
+                    </div>
+
+                    <template v-if="plan">
+                        <Field :label="t('platformWorkspaces.create.interval')" :hint="price" :error="form.errors.interval">
+                            <div>
+                                <SegmentedControl
+                                    v-model="form.interval"
+                                    :options="intervalOptions"
+                                    :label="t('platformWorkspaces.create.interval')"
+                                />
+                            </div>
+                        </Field>
+
+                        <p v-if="planEffect" class="glass-well rounded-control px-4 py-3 text-[0.8125rem] text-ink-muted" aria-live="polite">
+                            {{ planEffect }}
+                        </p>
+                    </template>
+                </div>
+            </Card>
+
+            <!-- One save for the four boxes above. -->
+            <div class="flex flex-wrap items-center justify-end gap-2 px-1 lg:col-span-2">
+                <Button variant="ghost" :href="route('platform.tenants.index')" :disabled="form.processing">
+                    {{ t('common.actions.cancel') }}
+                </Button>
+                <Button type="submit" variant="primary" :loading="form.processing">
+                    {{ t('platformWorkspaces.create.submit') }}
+                </Button>
+            </div>
         </form>
     </div>
 </template>

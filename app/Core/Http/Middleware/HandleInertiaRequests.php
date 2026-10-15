@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Core\Http\Middleware;
 
+use App\Core\Website\SiteBrand;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\View;
@@ -45,6 +46,8 @@ abstract class HandleInertiaRequests extends Middleware
                 'locale' => app()->getLocale(),
                 'fallbackLocale' => config('app.fallback_locale'),
                 'locales' => config('platform.locales'),
+                // The logo an operator uploaded (Super Admin > Website), or nulls for the built-in mark.
+                'brand' => app(SiteBrand::class)->shared(),
                 ...$this->regional($request),
             ],
         ];

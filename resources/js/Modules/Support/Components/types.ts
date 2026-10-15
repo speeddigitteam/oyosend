@@ -116,6 +116,8 @@ export interface TicketDetail extends TicketSummary {
     createdBy: string | null;
     mergedInto: TicketReference | null;
     splitFrom: TicketReference | null;
+    /** The website chat the ticket was made from, when the member reaches it. */
+    fromChat: string | null;
     mergedTickets: TicketReference[];
     splitTickets: TicketReference[];
 }

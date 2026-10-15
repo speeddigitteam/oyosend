@@ -65,6 +65,9 @@ final class PlanController
         return Inertia::render('Platform/Pages/Plans/Edit', [
             'plan' => [
                 ...BillingPresenter::plan($plan),
+                // The Bengali name and description, for the Bengali website (docs/WEBSITE.md).
+                'nameBn' => $plan->name_bn,
+                'descriptionBn' => $plan->description_bn,
                 'subscribers' => $plan->subscriptions()->count(),
             ],
             ...$this->options(),
@@ -123,7 +126,9 @@ final class PlanController
                 Rule::unique('plans', 'key')->ignore($plan?->getKey()),
             ],
             'name' => ['required', 'string', 'max:80'],
+            'name_bn' => ['nullable', 'string', 'max:80'],
             'description' => ['nullable', 'string', 'max:255'],
+            'description_bn' => ['nullable', 'string', 'max:255'],
             'currency' => ['required', Rule::in($currencies)],
             // Minor units. Empty = not sold for that interval; 0 = free.
             'monthly_amount' => ['nullable', 'integer', 'min:0', 'max:99999999999', 'required_without:yearly_amount'],

@@ -297,6 +297,14 @@ describe('settings', () => {
         expect(wrapper.get('[data-testid="provider"]').text()).not.toContain('anthropic');
         expect(wrapper.get('[data-testid="ai-availability"]').attributes('data-state')).toBe('not_configured');
     });
+
+    it('names every feature next to its state, however long the state is', () => {
+        const wrapper = mount(SettingsIndex, { props: { ...props, availability: notConfigured }, global: stubs });
+        const features = wrapper.get('[data-testid="features"]').findAll('li');
+
+        expect(features.map((item) => item.find('span').text())).toEqual(['Assistant chat', 'Drafting', 'Workflow text']);
+        expect(features.every((item) => !item.find('span').classes().includes('truncate'))).toBe(true);
+    });
 });
 
 describe('usage', () => {

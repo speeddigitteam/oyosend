@@ -90,7 +90,7 @@ describe('the people list', function () {
                 $page->component('Core/Pages/Contacts/Index')
                     ->where('contacts.total', 1)
                     ->where('contacts.per_page', 25)
-                    ->where('filters', ['search' => '', 'company' => null])
+                    ->where('filters', ['search' => '', 'company' => null, 'sort' => 'name', 'direction' => 'asc'])
                     ->where('companies', [['id' => $company->id, 'name' => 'Northwind Traders']])
                     ->where('canCreate', true);
 
@@ -204,7 +204,7 @@ describe('the people list', function () {
 
         $this->get("http://acme.localhost/contacts?company={$northwind->id}&search=nadia")
             ->assertInertia(fn (AssertableInertia $page) => $page
-                ->where('filters', ['search' => 'nadia', 'company' => ['id' => $northwind->id, 'name' => 'Northwind Traders']]));
+                ->where('filters', ['search' => 'nadia', 'company' => ['id' => $northwind->id, 'name' => 'Northwind Traders'], 'sort' => 'name', 'direction' => 'asc']));
     });
 
     it('does not filter by a company it cannot find here, and does not name it', function () {
@@ -266,6 +266,45 @@ describe('the people list', function () {
     });
 });
 
+describe('sorting the people list', function () {
+    beforeEach(function () {
+        $this->actingAsMember($this->acme, $this->admin);
+        $northwind = ($this->company)(['name' => 'Northwind Traders']);
+        $acorn = ($this->company)(['name' => 'Acorn Ltd']);
+
+        ($this->contact)(['first_name' => 'Imran', 'last_name' => 'Hossain', 'company_id' => $northwind->id, 'email' => 'imran@example.test', 'city' => 'Sylhet']);
+        $this->travel(1)->minute();
+        ($this->contact)(['first_name' => 'Nadia', 'last_name' => 'Islam', 'company_id' => $acorn->id, 'email' => 'nadia@example.test', 'city' => 'Dhaka']);
+        $this->travel(1)->minute();
+        ($this->contact)(['first_name' => 'Arif', 'last_name' => 'Khan', 'company_id' => null, 'email' => null, 'city' => null]);
+    });
+
+    it('sorts by each column the list offers, in both directions, keeping blanks last', function (string $query, array $expected) {
+        expect(($this->names)($query))->toBe($expected);
+    })->with([
+        'name, default' => ['', ['Arif Khan', 'Imran Hossain', 'Nadia Islam']],
+        'name, descending' => ['?sort=name&direction=desc', ['Nadia Islam', 'Imran Hossain', 'Arif Khan']],
+        'company' => ['?sort=company', ['Nadia Islam', 'Imran Hossain', 'Arif Khan']],
+        'company, descending' => ['?sort=company&direction=desc', ['Imran Hossain', 'Nadia Islam', 'Arif Khan']],
+        'email' => ['?sort=email', ['Imran Hossain', 'Nadia Islam', 'Arif Khan']],
+        'city' => ['?sort=city', ['Nadia Islam', 'Imran Hossain', 'Arif Khan']],
+        'newest first' => ['?sort=created&direction=desc', ['Arif Khan', 'Nadia Islam', 'Imran Hossain']],
+    ]);
+
+    it('says which order it applied, and keeps it in the page links', function () {
+        $this->get('http://acme.localhost/contacts?sort=city&direction=desc')
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('filters.sort', 'city')
+                ->where('filters.direction', 'desc'));
+    });
+
+    it('refuses an order it does not offer', function (string $query, string $field) {
+        $this->get('http://acme.localhost/contacts'.$query)->assertSessionHasErrors($field);
+    })->with([
+        ['?sort=password', 'sort'],
+        ['?sort=name&direction=sideways', 'direction'],
+    ]);
+});
 describe('adding a contact', function () {
     it('stores every field, lower-cases the email, and makes the person who added it the owner', function () {
         Event::fake([ContactCreated::class]);

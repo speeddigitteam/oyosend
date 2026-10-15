@@ -143,9 +143,11 @@ function openPolicy(item: LeavePolicy | null): void {
         <HrmTabList :label="t('hrm.settings.tabsLabel')" :items="tabs" />
 
         <TabsContent value="general">
+            <!-- One full-width box: the fields lay out by the box's own width (container queries), so they never
+                 stretch across the whole page; the save sits in the box's footer. -->
             <Card :title="t('hrm.settings.general.title')" :description="t('hrm.settings.general.description')">
-                <form class="grid max-w-2xl gap-4" novalidate @submit.prevent="save">
-                    <div class="grid gap-4 sm:grid-cols-2">
+                <form id="hrm-settings-general" class="@container grid gap-4" novalidate @submit.prevent="save">
+                    <div class="grid gap-4 @2xl:grid-cols-2 @6xl:grid-cols-4">
                         <Input
                             v-model="form.employee_prefix"
                             :label="t('hrm.settings.general.prefix')"
@@ -175,7 +177,7 @@ function openPolicy(item: LeavePolicy | null): void {
                     </div>
                     <fieldset class="grid gap-2">
                         <legend class="mb-1 text-sm font-medium text-ink">{{ t('hrm.fields.weeklyOff') }}</legend>
-                        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        <div class="grid grid-cols-2 gap-2 @md:grid-cols-4 @4xl:grid-cols-7">
                             <Checkbox
                                 v-for="item in days"
                                 :key="item.day"
@@ -186,10 +188,12 @@ function openPolicy(item: LeavePolicy | null): void {
                         </div>
                         <p v-if="form.errors.weekly_off_days" class="text-sm text-danger" role="alert">{{ form.errors.weekly_off_days }}</p>
                     </fieldset>
-                    <div>
-                        <Button type="submit" variant="primary" :loading="form.processing">{{ t('hrm.common.saveChanges') }}</Button>
-                    </div>
                 </form>
+                <template #footer>
+                    <div class="flex justify-end">
+                        <Button type="submit" form="hrm-settings-general" variant="primary" :loading="form.processing">{{ t('hrm.common.saveChanges') }}</Button>
+                    </div>
+                </template>
             </Card>
         </TabsContent>
 

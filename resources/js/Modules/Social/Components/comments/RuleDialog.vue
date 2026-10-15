@@ -186,7 +186,7 @@ async function runTest(): Promise<void> {
                     </ul>
                     <div class="mt-2 flex gap-2">
                         <Input id="rule-keyword" v-model="keywordDraft" :maxlength="limits.keyword" class="min-w-0 flex-1" :placeholder="t('socialComments.rule.keywordPlaceholder')" @keydown.enter.prevent="addKeyword" />
-                        <Button type="button" size="md" @click="addKeyword"><Plus class="size-4" aria-hidden="true" />{{ t('socialComments.actions.add') }}</Button>
+                        <Button type="button" size="md" @click="addKeyword"><template #icon><Plus class="size-4" aria-hidden="true" /></template>{{ t('socialComments.actions.add') }}</Button>
                     </div>
                     <p v-if="form.errors.keywords" role="alert" class="mt-1 text-[0.8125rem] text-danger">{{ form.errors.keywords }}</p>
                 </div>

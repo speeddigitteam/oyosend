@@ -240,10 +240,13 @@ it('turns away a post that came too fast, was never issued by the form or was ta
 });
 
 it('throttles posts per visitor per minute and recovers', function () {
+    // The hourly per-visitor limit is tested below; here only the route's 30 a minute is reached.
+    config(['email_marketing.signup.per_hour' => 1000]);
     $statuses = [];
 
-    for ($i = 1; $i <= 14; $i++) {
-        $statuses[] = ($this->submit)(['email' => "user{$i}@example.test"])->getStatusCode();
+    // Inside one minute: only the first waits out the time trap (later ones are refused 422 until the throttle answers).
+    for ($i = 1; $i <= 32; $i++) {
+        $statuses[] = ($this->submit)(['email' => "user{$i}@example.test"], wait: $i === 1)->getStatusCode();
     }
 
     expect($statuses[0])->toBe(200)->and($statuses)->toContain(429);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Core\Access\Models\Role;
 use App\Core\Http\Middleware\HandleTenantInertia;
+use App\Core\Http\Middleware\ThrottleRequestsPerRoute;
 use App\Core\Identity\Http\Middleware\EnsureTenantMember;
 use App\Core\Tenancy\Concerns\ScopedToTenant;
 use App\Core\Tenancy\Http\Middleware\EnsureCentralContext;
@@ -16,7 +17,6 @@ use Illuminate\Auth\Middleware\Authorize;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Routing\Middleware\SubstituteBindings;
-use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Routing\Route as RoutingRoute;
 use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\Session\Middleware\StartSession;
@@ -88,6 +88,13 @@ const STATELESS_WORKSPACE_ROUTES = [
     'telephony.events',
     // Social: Facebook lead-ad webhook (HMAC-signed with the Meta app secret over the raw body) and its handshake.
     'social.leadads.webhook.receive', 'social.leadads.webhook.verify',
+    // Social: the Page webhook for comments, Messenger and Instagram messages (HMAC-signed, Page-claim routed) and its handshake.
+    'social.comments.webhook.receive', 'social.comments.webhook.verify',
+    // Social: one media-library file behind a temporary signed URL, for platforms that fetch media themselves (ADR 0033).
+    'social.media.public',
+    // Support: the website chat widget, its framed page and the visitor API (same-origin only, hashed visitor token, throttled).
+    'support.live_chat.widget', 'support.live_chat.frame',
+    'support.live_chat.api.start', 'support.live_chat.api.send', 'support.live_chat.api.poll',
 ];
 
 it('settles the tenant before anything that depends on it', function () {
@@ -103,7 +110,7 @@ it('settles the tenant before anything that depends on it', function () {
         if (in_array($name, STATELESS_WORKSPACE_ROUTES, true)) {
             // The tenant from the hostname, a throttle, and no state of any kind.
             expect($at(InitializeTenancy::class))->not->toBeFalse("[{$name}] does not resolve a tenant")
-                ->and($at(InitializeTenancy::class))->toBeLessThan($at(ThrottleRequests::class))
+                ->and($at(InitializeTenancy::class))->toBeLessThan($at(ThrottleRequestsPerRoute::class))
                 ->and($pipeline)->not->toContain(StartSession::class, Authenticate::class, HandleTenantInertia::class);
 
             continue;
@@ -116,7 +123,7 @@ it('settles the tenant before anything that depends on it', function () {
         // Session first (the session is central), then the tenant, then everything tenant-aware.
         expect($at(StartSession::class))->toBeLessThan($at(InitializeTenancy::class), "[{$name}] starts the session after the tenant");
 
-        foreach ([Authenticate::class, AuthenticateSession::class, ThrottleRequests::class, SubstituteBindings::class, Authorize::class, EnsureTenantMember::class] as $dependent) {
+        foreach ([Authenticate::class, AuthenticateSession::class, ThrottleRequestsPerRoute::class, SubstituteBindings::class, Authorize::class, EnsureTenantMember::class] as $dependent) {
             if ($at($dependent) !== false) {
                 expect($at(InitializeTenancy::class))->toBeLessThan(
                     $at($dependent),
@@ -239,7 +246,7 @@ it('keeps the central site out of any tenant context', function () {
 });
 
 /** Central-host stateless callbacks: no session, no cookies, no Inertia; context and throttle only. */
-const STATELESS_CENTRAL_ROUTES = ['central.social.oauth.callback'];
+const STATELESS_CENTRAL_ROUTES = ['central.social.oauth.callback', 'central.blog.media'];
 
 it('keeps central callbacks stateless', function () {
     foreach (routesOnHost('localhost') as $route) {
@@ -249,7 +256,7 @@ it('keeps central callbacks stateless', function () {
 
         $pipeline = pipelineOf($route);
 
-        expect($pipeline)->toContain(EnsureCentralContext::class, ThrottleRequests::class)
+        expect($pipeline)->toContain(EnsureCentralContext::class, ThrottleRequestsPerRoute::class)
             ->not->toContain(StartSession::class, Authenticate::class, InitializeTenancy::class);
     }
 

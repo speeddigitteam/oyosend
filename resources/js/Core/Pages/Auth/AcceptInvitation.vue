@@ -182,7 +182,7 @@ function switchAccount(): void {
                     :label="t('auth.invitation.emailLabel')"
                     :hint="expires"
                     :error="invitationError"
-                    class="text-ink-muted"
+                    control-class="text-ink-muted"
                     autocomplete="username"
                     readonly
                 >

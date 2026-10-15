@@ -20,6 +20,7 @@ final class PreflightController
         $targets = array_values(array_map(static fn (array $target): array => [
             'account_id' => (string) $target['account_id'],
             'body_override' => isset($target['body_override']) && trim((string) $target['body_override']) !== '' ? (string) $target['body_override'] : null,
+            'options' => is_array($target['options'] ?? null) ? $target['options'] : null,
         ], (array) ($input['targets'] ?? [])));
 
         $previews = $this->preflight->previews(

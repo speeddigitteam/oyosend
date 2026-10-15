@@ -343,7 +343,7 @@ describe('the people list', () => {
         const wrapper = mountPeople();
         const rows = wrapper.findAll('tbody tr');
 
-        expect(headings(wrapper)).toEqual(['Name', 'Company', 'Email', 'Phone', 'Job title', 'Owner', 'Actions']);
+        expect(headings(wrapper)).toEqual(['Name', 'Company', 'Email', 'Phone', 'Job title', 'Location', 'Owner', 'Actions']);
         expect(rows).toHaveLength(2);
 
         const cells = rows[0]!.findAll('td');
@@ -355,12 +355,12 @@ describe('the people list', () => {
         expect(cells[3]!.get('a').attributes('href')).toBe('tel:+8801711000001');
         expect(cells[3]!.text()).toBe('+880 1711-000001');
         expect(cells[4]!.text()).toBe('Purchasing lead');
-        expect(cells[5]!.text()).toBe('Bob Biswas');
+        expect(cells[6]!.text()).toBe('Bob Biswas');
         expect(wrapper.get('[role="status"]').text()).toBe('2 contacts');
 
         // Nothing recorded is a dash, never a dead link; a contact of nobody says so.
         expect(rows[1]!.findAll('a')).toHaveLength(0);
-        expect(rows[1]!.findAll('td')[5]!.text()).toBe('No one');
+        expect(rows[1]!.findAll('td')[6]!.text()).toBe('No one');
     });
 
     it('fits a phone: the name alone, with the ways to reach someone under it', () => {
@@ -664,6 +664,8 @@ describe('the companies list', () => {
 
         expect(headings(wrapper)).toEqual(['Name', 'Actions']);
         expect(name.findAll('a').map((link) => [link.text(), link.attributes('href')])).toEqual([
+            // The name opens the company's own page.
+            ['Northwind Traders', '/core.contacts.companies.show?company=company-1'],
             ['3 people', '/core.contacts.index?company=company-1'],
             ['hello@northwind.test', 'mailto:hello@northwind.test'],
             ['+880255500001', 'tel:+880255500001'],

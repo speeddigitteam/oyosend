@@ -9,6 +9,7 @@ use App\Core\AppStore\Enums\AppCategory;
 use App\Core\AppStore\Enums\ScheduledJobFrequency;
 use App\Core\AppStore\ScheduledJobDefinition;
 use App\Core\Billing\Enums\LimitKind;
+use App\Core\Communication\Contracts\InboxSource;
 use App\Core\Modules\AppOffer;
 use App\Core\Modules\LimitDefinition;
 use App\Core\Modules\ModuleManifest;
@@ -29,6 +30,7 @@ use App\Modules\Social\Automation\Triggers\PostScheduledTrigger;
 use App\Modules\Social\Comments\Automation\CommentReceivedTrigger;
 use App\Modules\Social\Comments\Automation\HideCommentAction;
 use App\Modules\Social\Comments\Automation\ReplyToCommentAction;
+use App\Modules\Social\Comments\Inbox\CommentInboxSource;
 use App\Modules\Social\Comments\Jobs\PollRecentComments;
 use App\Modules\Social\Comments\Models\AudienceComment;
 use App\Modules\Social\Comments\Models\CommentNote;
@@ -45,6 +47,11 @@ use App\Modules\Social\LeadAds\Models\LeadAdLead;
 use App\Modules\Social\LeadAds\Models\LeadAdsPage;
 use App\Modules\Social\LeadAds\Models\LeadForm;
 use App\Modules\Social\LeadAds\Reporting\LeadAdsReport;
+use App\Modules\Social\Messages\Inbox\InstagramInboxSource;
+use App\Modules\Social\Messages\Inbox\MessengerInboxSource;
+use App\Modules\Social\Messages\Models\DirectConversation;
+use App\Modules\Social\Messages\Models\DirectMessage;
+use App\Modules\Social\Messages\Models\MessagingSetting;
 use App\Modules\Social\Models\AutomationActionReceipt;
 use App\Modules\Social\Models\Campaign;
 use App\Modules\Social\Models\Category;
@@ -78,6 +85,10 @@ final class SocialServiceProvider extends ModuleServiceProvider
         $this->app->tag(ReportProviders::ALL, ReportProvider::TAG);
         $this->app->tag([LeadAdsReport::class], ReportProvider::TAG);
         $this->app->tag([CommentVolumeReport::class], ReportProvider::TAG);
+        // Facebook comment threads in the unified inbox, readable and answerable there (ADR 0030).
+        $this->app->tag([CommentInboxSource::class], InboxSource::TAG);
+        // Messenger and Instagram direct messages in the unified inbox (ADR 0031); they list nothing while switched off.
+        $this->app->tag([MessengerInboxSource::class, InstagramInboxSource::class], InboxSource::TAG);
 
         // One registry per process so a platform added by a test or local override is seen everywhere.
         $this->app->singleton(SocialPlatforms::class);
@@ -91,7 +102,7 @@ final class SocialServiceProvider extends ModuleServiceProvider
         return new ModuleManifest(
             key: 'social',
             name: 'Social Media',
-            version: '1.4.0',
+            version: '1.7.0',
             dependencies: ['core'],
             permissions: [
                 new PermissionDefinition('social.posts.view', 'social_posts', scopable: true),
@@ -105,6 +116,8 @@ final class SocialServiceProvider extends ModuleServiceProvider
                 new PermissionDefinition('social.comments.reply', 'social_comments', scopable: true),
                 new PermissionDefinition('social.comments.moderate', 'social_comments', scopable: true, sensitive: true),
                 new PermissionDefinition('social.comments.manage_rules', 'social_comments', sensitive: true),
+                new PermissionDefinition('social.messages.view', 'social_messages', scopable: true),
+                new PermissionDefinition('social.messages.reply', 'social_messages', scopable: true),
                 new PermissionDefinition('social.posts.ai_assist', 'social_posts'),
                 new PermissionDefinition('social.media.view', 'social_media'),
                 new PermissionDefinition('social.media.manage', 'social_media'),
@@ -125,6 +138,7 @@ final class SocialServiceProvider extends ModuleServiceProvider
                 new NavigationItem('socialAccounts', 'social.accounts.index', 'share-2', 'social.accounts.view', 'apps', 113, 'social.accounts.*'),
                 new NavigationItem('socialComments', 'social.comments.index', 'message-circle', 'social.comments.view', 'apps', 118, 'social.comments.index'),
                 new NavigationItem('socialCommentRules', 'social.comments.rules.index', 'list-checks', 'social.comments.manage_rules', 'apps', 119, 'social.comments.rules.*'),
+                new NavigationItem('socialMessages', 'social.messages.index', 'inbox', 'social.messages.view', 'apps', 120, 'social.messages.*'),
                 new NavigationItem('socialLeadAds', 'social.leadads.index', 'file-text', 'social.leadads.view', 'apps', 117, 'social.leadads.*'),
                 new NavigationItem('socialLibrary', 'social.library.index', 'hash', 'social.library.view', 'apps', 114, 'social.library.*'),
                 new NavigationItem('socialAnalytics', 'social.analytics.index', 'chart-no-axes-combined', 'social.analytics.view', 'apps', 115, 'social.analytics.*'),
@@ -167,6 +181,9 @@ final class SocialServiceProvider extends ModuleServiceProvider
                 'social_lead_ads_page' => LeadAdsPage::class,
                 'social_lead_form' => LeadForm::class,
                 'social_lead_ad_lead' => LeadAdLead::class,
+                'social_dm_setting' => MessagingSetting::class,
+                'social_dm_conversation' => DirectConversation::class,
+                'social_dm_message' => DirectMessage::class,
             ],
             limits: [
                 new LimitDefinition(PostWorkflow::LIMIT),
@@ -191,14 +208,18 @@ final class SocialServiceProvider extends ModuleServiceProvider
                 'Page performance dashboard: followers, reach, best posting times and campaign reports',
                 'AI suggestions for captions and hashtags that a person always accepts',
                 'Photo, video and Reels publishing for Facebook Pages, with checks before scheduling',
+                'Per-platform media requirements checked before scheduling (photo or video, video only, size and length)',
+                'Messenger and Instagram direct messages answered from one place, within the 24-hour reply window',
+                'TikTok privacy, interaction and commercial content settings chosen per post',
             ],
             offers: [new AppOffer('free', 'Free', AppBillingType::Free)],
-            releaseNotes: 'Version 1.4 adds an audience comments inbox for Facebook Pages (read, reply, like, hide, delete, assign, internal notes and bulk actions), live comment webhooks with a polling fallback, and keyword rules that reply, hide, tag, assign or send comments to review within hourly caps, per-person cooldowns and quiet hours, with a test box and a pause switch. It needs the pages_read_engagement, pages_manage_engagement and pages_manage_metadata permissions from Meta app review, and pages_messaging for private replies. Version 1.3 adds Facebook lead forms (Lead forms page): after a signed Meta webhook the lead-form answers of a Page are fetched and handed to the CRM with a field mapping you choose, with a processing log, a fetch of recent leads, an automation trigger and a report. It needs the leads_retrieval, pages_manage_ads and pages_manage_metadata permissions from Meta app review and the Meta webhooks product; without the CRM app leads are kept and sent when it is available. Version 1.2 adds a Page performance dashboard to Analytics (followers, reach, impressions and engagement per Facebook Page from the Page Insights of the platform, 7/28/90-day periods, comparison of pages, best posting times from your own posts, top and bottom posts, content-type and campaign comparison, CSV export), page insights and campaign performance reports, the Meta tasks and permissions of each connected Page, and a per-account allow-list of who may publish, approve and see analytics. It needs the read_insights, pages_read_engagement and pages_show_list permissions from Meta app review. Version 1.1 adds AI assist in the post composer (captions, hashtags, rewrite, shorten, translate; suggestions only, marked on the post) and a sentiment summary for analysed audience comments. It needs the AI app and a configured provider. It also adds photo, video and Reels publishing for Facebook Pages (several photos in one post, resumable video upload, Reels), with checks before scheduling and follow-up until the platform finishes processing a video. Video and Reels need the publish_video permission from Meta app review. Initial Social Media release. Publishing adapters: Facebook Pages, LinkedIn (text), X (text); each needs the operator to configure and get approved a platform app.',
+            releaseNotes: 'Version 1.7 lets the creator choose the TikTok settings of each post in the composer, from what TikTok offers that account: who can see it, whether comments, duets and stitches are allowed, and whether it promotes their own brand or branded content. A TikTok post cannot be scheduled until its privacy level is chosen, and publishing checks it against TikTok again; TikTok posts scheduled before this version keep the earlier automatic settings. The composer and its preview show the profile picture of each account when the platform provided one. Version 1.6 prepares publishing to Instagram, TikTok, YouTube and Pinterest: each platform states what a post must carry (a photo or video, video only, a size and length limit) and the composer and scheduling refuse a post that lacks it, a platform that fetches media itself receives a short-lived signed link to the one file it needs, and the operator sets the TikTok, YouTube and Pinterest app credentials and the Instagram publishing switch in the Super Admin panel. These platforms stay not available until their adapters are installed and the operator has configured and had approved each platform app. Version 1.5 adds Facebook Messenger and Instagram direct messages (Messages page, and the unified inbox when the Communication app is installed): switch message capture on per Page, read every conversation and answer as the Page within the 24-hour reply window; messages the Page sends elsewhere appear too. Replies are text only; no contact is created automatically. It is off until the operator enables it and needs the pages_messaging and pages_manage_metadata permissions from Meta app review, and instagram_basic and instagram_manage_messages for Instagram. Version 1.4 adds an audience comments inbox for Facebook Pages (read, reply, like, hide, delete, assign, internal notes and bulk actions), live comment webhooks with a polling fallback, and keyword rules that reply, hide, tag, assign or send comments to review within hourly caps, per-person cooldowns and quiet hours, with a test box and a pause switch. It needs the pages_read_engagement, pages_manage_engagement and pages_manage_metadata permissions from Meta app review, and pages_messaging for private replies. Version 1.3 adds Facebook lead forms (Lead forms page): after a signed Meta webhook the lead-form answers of a Page are fetched and handed to the CRM with a field mapping you choose, with a processing log, a fetch of recent leads, an automation trigger and a report. It needs the leads_retrieval, pages_manage_ads and pages_manage_metadata permissions from Meta app review and the Meta webhooks product; without the CRM app leads are kept and sent when it is available. Version 1.2 adds a Page performance dashboard to Analytics (followers, reach, impressions and engagement per Facebook Page from the Page Insights of the platform, 7/28/90-day periods, comparison of pages, best posting times from your own posts, top and bottom posts, content-type and campaign comparison, CSV export), page insights and campaign performance reports, the Meta tasks and permissions of each connected Page, and a per-account allow-list of who may publish, approve and see analytics. It needs the read_insights, pages_read_engagement and pages_show_list permissions from Meta app review. Version 1.1 adds AI assist in the post composer (captions, hashtags, rewrite, shorten, translate; suggestions only, marked on the post) and a sentiment summary for analysed audience comments. It needs the AI app and a configured provider. It also adds photo, video and Reels publishing for Facebook Pages (several photos in one post, resumable video upload, Reels), with checks before scheduling and follow-up until the platform finishes processing a video. Video and Reels need the publish_video permission from Meta app review. Initial Social Media release. Publishing adapters: Facebook Pages, LinkedIn (text), X (text); each needs the operator to configure and get approved a platform app.',
             routes: [
                 'social.calendar.index',
                 'social.posts.index',
                 'social.posts.export',
                 'social.posts.preflight',
+                'social.posts.creator_info',
                 'social.posts.create',
                 'social.posts.ai',
                 'social.posts.store',
@@ -217,6 +238,7 @@ final class SocialServiceProvider extends ModuleServiceProvider
                 'social.posts.comments.destroy',
                 'social.media.index',
                 'social.media.file',
+                'social.media.public',
                 'social.media.store',
                 'social.media.update',
                 'social.media.destroy',
@@ -281,6 +303,13 @@ final class SocialServiceProvider extends ModuleServiceProvider
                 'social.comments.sources.disable',
                 'social.comments.webhook.receive',
                 'social.comments.webhook.verify',
+                'social.messages.index',
+                'social.messages.capture.enable',
+                'social.messages.capture.disable',
+                'social.messages.read',
+                'social.messages.reply',
+                'social.messages.status',
+                'social.messages.assign',
             ],
             scheduledJobs: [
                 new ScheduledJobDefinition('social.publish_due', PublishDuePosts::class, ScheduledJobFrequency::EveryMinute),
@@ -294,14 +323,23 @@ final class SocialServiceProvider extends ModuleServiceProvider
     protected function bootModule(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
+
+        // Connected accounts' profile pictures load straight from the platforms' image hosts (CSP img-src).
+        config(['platform.security.img_hosts' => array_values(array_unique([
+            ...(array) config('platform.security.img_hosts', []),
+            ...(array) config('social.avatar_hosts', []),
+        ]))]);
         $this->loadTenantRoutes(__DIR__.'/routes.php');
         $this->loadTenantRoutes(__DIR__.'/LeadAds/routes.php');
         $this->loadTenantRoutes(__DIR__.'/Comments/routes.php');
+        $this->loadTenantRoutes(__DIR__.'/Messages/routes.php');
         $this->loadTenantCallbackRoutes(__DIR__.'/Comments/callbacks.php');
         Route::domain((string) config('platform.domain'))
             ->middleware('central.callback')
             ->group(__DIR__.'/Comments/centralCallbacks.php');
         $this->loadTenantCallbackRoutes(__DIR__.'/LeadAds/callbacks.php');
+        // Public, expiring media URLs for platforms that fetch media themselves (ADR 0033).
+        $this->loadTenantCallbackRoutes(__DIR__.'/callbacks.php');
 
         // The central OAuth redirect broker (stateless; see docs/SOCIAL.md).
         Route::domain((string) config('platform.domain'))

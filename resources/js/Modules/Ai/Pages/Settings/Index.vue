@@ -76,8 +76,10 @@ function save(): void {
     <AiNav current="settings" />
     <AvailabilityNotice :availability="availability" />
 
-    <form class="grid max-w-3xl gap-3" @submit.prevent="save">
-        <Card :title="t('ai.settings.provider')" :description="t('ai.settings.providerHint')">
+    <!-- Full width like the platform Settings page: the provider across the top, the three setting boxes side by side
+         on wide screens. Each box lays out its own content by its own width (container queries). -->
+    <form class="grid gap-3 lg:grid-cols-2 xl:grid-cols-3" @submit.prevent="save">
+        <Card class="lg:col-span-2 xl:col-span-3" :title="t('ai.settings.provider')" :description="t('ai.settings.providerHint')">
             <dl class="grid gap-4 sm:grid-cols-3" data-testid="provider">
                 <div>
                     <dt class="eyebrow">{{ t('ai.settings.credential') }}</dt>
@@ -97,9 +99,14 @@ function save(): void {
                 </div>
             </dl>
             <h3 class="eyebrow mt-5 mb-2">{{ t('ai.settings.features') }}</h3>
-            <ul class="grid gap-2 sm:grid-cols-3">
-                <li v-for="(feature, key) in availability.features" :key="key" class="flex items-center justify-between gap-2 rounded-control bg-hover px-3 py-2 text-sm">
-                    <span class="truncate text-ink">{{ featureLabel(String(key)) }}</span>
+            <!-- The name and the state wrap onto two lines when they do not fit: a long state never hides the name. -->
+            <ul class="grid gap-2 sm:grid-cols-3" data-testid="features">
+                <li
+                    v-for="(feature, key) in availability.features"
+                    :key="key"
+                    class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 rounded-control bg-hover px-3 py-2.5 text-sm"
+                >
+                    <span class="font-medium text-ink">{{ featureLabel(String(key)) }}</span>
                     <Badge :tone="stateTone(feature.state)">{{ stateLabel(feature.state) }}</Badge>
                 </li>
             </ul>
@@ -128,7 +135,11 @@ function save(): void {
             <p v-if="form.errors.data_scopes" class="mt-2 text-sm text-danger">{{ form.errors.data_scopes }}</p>
         </Card>
 
-        <Card :title="t('ai.settings.retention')" :description="t('ai.settings.retentionHint', { min: options.retention.min, max: options.retention.max })">
+        <Card
+            class="lg:col-span-2 xl:col-span-1"
+            :title="t('ai.settings.retention')"
+            :description="t('ai.settings.retentionHint', { min: options.retention.min, max: options.retention.max })"
+        >
             <div class="grid gap-4">
                 <Input
                     v-model="form.retention_days"
@@ -149,7 +160,7 @@ function save(): void {
             </div>
         </Card>
 
-        <div class="flex justify-end">
+        <div class="flex justify-end lg:col-span-2 xl:col-span-3">
             <Button type="submit" variant="primary" :loading="form.processing">{{ t('ai.settings.save') }}</Button>
         </div>
     </form>

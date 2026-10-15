@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Modules\Support\Http\Controllers\CannedController;
 use App\Modules\Support\Http\Controllers\KnowledgeBaseController;
+use App\Modules\Support\Http\Controllers\LiveChatController;
+use App\Modules\Support\Http\Controllers\LiveChatSettingsController;
 use App\Modules\Support\Http\Controllers\QueueController;
 use App\Modules\Support\Http\Controllers\ReportController;
 use App\Modules\Support\Http\Controllers\SettingsController;
@@ -93,4 +95,20 @@ Route::middleware(['auth:web', 'auth.session', 'member', 'subscribed'])->prefix(
         Route::get('settings', [SettingsController::class, 'index'])->name('support.settings.index');
         Route::put('settings', [SettingsController::class, 'update'])->name('support.settings.update');
     });
+
+    // Website live chat (ADR 0032). The visitor side is in callbacks.php. `settings` is not a conversation id.
+    Route::get('live-chat', [LiveChatController::class, 'index'])->middleware('can:support.tickets.view')->name('support.live_chat.index');
+    Route::middleware('can:support.settings.manage')->group(function (): void {
+        Route::get('live-chat/settings', [LiveChatSettingsController::class, 'show'])->name('support.live_chat.settings');
+        Route::put('live-chat/settings', [LiveChatSettingsController::class, 'update'])->name('support.live_chat.settings.update');
+    });
+    Route::post('live-chat/{conversation}/messages', [LiveChatController::class, 'reply'])
+        ->middleware(['can:support.tickets.reply', 'throttle:60,1'])->name('support.live_chat.reply');
+    Route::post('live-chat/{conversation}/close', [LiveChatController::class, 'close'])
+        ->middleware('can:support.tickets.resolve')->name('support.live_chat.close');
+    // Deliberate member actions (ADR 0032 amendment): the controller adds the chat's view reach to each.
+    Route::post('live-chat/{conversation}/contact', [LiveChatController::class, 'saveContact'])
+        ->middleware('can:core.contacts.manage')->name('support.live_chat.contact');
+    Route::post('live-chat/{conversation}/ticket', [LiveChatController::class, 'createTicket'])
+        ->middleware(['can:support.tickets.create', 'throttle:30,1'])->name('support.live_chat.ticket');
 });

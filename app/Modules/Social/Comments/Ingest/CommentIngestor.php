@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Modules\Social\Comments\Ingest;
 
+use App\Core\Communication\Contracts\InboxSignals;
 use App\Modules\Social\Comments\Actions\CommentSettings;
 use App\Modules\Social\Comments\Data\RemoteComment;
 use App\Modules\Social\Comments\Enums\RemoteState;
 use App\Modules\Social\Comments\Events\CommentReceived;
+use App\Modules\Social\Comments\Inbox\CommentInboxSource;
 use App\Modules\Social\Comments\Jobs\EvaluateCommentRules;
 use App\Modules\Social\Comments\Models\AudienceComment;
 use App\Modules\Social\Comments\Models\CommentRule;
@@ -25,7 +27,10 @@ use Illuminate\Support\Facades\DB;
  */
 final class CommentIngestor
 {
-    public function __construct(private readonly CommentSettings $settings) {}
+    public function __construct(
+        private readonly CommentSettings $settings,
+        private readonly InboxSignals $signals,
+    ) {}
 
     /** @return array{0: AudienceComment, 1: bool} The comment and whether it was new. */
     public function store(SocialAccount $account, RemoteComment $remote, string $source): array
@@ -84,6 +89,9 @@ final class CommentIngestor
             return [$found, false];
         }
 
+        // The inbox lists a thread by its top-level comment, at most two levels up (CommentInboxSource::THREAD).
+        $this->signals->changed(CommentInboxSource::KEY, $parent === null ? $comment->id : ($parent->parent_id ?? $parent->id));
+
         if (! $isFromPage) {
             event(CommentReceived::from($comment));
             $this->startRules($comment);
@@ -97,6 +105,7 @@ final class CommentIngestor
     {
         AudienceComment::query()->where('account_id', $account->id)->where('external_id', $externalId)
             ->update(['remote_state' => RemoteState::Deleted->value, 'needs_attention' => false]);
+        $this->announce($account, $externalId);
     }
 
     public function markHidden(SocialAccount $account, string $externalId, bool $hidden): void
@@ -104,6 +113,26 @@ final class CommentIngestor
         AudienceComment::query()->where('account_id', $account->id)->where('external_id', $externalId)
             ->where('remote_state', '!=', RemoteState::Deleted->value)
             ->update(['remote_state' => ($hidden ? RemoteState::Hidden : RemoteState::Visible)->value]);
+        $this->announce($account, $externalId);
+    }
+
+    /** Tell open inbox pages that the comment's thread changed (ADR 0035). */
+    public function threadChanged(AudienceComment $comment): void
+    {
+        $root = $comment->parent_id === null
+            ? $comment->id
+            : (AudienceComment::query()->whereKey($comment->parent_id)->value('parent_id') ?? $comment->parent_id);
+
+        $this->signals->changed(CommentInboxSource::KEY, (string) $root);
+    }
+
+    private function announce(SocialAccount $account, string $externalId): void
+    {
+        $comment = $this->find($account, $externalId);
+
+        if ($comment !== null) {
+            $this->threadChanged($comment);
+        }
     }
 
     private function find(SocialAccount $account, string $externalId): ?AudienceComment

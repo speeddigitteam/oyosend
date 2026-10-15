@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue';
+import { controlAttrs } from '@/Core/lib/fieldAttrs';
 import Field from './Field.vue';
 
 defineOptions({ inheritAttrs: false });
@@ -14,8 +15,10 @@ const props = withDefaults(
         optional?: boolean;
         /** Monospace value: codes, tokens, identifiers. */
         mono?: boolean;
+        /** Classes for the `<input>` itself; `class` places the whole field. */
+        controlClass?: unknown;
     }>(),
-    { type: 'text', id: undefined, label: undefined, hint: undefined, error: undefined },
+    { type: 'text', id: undefined, label: undefined, hint: undefined, error: undefined, controlClass: undefined },
 );
 
 const model = defineModel<string | number | null>();
@@ -36,7 +39,7 @@ defineExpose({ focus: () => element.value?.focus() });
 </script>
 
 <template>
-    <Field :for="inputId" :label="label" :hint="hint" :error="error" :optional="optional">
+    <Field :for="inputId" :label="label" :hint="hint" :error="error" :optional="optional" :class="$attrs.class" :style="$attrs.style">
         <template v-if="$slots.aside" #aside><slot name="aside" /></template>
 
         <div class="relative">
@@ -59,8 +62,9 @@ defineExpose({ focus: () => element.value?.focus() });
                     $slots.leading ? 'pl-10' : '',
                     $slots.trailing ? 'pr-10' : '',
                     mono ? 'font-mono tracking-wide' : '',
+                    controlClass,
                 ]"
-                v-bind="$attrs"
+                v-bind="controlAttrs($attrs)"
             />
 
             <span v-if="$slots.trailing" class="absolute inset-y-0 right-0 flex items-center pr-1.5">

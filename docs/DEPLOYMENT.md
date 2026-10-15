@@ -37,7 +37,10 @@ Source of truth: `.env.example`. Values below are the ones that matter for this 
 | `TENANT_FILESYSTEM_DISK` | `local` or `s3` | Disk for tenant files. `s3` needs `league/flysystem-aws-s3-v3`, which is **not installed** |
 | `AWS_*` | | For the `s3` disk |
 | `HORIZON_DOMAIN`, `HORIZON_PATH` | defaults | Default to the admin host and `horizon` |
-| `BROADCAST_CONNECTION` | `log` | No realtime yet |
+| `BROADCAST_CONNECTION` | `log` (realtime off) or `reverb` | Realtime inbox updates (ADR 0035, section 4a). Anything but `reverb` with every `REVERB_*` value set is "off": pages poll |
+| `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET` | random; the same values on the Reverb server | Only with `reverb`. The secret signs channel subscriptions and never reaches a browser; the key and the id are letters and digits |
+| `REVERB_HOST`, `REVERB_PORT`, `REVERB_SCHEME` | e.g. `127.0.0.1`, `8080`, `http` | Where the application publishes events to Reverb's HTTP API (from the queue worker) |
+| `REVERB_CLIENT_HOST`, `REVERB_CLIENT_PORT`, `REVERB_CLIENT_SCHEME` | e.g. `ws.example.com`, `443`, `https` | Where browsers open the websocket; default to the three above. Also added to the CSP `connect-src` |
 | `VITE_APP_NAME` | | Read at build time |
 | `TRUSTED_PROXIES` | the proxy's address(es), or `*` | `config/trustedproxy.php`. Required behind a load balancer: without it the audit trail and throttles see the proxy's address and generated URLs may use `http` |
 | `SECURITY_CSP` | `report-only`, then `enforce` | The Content-Security-Policy is sent report-only until it has been watched in a browser (`docs/SECURITY.md` section 5b) |
@@ -156,6 +159,47 @@ redirect_stderr=true
   worked by a supervisor, and that supervisor timeouts stay below `REDIS_QUEUE_RETRY_AFTER`.
 - Failed jobs go to the `failed_jobs` table; on the Super Admin dashboard any failed job makes that health check
   fail and shows the count.
+
+## 4a. Realtime (Reverb), optional
+
+The unified inbox updates at once while a Reverb server runs (ADR 0035); without it the inbox polls every 15/20
+seconds and nothing else changes. **The Reverb server package is not installed in this application yet**:
+`laravel/reverb` 1.12.0 requires PSR-7 2 and would downgrade Guzzle 8 to 7 (the open decision in ADR 0035). The
+application side (publishing, the signed channel, the page client) is complete and speaks the Pusher protocol to any
+Reverb server with the same app id, key and secret.
+
+Once Reverb is installed (`composer require laravel/reverb`, then `php artisan vendor:publish --tag=reverb-config`;
+the server process listens on `REVERB_SERVER_HOST` / `REVERB_SERVER_PORT`, e.g. `127.0.0.1` / `8080`):
+
+- run `php artisan reverb:start` under the process supervisor like the queue workers, and restart it on deploy
+  (`php artisan reverb:restart`);
+- put it behind the TLS proxy on its own host name, and point browsers there with `REVERB_CLIENT_*`:
+
+```nginx
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ws.example.com;
+    # certificates as above
+
+    location / {
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 120s;
+        proxy_pass http://127.0.0.1:8080;
+    }
+}
+```
+
+- the application publishes with `REVERB_HOST=127.0.0.1`, `REVERB_PORT=8080`, `REVERB_SCHEME=http` (from the queue
+  workers: the signal is a job on `notifications`), so Reverb's HTTP API need not be public;
+- `php artisan config:cache` after changing any `REVERB_*` value. Realtime is on only when every value is present and
+  well formed (`App\Core\Realtime\Realtime`); otherwise `/broadcasting/auth` answers 404 and pages poll.
+
+Not verified: no Reverb server has been run against this application (ADR 0035, "Not verified").
 
 ## 5. Scheduler
 

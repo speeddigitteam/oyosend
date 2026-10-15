@@ -33,6 +33,17 @@ export interface Capabilities {
     video?: boolean;
     maxText?: number;
     maxMedia?: number;
+    insights?: boolean;
+    /** A text-only post is refused: at least one photo or video is needed (true too when `requiresVideo`). */
+    requiresMedia?: boolean;
+    /** Only video is published: the post needs a video and no photos. */
+    requiresVideo?: boolean;
+    /** Largest video in bytes; 0 = no limit declared. */
+    maxVideoBytes?: number;
+    /** Longest video in seconds; 0 = no limit declared. */
+    maxVideoSeconds?: number;
+    /** Shortest video in seconds; 0 = no limit declared. */
+    minVideoSeconds?: number;
 }
 
 export interface PlatformInfo {
@@ -69,6 +80,8 @@ export interface AccountOption {
     platformLabel: string;
     name: string;
     handle: string | null;
+    /** The profile picture the platform gave (http/https only); initials are shown without it. */
+    avatarUrl?: string | null;
     status: AccountStatus;
     usable: boolean;
     capabilities: Capabilities;
@@ -133,6 +146,10 @@ export interface PostTargetDetail {
     accountName: string;
     accountStatus: AccountStatus;
     bodyOverride: string | null;
+    /** The platform has per-post settings the creator chooses (TikTok). */
+    hasPublishOptions?: boolean;
+    /** The settings chosen for this account; null on a target saved before they could be chosen. */
+    publishOptions?: TikTokOptions | null;
     status: TargetStatus;
     attempts: number;
     nextAttemptAt: string | null;
@@ -145,6 +162,29 @@ export interface PostTargetDetail {
     needsManualCheck: boolean;
     canRetry: boolean;
     attemptLog: AttemptLogEntry[];
+}
+
+export type TikTokPrivacy = 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'FOLLOWER_OF_CREATOR' | 'SELF_ONLY';
+
+/** What the creator chose for one TikTok target (stored per target, sent with the post). */
+export interface TikTokOptions {
+    privacy_level: TikTokPrivacy | null;
+    allow_comment: boolean;
+    allow_duet: boolean;
+    allow_stitch: boolean;
+    disclose_commercial: boolean;
+    brand_organic: boolean;
+    brand_content: boolean;
+}
+
+/** What TikTok lets one account choose right now (its creator info). */
+export interface CreatorInfo {
+    privacyLevels: TikTokPrivacy[];
+    commentDisabled: boolean;
+    duetDisabled: boolean;
+    stitchDisabled: boolean;
+    maxVideoSeconds: number | null;
+    nickname: string | null;
 }
 
 export interface PostComment {

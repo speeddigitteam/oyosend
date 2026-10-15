@@ -24,11 +24,15 @@ type Integration = {
     secretFields: string[];
     /** Non-secret public identifier fields, shown back and prefilled. */
     publicFields: string[];
+    /** Non-secret on/off switches (e.g. Instagram publishing), shown back. */
+    flagFields?: string[];
     /** True when the operator set credentials in the panel (rather than the environment). */
     managed: boolean;
-    source: 'panel' | 'environment' | 'none';
+    source: 'panel' | 'environment' | 'none' | 'switch';
     /** The stored public identifier values, safe to show. */
     publicValues: Record<string, string>;
+    /** The current value of each switch: stored in the panel, or the environment default. */
+    flagValues?: Record<string, boolean>;
     /** Secret fields that already hold a value; their inputs may be left blank to keep them. */
     storedSecretFields: string[];
     enabled: boolean;
@@ -45,6 +49,7 @@ type IntegrationForm = {
     enabled: boolean;
     secrets: Record<string, string>;
     public: Record<string, string>;
+    flags: Record<string, boolean>;
 };
 
 function keyOf(integration: Integration): string {
@@ -59,6 +64,7 @@ props.integrations.forEach((integration) => {
         enabled: integration.enabled,
         secrets: Object.fromEntries(integration.secretFields.map((field) => [field, ''])),
         public: Object.fromEntries(integration.publicFields.map((field) => [field, integration.publicValues[field] ?? ''])),
+        flags: Object.fromEntries((integration.flagFields ?? []).map((field) => [field, integration.flagValues?.[field] ?? false])),
     });
 });
 
@@ -101,6 +107,14 @@ function integrationDescription(integration: Integration): string {
 
 function fieldLabel(field: string): string {
     return t(`platformIntegrations.fields.${field}`);
+}
+
+function flagLabel(field: string): string {
+    return t(`platformIntegrations.flags.${field}.label`);
+}
+
+function flagHint(field: string): string {
+    return t(`platformIntegrations.flags.${field}.hint`);
 }
 
 function secretPlaceholder(integration: Integration, field: string): string | undefined {
@@ -185,4 +199,48 @@ function clear(integration: Integration): void {
                                         :name="`${integration.group}.${integration.name}.${field}`"
                                         autocomplete="off"
                                     />
-                                
+                                </Field>
+
+                                <Field
+                                    v-for="field in integration.secretFields"
+                                    :key="field"
+                                    :label="fieldLabel(field)"
+                                    :error="forms[keyOf(integration)].errors[`secrets.${field}` as keyof IntegrationForm]"
+                                >
+                                    <Input
+                                        v-model="forms[keyOf(integration)].secrets[field]"
+                                        :name="`${integration.group}.${integration.name}.${field}`"
+                                        type="password"
+                                        autocomplete="new-password"
+                                        :placeholder="secretPlaceholder(integration, field)"
+                                    />
+                                </Field>
+                            </div>
+
+                            <Checkbox
+                                v-for="field in integration.flagFields ?? []"
+                                :key="field"
+                                v-model="forms[keyOf(integration)].flags[field]"
+                                :label="flagLabel(field)"
+                                :description="flagHint(field)"
+                            />
+
+                            <Checkbox v-model="forms[keyOf(integration)].enabled" :label="t('platformIntegrations.enabled')" />
+                        </form>
+
+                        <template #footer>
+                            <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+                                <Button v-if="integration.managed" type="button" variant="ghost" @click="clear(integration)">
+                                    {{ t('platformIntegrations.clear') }}
+                                </Button>
+                                <Button type="submit" :form="formId(integration)" variant="primary" :loading="forms[keyOf(integration)].processing">
+                                    {{ t('platformIntegrations.save') }}
+                                </Button>
+                            </div>
+                        </template>
+                    </Card>
+                </div>
+            </section>
+        </template>
+    </div>
+</template>

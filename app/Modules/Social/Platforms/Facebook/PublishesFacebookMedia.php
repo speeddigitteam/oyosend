@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Social\Platforms\Facebook;
 
 use App\Modules\Social\Enums\PostType;
+use App\Modules\Social\Messages\MessagingAvailability;
 use App\Modules\Social\Platforms\AccountCredentials;
 use App\Modules\Social\Platforms\Exceptions\PublishFailed;
 use App\Modules\Social\Platforms\MediaInfo;
@@ -45,6 +46,9 @@ trait PublishesFacebookMedia
         // Audience comments: reply, hide and delete need pages_manage_engagement; the webhook subscription needs
         // pages_manage_metadata (config/social_comments.php).
         array_push($scopes, ...FacebookComments::requestedScopes());
+
+        // Direct messages: only once the operator's Meta app has these approved (config/social.php `messaging`).
+        array_push($scopes, ...MessagingAvailability::requestedScopes());
 
         return array_values(array_unique($scopes));
     }

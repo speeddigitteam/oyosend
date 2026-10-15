@@ -73,7 +73,7 @@ function submit(): void {
                 <Button icon variant="ghost" :aria-label="t('projects.assignments.removeFor', { name: availableMembers.find((member) => member.id === assignment.membership_id)?.name ?? index + 1 })" @click="remove(index)"><Trash2 class="size-4" aria-hidden="true" /></Button>
             </div>
             <p v-if="form.errors.assignees" class="text-sm text-danger" role="alert">{{ form.errors.assignees }}</p>
-            <Button v-if="canAdd" class="justify-self-start" size="sm" variant="ghost" @click="add"><Plus class="size-4" aria-hidden="true" />{{ t('projects.assignments.add') }}</Button>
+            <Button v-if="canAdd" class="justify-self-start" size="sm" variant="ghost" @click="add"><template #icon><Plus class="size-4" aria-hidden="true" /></template>{{ t('projects.assignments.add') }}</Button>
         </form>
         <template #footer><Button variant="ghost" :disabled="form.processing" @click="model = false">{{ t('projects.common.cancel') }}</Button><Button type="submit" form="task-assignees-form" variant="primary" :loading="form.processing">{{ t('projects.common.save') }}</Button></template>
     </Modal>

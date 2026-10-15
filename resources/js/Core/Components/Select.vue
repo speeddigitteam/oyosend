@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ChevronsUpDown } from 'lucide-vue-next';
 import { computed, useId } from 'vue';
+import { controlAttrs } from '@/Core/lib/fieldAttrs';
 import Field from './Field.vue';
 
 export interface SelectOption {
@@ -26,8 +27,10 @@ const props = withDefaults(
         optional?: boolean;
         /** Shown as a disabled first option when nothing is selected. */
         placeholder?: string;
+        /** Classes for the `<select>` itself; `class` places the whole field. */
+        controlClass?: unknown;
     }>(),
-    { id: undefined, label: undefined, hint: undefined, error: undefined, placeholder: undefined },
+    { id: undefined, label: undefined, hint: undefined, error: undefined, placeholder: undefined, controlClass: undefined },
 );
 
 const model = defineModel<string | number | null>();
@@ -37,15 +40,15 @@ const selectId = computed(() => props.id ?? generatedId);
 </script>
 
 <template>
-    <Field :for="selectId" :label="label" :hint="hint" :error="error" :optional="optional">
+    <Field :for="selectId" :label="label" :hint="hint" :error="error" :optional="optional" :class="$attrs.class" :style="$attrs.style">
         <div class="relative">
             <select
                 :id="selectId"
                 v-model="model"
                 :aria-invalid="error ? 'true' : undefined"
                 :aria-describedby="error ? `${selectId}-error` : hint ? `${selectId}-hint` : undefined"
-                class="control appearance-none pr-9"
-                v-bind="$attrs"
+                :class="['control appearance-none pr-9', controlClass]"
+                v-bind="controlAttrs($attrs)"
             >
                 <option v-if="placeholder" value="" disabled>{{ placeholder }}</option>
                 <option v-for="option in options" :key="option.value" :value="option.value" :disabled="option.disabled">

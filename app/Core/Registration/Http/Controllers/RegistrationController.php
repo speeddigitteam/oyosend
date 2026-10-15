@@ -54,7 +54,33 @@ final class RegistrationController
             // A plan picked on the landing page; otherwise the first one on offer.
             'selectedPlan' => ($plans->firstWhere('key', is_string($requested) ? $requested : null) ?? $plans->first())?->key,
             'needsApproval' => $this->settings->registrationMode() === RegistrationMode::Approval,
+            // What the website's start form was given, to begin the form with (see start()).
+            'prefill' => $this->prefill($request),
         ]);
+    }
+
+    /**
+     * The website's "start your workspace" form: the company and email typed there are carried to the sign-up form
+     * in the session, never in the address, where an email would end up in logs and histories.
+     */
+    public function start(Request $request): RedirectResponse
+    {
+        $this->abortWhenClosed();
+
+        $input = $request->validate([
+            'company' => ['nullable', 'string', 'max:255'],
+            'email' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $email = trim((string) ($input['email'] ?? ''));
+
+        $request->session()->flash('registration.prefill', [
+            'company' => trim((string) ($input['company'] ?? '')),
+            // A typo here is fixed on the next page; only a well-formed address is carried.
+            'email' => filter_var($email, FILTER_VALIDATE_EMAIL) !== false ? $email : '',
+        ]);
+
+        return redirect()->route('central.register');
     }
 
     public function store(Request $request, StartRegistration $start): RedirectResponse
@@ -185,6 +211,20 @@ final class RegistrationController
             // Whether the page may offer to sign up again.
             'registrationOpen' => $this->settings->registrationMode() !== RegistrationMode::Closed,
         ]);
+    }
+
+    /**
+     * @return array{company: string, email: string}
+     */
+    private function prefill(Request $request): array
+    {
+        $carried = $request->session()->get('registration.prefill');
+        $carried = is_array($carried) ? $carried : [];
+
+        return [
+            'company' => is_string($carried['company'] ?? null) ? mb_substr($carried['company'], 0, 255) : '',
+            'email' => is_string($carried['email'] ?? null) ? $carried['email'] : '',
+        ];
     }
 
     private function abortWhenClosed(): void

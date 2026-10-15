@@ -91,8 +91,12 @@ function toolLabel(tool: ToolInfo): string {
             <Card :title="t('ai.assistant.toolsTitle')" :description="t('ai.assistant.toolsHint')">
                 <p v-if="tools.length === 0" class="text-sm text-ink-muted">{{ t('ai.assistant.toolsEmpty') }}</p>
                 <ul v-else class="grid gap-2 sm:grid-cols-2" data-testid="tools">
-                    <li v-for="tool in tools" :key="tool.name" class="flex items-center justify-between gap-2 rounded-control bg-hover px-3 py-2 text-sm">
-                        <span class="min-w-0 truncate text-ink">{{ toolLabel(tool) }}</span>
+                    <li
+                        v-for="tool in tools"
+                        :key="tool.name"
+                        class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 rounded-control bg-hover px-3 py-2 text-sm"
+                    >
+                        <span class="min-w-0 wrap-break-word text-ink">{{ toolLabel(tool) }}</span>
                         <Badge :tone="tool.proposes ? 'warn' : 'neutral'">
                             {{ tool.proposes ? t('ai.assistant.toolPropose') : t('ai.assistant.toolRead') }}
                         </Badge>

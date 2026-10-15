@@ -205,8 +205,8 @@ function save(): void {
         <p v-if="entries.length === 0" class="rounded-card bg-hover px-3 py-2 text-[0.8125rem] text-ink-muted">{{ t('socialInsights.access.dialogOpen') }}</p>
         <ul v-else class="grid gap-3" data-testid="allow-list">
             <li v-for="(entry, index) in entries" :key="`${entry.subjectType}:${entry.subjectId}`" class="rounded-card border border-line px-3 py-2">
-                <div class="flex items-center justify-between gap-2">
-                    <p class="min-w-0 truncate text-sm font-medium text-ink">{{ subjectName(entry) }}</p>
+                <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+                    <p class="min-w-0 text-sm font-medium wrap-break-word text-ink">{{ subjectName(entry) }}</p>
                     <Button size="sm" variant="ghost" @click="remove(index)">{{ t('socialInsights.access.remove') }}</Button>
                 </div>
                 <div class="mt-2 flex flex-wrap gap-x-5 gap-y-2">

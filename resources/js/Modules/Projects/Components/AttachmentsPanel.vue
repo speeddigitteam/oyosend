@@ -49,14 +49,14 @@ function remove(): void {
     <section>
         <div v-if="canUpload" class="mb-3 flex flex-wrap items-end gap-2 rounded-control border border-line bg-control/40 p-3">
             <label class="min-w-0 flex-1 text-xs font-medium text-ink"><span class="mb-1 block">{{ t('projects.attachments.file') }}</span><input ref="fileInput" type="file" class="block w-full text-sm text-ink file:mr-3 file:rounded-control file:border-0 file:bg-hover file:px-3 file:py-2 file:text-sm file:text-ink" @change="choose" /></label>
-            <Button size="sm" :disabled="!form.file" :loading="form.processing" @click="upload"><FileUp class="size-4" aria-hidden="true" />{{ t('projects.attachments.upload') }}</Button>
+            <Button size="sm" :disabled="!form.file" :loading="form.processing" @click="upload"><template #icon><FileUp class="size-4" aria-hidden="true" /></template>{{ t('projects.attachments.upload') }}</Button>
             <p v-if="form.errors.file" class="w-full text-xs text-danger" role="alert">{{ form.errors.file }}</p>
         </div>
         <EmptyState v-if="attachments.length === 0" :title="t('projects.attachments.empty')" compact><template #icon><Paperclip /></template></EmptyState>
         <ul v-else class="divide-y divide-line rounded-control border border-line">
             <li v-for="attachment in attachments" :key="attachment.id" class="flex items-center justify-between gap-3 px-3 py-2">
                 <div class="min-w-0"><p class="truncate text-sm font-medium text-ink">{{ attachment.name }}</p><p class="text-xs text-ink-subtle">{{ format.number(attachment.size / 1024, { maximumFractionDigits: 1 }) }} KB<template v-if="attachment.uploader"> · {{ attachment.uploader }}</template></p></div>
-                <div class="flex gap-1"><a class="inline-flex size-8 items-center justify-center rounded-control text-ink-muted hover:bg-hover hover:text-ink" :href="route('projects.attachments.download', { project: projectId, attachment: attachment.id })" :aria-label="t('projects.attachments.downloadFor', { name: attachment.name })"><Download class="size-4" aria-hidden="true" /></a><Button v-if="attachment.deletable" icon size="sm" variant="ghost" :aria-label="t('projects.attachments.deleteFor', { name: attachment.name })" @click="removeError = ''; removing = attachment"><Trash2 class="size-4" aria-hidden="true" /></Button></div>
+                <div class="flex gap-1"><a class="inline-flex size-8 items-center justify-center rounded-control text-ink-muted hover:bg-hover hover:text-ink" :href="route('projects.attachments.download', { project: projectId, attachment: attachment.id })" :aria-label="t('projects.attachments.downloadFor', { name: attachment.name })"><Download class="size-4" aria-hidden="true" /></a><Button v-if="attachment.deletable" icon size="sm" variant="ghost" :aria-label="t('projects.attachments.deleteFor', { name: attachment.name })" @click="removeError = ''; removing = attachment"><template #icon><Trash2 class="size-4" aria-hidden="true" /></template></Button></div>
             </li>
         </ul>
     </section>

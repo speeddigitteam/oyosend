@@ -206,7 +206,8 @@ describe('post composer', () => {
         expect(fetchMock).toHaveBeenCalled();
         const body = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string);
         expect(body.post_type).toBe('reel');
-        expect(body.targets).toEqual([{ account_id: 'a1', body_override: null }]);
+        // `options` is null for a platform without per-post settings (TikTok sends its chosen settings).
+        expect(body.targets).toEqual([{ account_id: 'a1', body_override: null, options: null }]);
         expect(body.media_ids).toEqual(['m1']);
 
         expect(wrapper.find('[data-testid="account-issues"]').text()).toContain('at most 90 seconds');

@@ -73,28 +73,34 @@ function save(): void {
     <PageHeader :eyebrow="t('support.eyebrow')" :title="t('support.settings.title')" :description="t('support.settings.description')" />
     <SupportNav current="settings" />
 
-    <form class="grid max-w-3xl gap-3" @submit.prevent="save">
+    <!-- Full width like the platform Settings page: the three setting boxes side by side on wide screens, one save for
+         all three below them. Each box lays out its own fields by its own width (container queries). -->
+    <form class="grid gap-3 lg:grid-cols-2 xl:grid-cols-3" @submit.prevent="save">
         <Card :title="t('support.settings.numbering')" :description="t('support.settings.numberingHint')">
-            <div class="grid gap-4 sm:grid-cols-2">
-                <Input v-model="form.ticket_prefix" :label="t('support.settings.prefix')" :error="form.errors.ticket_prefix" optional maxlength="20" mono />
-                <Input v-model="form.number_padding" type="number" min="1" max="10" :label="t('support.settings.padding')" :error="form.errors.number_padding" required />
+            <div class="@container flex flex-col gap-3">
+                <div class="grid content-start gap-4 @lg:grid-cols-2">
+                    <Input v-model="form.ticket_prefix" :label="t('support.settings.prefix')" :error="form.errors.ticket_prefix" optional maxlength="20" mono />
+                    <Input v-model="form.number_padding" type="number" min="1" max="10" :label="t('support.settings.padding')" :error="form.errors.number_padding" required />
+                </div>
+                <p class="text-sm text-ink-muted">
+                    {{ t('support.settings.example') }}
+                    <span class="tabular font-mono wrap-anywhere text-ink">{{ example }}</span>
+                </p>
             </div>
-            <p class="mt-3 text-sm text-ink-muted">
-                {{ t('support.settings.example') }}
-                <span class="tabular font-mono text-ink">{{ example }}</span>
-            </p>
         </Card>
 
         <Card :title="t('support.settings.defaults')">
-            <div class="grid gap-4 sm:grid-cols-2">
-                <Select v-model="form.default_priority" :options="priorityOptions" :label="t('support.settings.defaultPriority')" :error="form.errors.default_priority" />
-                <Select v-model="form.default_queue_id" :options="queueOptions" :label="t('support.settings.defaultQueue')" :error="form.errors.default_queue_id" />
-                <Select v-model="form.default_sla_policy_id" :options="policyOptions" :label="t('support.settings.defaultPolicy')" :hint="t('support.settings.defaultPolicyHint')" :error="form.errors.default_sla_policy_id" />
-                <Input v-model="form.auto_close_days" type="number" min="1" max="365" :label="t('support.settings.autoClose')" :hint="t('support.settings.autoCloseHint')" :error="form.errors.auto_close_days" optional />
+            <div class="@container">
+                <div class="grid content-start gap-4 @lg:grid-cols-2">
+                    <Select v-model="form.default_priority" :options="priorityOptions" :label="t('support.settings.defaultPriority')" :error="form.errors.default_priority" />
+                    <Select v-model="form.default_queue_id" :options="queueOptions" :label="t('support.settings.defaultQueue')" :error="form.errors.default_queue_id" />
+                    <Select v-model="form.default_sla_policy_id" :options="policyOptions" :label="t('support.settings.defaultPolicy')" :hint="t('support.settings.defaultPolicyHint')" :error="form.errors.default_sla_policy_id" />
+                    <Input v-model="form.auto_close_days" type="number" min="1" max="365" :label="t('support.settings.autoClose')" :hint="t('support.settings.autoCloseHint')" :error="form.errors.auto_close_days" optional />
+                </div>
             </div>
         </Card>
 
-        <Card :title="t('support.settings.csat')" :description="t('support.settings.csatHint')">
+        <Card class="lg:col-span-2 xl:col-span-1" :title="t('support.settings.csat')" :description="t('support.settings.csatHint')">
             <div class="grid gap-4">
                 <Checkbox v-model="form.csat_enabled" :label="t('support.settings.csatEnabled')" :description="t('support.settings.csatEnabledHint')" />
                 <Checkbox v-model="form.csat_send_email" :label="t('support.settings.csatEmail')" :description="t('support.settings.csatEmailHint')" />
@@ -102,8 +108,13 @@ function save(): void {
             </div>
         </Card>
 
-        <div class="flex justify-end">
+        <!-- One save for the three boxes above. -->
+        <div class="flex justify-end lg:col-span-2 xl:col-span-3">
             <Button type="submit" variant="primary" :loading="form.processing">{{ t('support.common.save') }}</Button>
         </div>
     </form>
+
+    <Card class="mt-3" :title="t('support.liveChat.settingsCard.title')" :description="t('support.liveChat.settingsCard.description')">
+        <Button :href="route('support.live_chat.settings')">{{ t('support.liveChat.settingsCard.open') }}</Button>
+    </Card>
 </template>

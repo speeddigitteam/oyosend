@@ -13,10 +13,12 @@ import { useAccess } from '@/Core/composables/useAccess';
 import { useFormat } from '@/Core/composables/useFormat';
 import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
 import { route } from '@/Core/lib/route';
+import PlatformIcon from '../../Components/PlatformIcon.vue';
 import RejectDialog from '../../Components/RejectDialog.vue';
 import ScheduleDialog from '../../Components/ScheduleDialog.vue';
 import SocialBadge from '../../Components/SocialBadge.vue';
 import { displayTag, lengthState, safeUrl } from '../../Components/socialFormat';
+import TikTokSettingsSummary from '../../Components/TikTokSettingsSummary.vue';
 import type { PostDetail, PostPreview, PostTargetDetail } from '../../Components/types';
 
 defineOptions({ layout: TenantLayout });
@@ -185,7 +187,9 @@ function when(value: string | null): string {
                     <li v-for="target in post.targets" :key="target.id" class="grid gap-2 py-3 first:pt-0 last:pb-0" data-testid="target">
                         <div class="flex flex-wrap items-center gap-2">
                             <span class="text-sm font-medium text-ink">{{ target.accountName }}</span>
-                            <span class="text-xs text-ink-subtle">{{ target.platformLabel }}</span>
+                            <span class="inline-flex items-center gap-1 text-xs text-ink-subtle">
+                                <PlatformIcon :platform="target.platform" class="size-3.5 shrink-0" />{{ target.platformLabel }}
+                            </span>
                             <SocialBadge kind="target" :value="target.status" />
                             <SocialBadge v-if="target.accountStatus !== 'connected'" kind="account" :value="target.accountStatus" />
                         </div>
@@ -193,6 +197,8 @@ function when(value: string | null): string {
                         <p v-if="target.bodyOverride" class="text-[0.8125rem] break-words whitespace-pre-wrap text-ink-muted">
                             <span class="eyebrow mr-1">{{ t('social.show.variant') }}</span>{{ target.bodyOverride }}
                         </p>
+
+                        <TikTokSettingsSummary v-if="target.hasPublishOptions && target.platform === 'tiktok'" :options="target.publishOptions ?? null" />
 
                         <p v-if="target.publishedAt" class="text-[0.8125rem] text-ink-muted">
                             {{ t('social.show.publishedAt', { when: when(target.publishedAt) }) }}
@@ -254,7 +260,7 @@ function when(value: string | null): string {
                 <ul class="grid gap-3">
                     <li v-for="preview in previews" :key="preview.targetId" class="rounded-control border border-line p-3" data-testid="preview">
                         <div class="flex flex-wrap items-baseline justify-between gap-2">
-                            <span class="text-sm font-medium text-ink">{{ preview.accountName }} <span class="text-xs font-normal text-ink-subtle">{{ preview.platformLabel }}</span></span>
+                            <span class="text-sm font-medium text-ink">{{ preview.accountName }} <span class="inline-flex items-center gap-1 text-xs font-normal text-ink-subtle"><PlatformIcon :platform="preview.platform" class="size-3.5 shrink-0" />{{ preview.platformLabel }}</span></span>
                             <span :class="['tabular text-xs', lengthClass(preview)]">
                                 <template v-if="preview.maxLength > 0">{{ t('social.form.length', { count: format.number(preview.length), max: format.number(preview.maxLength) }) }}</template>
                                 <template v-else>{{ t('social.form.lengthNoLimit', { count: format.number(preview.length) }) }}</template>

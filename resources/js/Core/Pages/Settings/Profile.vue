@@ -72,7 +72,7 @@ function submit(): void {
 </script>
 
 <template>
-    <div class="max-w-4xl">
+    <div>
         <PageHeader
             :eyebrow="t('settings.eyebrow')"
             :title="t('settings.profile.title')"
@@ -81,16 +81,13 @@ function submit(): void {
             <template #actions><SettingsTabs current="profile" /></template>
         </PageHeader>
 
-        <!-- One form, one save: the server takes name, language and numerals together. -->
-        <form novalidate @submit.prevent="submit">
-            <Card>
-                <div class="grid gap-x-10 gap-y-4 md:grid-cols-[minmax(0,2fr)_minmax(0,5fr)]">
-                    <div>
-                        <h2 class="text-[0.9375rem] font-semibold tracking-tight text-ink">{{ t('settings.profile.about.title') }}</h2>
-                        <p class="mt-0.5 text-[0.8125rem] text-ink-subtle">{{ t('settings.profile.about.description') }}</p>
-                    </div>
-
-                    <div class="grid content-start gap-4 sm:grid-cols-2">
+        <!-- One form, one save: the server takes name, language and numerals together. Full width like the platform
+             Settings page: one box per part, side by side on wide screens. Each box lays out its own fields by its own
+             width (container queries), not the screen's. -->
+        <form novalidate class="grid gap-3 lg:grid-cols-2" @submit.prevent="submit">
+            <Card :title="t('settings.profile.about.title')" :description="t('settings.profile.about.description')">
+                <div class="@container">
+                    <div class="grid content-start gap-4 @lg:grid-cols-2">
                         <Input
                             v-model="form.name"
                             name="name"
@@ -107,7 +104,7 @@ function submit(): void {
                             name="email"
                             :label="t('settings.profile.email')"
                             :hint="t('settings.profile.emailHint')"
-                            class="text-ink-muted"
+                            control-class="text-ink-muted"
                             autocomplete="email"
                             readonly
                         >
@@ -117,74 +114,65 @@ function submit(): void {
                         </Input>
                     </div>
                 </div>
+            </Card>
 
-                <!-- Runs edge to edge: a rule between two parts of one card, not a second panel. -->
-                <div class="-mx-5 my-6 border-t border-line" />
+            <Card :title="t('settings.profile.regional.title')" :description="t('settings.profile.regional.description')">
+                <div class="@container flex flex-col gap-4">
+                    <div class="grid gap-4 @lg:grid-cols-2">
+                        <Select
+                            v-model="form.locale"
+                            name="locale"
+                            :options="languages"
+                            :label="t('settings.profile.language')"
+                            :error="form.errors.locale"
+                        />
 
-                <div class="grid gap-x-10 gap-y-4 md:grid-cols-[minmax(0,2fr)_minmax(0,5fr)]">
-                    <div>
-                        <h2 class="text-[0.9375rem] font-semibold tracking-tight text-ink">{{ t('settings.profile.regional.title') }}</h2>
-                        <p class="mt-0.5 text-[0.8125rem] text-ink-subtle">{{ t('settings.profile.regional.description') }}</p>
+                        <Field :label="t('settings.profile.numerals.label')" :error="form.errors.numerals">
+                            <!-- Centred on the height of the select beside it. -->
+                            <div class="flex min-h-10 items-center">
+                                <SegmentedControl
+                                    v-model="form.numerals"
+                                    :options="numeralOptions"
+                                    :label="t('settings.profile.numerals.label')"
+                                />
+                            </div>
+                        </Field>
                     </div>
 
-                    <div class="flex flex-col gap-4">
-                        <div class="grid gap-4 sm:grid-cols-2">
-                            <Select
-                                v-model="form.locale"
-                                name="locale"
-                                :options="languages"
-                                :label="t('settings.profile.language')"
-                                :error="form.errors.locale"
-                            />
+                    <!-- Follows the two controls above as they change, before anything is saved. -->
+                    <div class="glass-well rounded-control px-4 py-3.5">
+                        <p class="eyebrow">{{ t('settings.profile.preview.title') }}</p>
 
-                            <Field :label="t('settings.profile.numerals.label')" :error="form.errors.numerals">
-                                <!-- Centred on the height of the select beside it. -->
-                                <div class="flex min-h-10 items-center">
-                                    <SegmentedControl
-                                        v-model="form.numerals"
-                                        :options="numeralOptions"
-                                        :label="t('settings.profile.numerals.label')"
-                                    />
-                                </div>
-                            </Field>
-                        </div>
+                        <dl class="mt-3 grid gap-x-8 gap-y-4 @lg:grid-cols-2" aria-live="polite">
+                            <div>
+                                <dt class="text-[0.8125rem] text-ink-subtle">{{ t('settings.profile.preview.number') }}</dt>
+                                <dd class="figure mt-1.5 text-[1.625rem] text-ink [&:lang(bn)]:leading-[1.3]" :lang="form.locale">
+                                    {{ preview.number }}
+                                </dd>
+                            </div>
+                            <div>
+                                <dt class="text-[0.8125rem] text-ink-subtle">{{ t('settings.profile.preview.date') }}</dt>
+                                <dd class="mt-1.5" :lang="form.locale">
+                                    <span class="figure block text-[1.625rem] text-ink [&:lang(bn)]:leading-[1.3]">{{ preview.date }}</span>
+                                    <span class="tabular mt-1 block text-[0.8125rem] text-ink-muted">{{ preview.time }}</span>
+                                </dd>
+                            </div>
+                        </dl>
 
-                        <!-- Follows the two controls above as they change, before anything is saved. -->
-                        <div class="glass-well rounded-control px-4 py-3.5">
-                            <p class="eyebrow">{{ t('settings.profile.preview.title') }}</p>
-
-                            <dl class="mt-3 grid gap-x-8 gap-y-4 sm:grid-cols-2" aria-live="polite">
-                                <div>
-                                    <dt class="text-[0.8125rem] text-ink-subtle">{{ t('settings.profile.preview.number') }}</dt>
-                                    <dd class="figure mt-1.5 text-[1.625rem] text-ink [&:lang(bn)]:leading-[1.3]" :lang="form.locale">
-                                        {{ preview.number }}
-                                    </dd>
-                                </div>
-                                <div>
-                                    <dt class="text-[0.8125rem] text-ink-subtle">{{ t('settings.profile.preview.date') }}</dt>
-                                    <dd class="mt-1.5" :lang="form.locale">
-                                        <span class="figure block text-[1.625rem] text-ink [&:lang(bn)]:leading-[1.3]">{{ preview.date }}</span>
-                                        <span class="tabular mt-1 block text-[0.8125rem] text-ink-muted">{{ preview.time }}</span>
-                                    </dd>
-                                </div>
-                            </dl>
-
-                            <p class="mt-3 border-t border-line pt-3 text-[0.8125rem] text-ink-subtle">
-                                {{ t('settings.profile.preview.note') }}
-                            </p>
-                        </div>
+                        <p class="mt-3 border-t border-line pt-3 text-[0.8125rem] text-ink-subtle">
+                            {{ t('settings.profile.preview.note') }}
+                        </p>
                     </div>
                 </div>
-
-                <template #footer>
-                    <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
-                        <p v-if="form.isDirty" class="mr-auto text-[0.8125rem] text-ink-muted">{{ t('settings.profile.unsaved') }}</p>
-                        <Button type="submit" variant="primary" :loading="form.processing" :disabled="!form.isDirty">
-                            {{ t('common.actions.save') }}
-                        </Button>
-                    </div>
-                </template>
             </Card>
+
+            <!-- One save for both boxes, across the row beneath them. -->
+            <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 px-1 lg:col-span-2">
+                <p v-if="form.isDirty" class="mr-auto text-[0.8125rem] text-ink-muted">{{ t('settings.profile.unsaved') }}</p>
+                <Button type="submit" variant="primary" :loading="form.processing" :disabled="!form.isDirty">
+                    {{ t('common.actions.save') }}
+                </Button>
+            </div>
         </form>
     </div>
 </template>

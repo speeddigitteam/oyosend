@@ -119,8 +119,8 @@ function standingTone(rule: CommentRuleData): BadgeTone {
     <div class="grid gap-4">
         <Card :title="t('socialComments.rules.killTitle')" :description="paused ? t('socialComments.rules.killPaused') : t('socialComments.rules.killRunning')" data-testid="kill-switch">
             <template #actions>
-                <Button v-if="!paused" variant="danger" size="sm" @click="setPaused(true)"><Pause class="size-4" aria-hidden="true" />{{ t('socialComments.rules.pauseAll') }}</Button>
-                <Button v-else variant="primary" size="sm" @click="setPaused(false)"><Play class="size-4" aria-hidden="true" />{{ t('socialComments.rules.resumeAll') }}</Button>
+                <Button v-if="!paused" variant="danger" size="sm" @click="setPaused(true)"><template #icon><Pause class="size-4" aria-hidden="true" /></template>{{ t('socialComments.rules.pauseAll') }}</Button>
+                <Button v-else variant="primary" size="sm" @click="setPaused(false)"><template #icon><Play class="size-4" aria-hidden="true" /></template>{{ t('socialComments.rules.resumeAll') }}</Button>
             </template>
             <form class="flex flex-wrap items-end gap-2" @submit.prevent="saveCap">
                 <Input v-model.number="cap.page_hourly_cap" type="number" min="1" max="500" :label="t('socialComments.rules.pageCap')" :hint="t('socialComments.rules.pageCapHint')" :error="cap.errors.page_hourly_cap" class="w-full sm:w-64" />
@@ -135,8 +135,8 @@ function standingTone(rule: CommentRuleData): BadgeTone {
             </EmptyState>
             <ul v-else>
                 <li v-for="page in pages" :key="page.accountId" class="flex flex-wrap items-center gap-3 border-b border-line px-5 py-3 last:border-b-0" :data-testid="`page-${page.accountId}`">
-                    <div class="min-w-0 flex-1">
-                        <p class="truncate text-sm font-medium text-ink">{{ page.name }} <span class="text-ink-subtle">({{ page.platformLabel }})</span></p>
+                    <div class="min-w-48 flex-1">
+                        <p class="text-sm font-medium wrap-break-word text-ink">{{ page.name }} <span class="text-ink-subtle">({{ page.platformLabel }})</span></p>
                         <p class="mt-0.5 text-xs text-ink-subtle">
                             <template v-if="page.enabled && page.lastEventAt">{{ t('socialComments.pages.lastEvent', { when: format.relative(page.lastEventAt) }) }}</template>
                             <template v-else-if="page.enabled && page.lastPolledAt">{{ t('socialComments.pages.lastPoll', { when: format.relative(page.lastPolledAt) }) }}</template>
@@ -162,12 +162,15 @@ function standingTone(rule: CommentRuleData): BadgeTone {
             </EmptyState>
             <ul v-else>
                 <li v-for="rule in rules" :key="rule.id" class="grid gap-2 border-b border-line px-5 py-4 last:border-b-0" :data-testid="`rule-${rule.id}`">
-                    <div class="flex flex-wrap items-center gap-2">
-                        <p class="min-w-0 flex-1 truncate text-sm font-medium text-ink">{{ rule.name }}</p>
-                        <Badge :tone="standingTone(rule)" dot>{{ rule.enabled ? t('socialComments.rules.on') : t('socialComments.rules.off') }}</Badge>
-                        <Button size="sm" :variant="rule.enabled ? 'secondary' : 'primary'" @click="toggle(rule)">{{ rule.enabled ? t('socialComments.rules.switchOff') : t('socialComments.rules.switchOn') }}</Button>
-                        <Button size="sm" variant="ghost" icon :aria-label="t('social.common.edit')" @click="edit(rule)"><Pencil class="size-4" aria-hidden="true" /></Button>
-                        <Button size="sm" variant="ghost" icon :aria-label="t('social.common.delete')" @click="askRemove(rule)"><Trash2 class="size-4" aria-hidden="true" /></Button>
+                    <!-- The name wraps instead of being squeezed: the state and the buttons move to the next line together. -->
+                    <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+                        <p class="min-w-0 text-sm font-medium wrap-break-word text-ink">{{ rule.name }}</p>
+                        <div class="flex shrink-0 flex-wrap items-center gap-2">
+                            <Badge :tone="standingTone(rule)" dot>{{ rule.enabled ? t('socialComments.rules.on') : t('socialComments.rules.off') }}</Badge>
+                            <Button size="sm" :variant="rule.enabled ? 'secondary' : 'primary'" @click="toggle(rule)">{{ rule.enabled ? t('socialComments.rules.switchOff') : t('socialComments.rules.switchOn') }}</Button>
+                            <Button size="sm" variant="ghost" icon :aria-label="t('social.common.edit')" @click="edit(rule)"><template #icon><Pencil class="size-4" aria-hidden="true" /></template></Button>
+                            <Button size="sm" variant="ghost" icon :aria-label="t('social.common.delete')" @click="askRemove(rule)"><template #icon><Trash2 class="size-4" aria-hidden="true" /></template></Button>
+                        </div>
                     </div>
                     <p class="break-words text-[0.8125rem] text-ink-muted">
                         {{ t(rule.matchType === 'word' ? 'socialComments.rules.summaryWord' : 'socialComments.rules.summaryContains', { keywords: rule.keywords.join(', ') }) }}

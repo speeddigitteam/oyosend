@@ -164,7 +164,7 @@ it('hides providers of apps the workspace is not entitled to, even from the owne
 });
 
 it('lists a provider only for members holding its permission, once the workspace is entitled', function () {
-    $this->entitle($this->tenant, 'crm', 'projects', 'invoicing', 'hrm', 'payroll', 'talent', 'support', 'social', 'automation', 'communication', 'email_marketing', 'sms_marketing', 'whatsapp_marketing');
+    $this->entitle($this->tenant, 'crm', 'projects', 'invoicing', 'hrm', 'payroll', 'talent', 'support', 'social', 'meta_ads', 'automation', 'communication', 'email_marketing', 'sms_marketing', 'whatsapp_marketing', 'notes');
     $registry = fn ($user) => $this->inTenant($this->tenant, fn () => app(ReportRegistry::class)->availableFor($user));
     $all = $this->inTenant($this->tenant, fn () => app(ReportRegistry::class)->all());
 

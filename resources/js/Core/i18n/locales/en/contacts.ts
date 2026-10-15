@@ -25,6 +25,21 @@ export default {
         viewAll: 'View all',
     },
     // One label per field, shared by the columns, the forms and the details of both lists.
+    // How the people list is shown, and how it is ordered.
+    views: {
+        label: 'Show contacts as',
+        list: 'List',
+        grid: 'Cards',
+    },
+    sort: {
+        label: 'Sort contacts',
+        nameAsc: 'Name, A to Z',
+        nameDesc: 'Name, Z to A',
+        company: 'Company',
+        city: 'City',
+        newest: 'Newest first',
+        oldest: 'Oldest first',
+    },
     fields: {
         name: 'Name',
         firstName: 'First name',
@@ -141,6 +156,21 @@ export default {
             destructiveBody: 'This soft-deletes the duplicate contact after its linked records are moved. This action cannot be undone here.',
             referencesMove: 'Linked CRM records and activities move to {name}.',
             confirm: 'Merge and remove duplicate',
+        },
+    },
+    // A company's own page (Odoo's company form).
+    company: {
+        back: 'All companies',
+        edit: 'Edit company',
+        notRecorded: '{field}: not recorded',
+        taxId: 'Tax ID {id}',
+        people: 'Contacts',
+        addPerson: 'Add a contact',
+        showAll: 'Show all {count} in the contact list',
+        noPeople: {
+            title: 'Nobody at this company yet',
+            body: 'Add the people you deal with here; they are saved with this company already chosen.',
+            bodyViewOnly: 'The people of this company you are allowed to see will appear here.',
         },
     },
     companies: {

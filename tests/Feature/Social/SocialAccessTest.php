@@ -9,8 +9,10 @@ use App\Core\AppStore\Jobs\RunScheduledAppJob;
 use App\Core\AppStore\Models\CatalogApp;
 use App\Core\Modules\ModuleRegistry;
 use App\Modules\Social\Actions\PostWorkflow;
+use App\Modules\Social\Comments\Jobs\PollRecentComments;
 use App\Modules\Social\Jobs\MaintainSocialAccounts;
 use App\Modules\Social\Jobs\PublishDuePosts;
+use App\Modules\Social\LeadAds\Jobs\SweepLeadAds;
 use App\Modules\Social\Models\Post;
 use App\Modules\Social\Models\PostTarget;
 use App\Modules\Social\Platforms\SocialPlatforms;
@@ -100,7 +102,11 @@ it('declares its permissions with the module prefix and the scopable ones', func
     $scopable = array_map(fn ($permission): string => $permission->name, array_filter($manifest->permissions, fn ($p): bool => $p->scopable));
 
     expect($names)->toContain('social.posts.approve', 'social.accounts.manage', 'social.posts.schedule')
-        ->and(array_values($scopable))->toBe(['social.posts.view', 'social.posts.edit', 'social.posts.delete', 'social.posts.schedule'])
+        ->and(array_values($scopable))->toBe([
+            'social.posts.view', 'social.posts.edit', 'social.posts.delete', 'social.posts.schedule',
+            'social.comments.view', 'social.comments.reply', 'social.comments.moderate',
+            'social.messages.view', 'social.messages.reply',
+        ])
         ->and(collect($names)->every(fn (string $name): bool => str_starts_with($name, 'social.')))->toBeTrue();
 });
 
@@ -111,6 +117,8 @@ it('queues the publish and maintenance schedules for a workspace that holds the 
     expect($app->currentVersion?->scheduled_jobs)->toEqual([
         ['key' => 'social.publish_due', 'job' => PublishDuePosts::class, 'frequency' => ScheduledJobFrequency::EveryMinute->value],
         ['key' => 'social.maintenance', 'job' => MaintainSocialAccounts::class, 'frequency' => ScheduledJobFrequency::Hourly->value],
+        ['key' => 'social.comments_poll', 'job' => PollRecentComments::class, 'frequency' => ScheduledJobFrequency::EveryMinute->value],
+        ['key' => 'social.lead_ads_sweep', 'job' => SweepLeadAds::class, 'frequency' => ScheduledJobFrequency::EveryMinute->value],
     ]);
 
     $this->travelTo(now()->startOfHour());
@@ -120,7 +128,8 @@ it('queues the publish and maintenance schedules for a workspace that holds the 
 
     $this->artisan('apps:run-scheduled', ['--tenant' => $licensed->slug])->assertSuccessful();
 
-    Queue::assertPushed(RunScheduledAppJob::class, 2);
+    // At the top of the hour every job is due: the three every-minute jobs and the hourly maintenance.
+    Queue::assertPushed(RunScheduledAppJob::class, 4);
     Queue::assertPushed(RunScheduledAppJob::class, fn (RunScheduledAppJob $job): bool => $job->definition === 'social.publish_due');
 });
 
@@ -162,7 +171,8 @@ it('lists every platform with an honest availability in the accounts page', func
 
                 return $byKey->has(['facebook', 'linkedin', 'x', 'instagram', 'youtube', 'tiktok', 'pinterest', 'fake'])
                     && $byKey['instagram']['available'] === false
-                    && $byKey['instagram']['unavailableCode'] === 'not_implemented'
+                    // Instagram has an adapter; it stays unavailable until the operator switches it on (ADR 0033).
+                    && $byKey['instagram']['unavailableCode'] === 'not_configured'
                     && $byKey['facebook']['available'] === false
                     && $byKey['facebook']['unavailableCode'] === 'not_configured'
                     && $byKey['fake']['available'] === true;

@@ -54,6 +54,11 @@ final class SocialPlatforms
         $platforms = [];
 
         foreach ((array) config('social.adapters', []) as $class) {
+            // A listed adapter this build does not ship keeps its "not built yet" placeholder below.
+            if (! is_string($class) || ! class_exists($class)) {
+                continue;
+            }
+
             $adapter = $this->container->make($class);
 
             if ($adapter instanceof SocialPlatform) {

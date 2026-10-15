@@ -115,7 +115,7 @@ function submit(): void {
             name="code"
             :label="t('auth.twoFactor.code')"
             :error="form.errors.code"
-            class="tabular h-12 font-mono text-lg tracking-[0.3em]"
+            control-class="tabular h-12 font-mono text-lg tracking-[0.3em]"
             inputmode="numeric"
             autocomplete="one-time-code"
             enterkeyhint="go"

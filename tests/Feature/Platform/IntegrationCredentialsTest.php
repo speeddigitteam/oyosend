@@ -60,9 +60,9 @@ describe('access', function () {
     it('answers 404 for an integration that is not managed', function () {
         $this->actingAsPlatformUser($this->admin);
 
-        $this->put(integrationUrl('social', 'tiktok'), ['enabled' => true])->assertNotFound();
+        $this->put(integrationUrl('social', 'myspace'), ['enabled' => true])->assertNotFound();
         $this->put(integrationUrl('billing', 'facebook'), ['enabled' => true])->assertNotFound();
-        $this->delete(integrationUrl('social', 'tiktok'))->assertNotFound();
+        $this->delete(integrationUrl('social', 'myspace'))->assertNotFound();
     });
 });
 
@@ -187,4 +187,87 @@ it('overlays the Meta Ads app credentials the same way', function () {
 
     expect(overlaidConfig('meta_ads.app_id'))->toBe('panel-app')
         ->and(overlaidConfig('meta_ads.app_secret'))->toBe('panel-secret');
+});
+
+describe('the platforms of ADR 0033', function () {
+    it('overlays the TikTok, YouTube and Pinterest app credentials over the environment', function (string $name, string $publicField, string $idKey, string $secretKey) {
+        $this->actingAsPlatformUser($this->admin);
+        config([$idKey => 'env-id', $secretKey => 'env-secret']);
+
+        expect(overlaidConfig($idKey))->toBe('env-id')
+            ->and(overlaidConfig($secretKey))->toBe('env-secret');
+
+        $this->put(integrationUrl('social', $name), [
+            'enabled' => true,
+            'public' => [$publicField => 'panel-id'],
+            'secrets' => ['client_secret' => 'panel-secret'],
+        ])->assertRedirect();
+
+        $row = IntegrationCredential::query()->where('group', 'social')->where('name', $name)->first();
+        $raw = (string) DB::connection($row->getConnectionName())
+            ->table('integration_credentials')->where('group', 'social')->where('name', $name)->value('secrets');
+
+        expect($raw)->not->toContain('panel-secret')
+            ->and(overlaidConfig($idKey))->toBe('panel-id')
+            ->and(overlaidConfig($secretKey))->toBe('panel-secret');
+
+        // The page lists it with its public id and never a secret.
+        $this->get(integrationUrl())->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('integrations', fn ($rows): bool => collect($rows)->contains(fn ($row): bool => $row['name'] === $name
+                && $row['source'] === 'panel'
+                && $row['publicValues'] === [$publicField => 'panel-id']
+                && $row['storedSecretFields'] === ['client_secret']
+                && ! array_key_exists('secrets', $row))));
+    })->with([
+        'tiktok (client key into client_id)' => ['tiktok', 'client_key', 'social.platforms.tiktok.client_id', 'social.platforms.tiktok.client_secret'],
+        'youtube' => ['youtube', 'client_id', 'social.platforms.youtube.client_id', 'social.platforms.youtube.client_secret'],
+        'pinterest' => ['pinterest', 'client_id', 'social.platforms.pinterest.client_id', 'social.platforms.pinterest.client_secret'],
+    ]);
+
+    it('labels Instagram as using the Meta app, never as missing credentials of its own', function () {
+        $this->actingAsPlatformUser($this->admin);
+
+        $this->get(integrationUrl())->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('integrations', fn ($rows): bool => collect($rows)->contains(fn ($row): bool => $row['name'] === 'instagram'
+                && $row['source'] === 'switch'
+                && $row['secretFields'] === []
+                && $row['publicFields'] === [])));
+    });
+
+    it('switches Instagram publishing from the panel, with the environment as the fallback', function () {
+        $this->actingAsPlatformUser($this->admin);
+        config(['social.platforms.instagram.publishing' => false]);
+
+        expect(overlaidConfig('social.platforms.instagram.publishing'))->toBeFalse();
+
+        $this->get(integrationUrl())->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('integrations', fn ($rows): bool => collect($rows)->contains(fn ($row): bool => $row['name'] === 'instagram'
+                && $row['flagFields'] === ['publishing']
+                && $row['flagValues'] === ['publishing' => false]
+                && $row['secretFields'] === [] && $row['publicFields'] === [])));
+
+        $this->put(integrationUrl('social', 'instagram'), ['enabled' => true, 'flags' => ['publishing' => true]])->assertRedirect();
+
+        expect(IntegrationCredential::query()->where('name', 'instagram')->first()->settings)->toBe(['publishing' => true])
+            ->and(overlaidConfig('social.platforms.instagram.publishing'))->toBeTrue();
+
+        // Off in the panel beats on in the environment: a stored switch always overlays.
+        config(['social.platforms.instagram.publishing' => true]);
+        $this->put(integrationUrl('social', 'instagram'), ['enabled' => true, 'flags' => ['publishing' => false]])->assertRedirect();
+        expect(overlaidConfig('social.platforms.instagram.publishing'))->toBeFalse();
+
+        // Clearing it falls back to the environment (as the next boot reads it).
+        $this->delete(integrationUrl('social', 'instagram'))->assertRedirect();
+        config(['social.platforms.instagram.publishing' => true]);
+        expect(overlaidConfig('social.platforms.instagram.publishing'))->toBeTrue();
+    });
+
+    it('refuses a switch value that is not a boolean', function () {
+        $this->actingAsPlatformUser($this->admin);
+
+        $this->put(integrationUrl('social', 'instagram'), ['enabled' => true, 'flags' => ['publishing' => 'sometimes']])
+            ->assertSessionHasErrors('flags.publishing');
+
+        expect(IntegrationCredential::query()->count())->toBe(0);
+    });
 });

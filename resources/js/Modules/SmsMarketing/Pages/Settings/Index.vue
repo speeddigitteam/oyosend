@@ -80,54 +80,63 @@ function save(): void {
 
     <ChannelNotice class="mb-3" :channel="channel" />
 
-    <form class="grid max-w-2xl gap-3" novalidate @submit.prevent="save">
+    <!-- Full width like the platform Settings page: the two boxes side by side on wide screens, one save below them.
+         Each box lays out its own fields by its own width (container queries), not the screen's. -->
+    <form class="grid gap-3 lg:grid-cols-2" novalidate @submit.prevent="save">
         <Card :title="t('smsMarketing.settings.sending')" :description="t('smsMarketing.settings.timezoneNote', { timezone })">
-            <div class="grid gap-5">
-                <Input
-                    v-model="form.daily_cap"
-                    inputmode="numeric"
-                    :label="t('smsMarketing.settings.dailyCap')"
-                    :hint="t('smsMarketing.settings.dailyCapHint', { min: format.number(capMin), max: format.number(capMax) })"
-                    :error="form.errors.daily_cap ?? (capInvalid ? t('smsMarketing.settings.outOfRange') : undefined)"
-                />
-                <Input
-                    v-model="form.throttle_per_minute"
-                    inputmode="numeric"
-                    :label="t('smsMarketing.settings.throttle')"
-                    :hint="t('smsMarketing.settings.throttleHint', { min: format.number(rateMin), max: format.number(rateMax) })"
-                    :error="form.errors.throttle_per_minute ?? (rateInvalid ? t('smsMarketing.settings.outOfRange') : undefined)"
-                />
-                <Select
-                    v-model="form.default_sender_id"
-                    :options="senderOptions"
-                    :label="t('smsMarketing.settings.defaultSender')"
-                    :error="form.errors.default_sender_id"
-                />
+            <div class="@container">
+                <div class="grid content-start gap-4 @lg:grid-cols-2">
+                    <Input
+                        v-model="form.daily_cap"
+                        inputmode="numeric"
+                        :label="t('smsMarketing.settings.dailyCap')"
+                        :hint="t('smsMarketing.settings.dailyCapHint', { min: format.number(capMin), max: format.number(capMax) })"
+                        :error="form.errors.daily_cap ?? (capInvalid ? t('smsMarketing.settings.outOfRange') : undefined)"
+                    />
+                    <Input
+                        v-model="form.throttle_per_minute"
+                        inputmode="numeric"
+                        :label="t('smsMarketing.settings.throttle')"
+                        :hint="t('smsMarketing.settings.throttleHint', { min: format.number(rateMin), max: format.number(rateMax) })"
+                        :error="form.errors.throttle_per_minute ?? (rateInvalid ? t('smsMarketing.settings.outOfRange') : undefined)"
+                    />
+                    <div class="@lg:col-span-2">
+                        <Select
+                            v-model="form.default_sender_id"
+                            :options="senderOptions"
+                            :label="t('smsMarketing.settings.defaultSender')"
+                            :error="form.errors.default_sender_id"
+                        />
+                    </div>
+                </div>
             </div>
         </Card>
 
         <Card :title="t('smsMarketing.settings.messages')">
-            <div class="grid gap-5">
-                <Input
-                    v-model="form.opt_out_wording"
-                    :label="t('smsMarketing.settings.optOut')"
-                    :hint="t('smsMarketing.settings.optOutHint', { default: settings.optOutDefault })"
-                    maxlength="60"
-                    optional
-                    :error="form.errors.opt_out_wording"
-                />
-                <Input
-                    v-model="form.segment_cost"
-                    inputmode="decimal"
-                    :label="t('smsMarketing.settings.cost', { currency: settings.currency })"
-                    :hint="t('smsMarketing.settings.costHint')"
-                    optional
-                    :error="(form.errors as Record<string, string | undefined>).segment_cost_amount ?? (costInvalid ? t('smsMarketing.settings.costInvalid') : undefined)"
-                />
+            <div class="@container">
+                <div class="grid content-start gap-4 @lg:grid-cols-2">
+                    <Input
+                        v-model="form.opt_out_wording"
+                        :label="t('smsMarketing.settings.optOut')"
+                        :hint="t('smsMarketing.settings.optOutHint', { default: settings.optOutDefault })"
+                        maxlength="60"
+                        optional
+                        :error="form.errors.opt_out_wording"
+                    />
+                    <Input
+                        v-model="form.segment_cost"
+                        inputmode="decimal"
+                        :label="t('smsMarketing.settings.cost', { currency: settings.currency })"
+                        :hint="t('smsMarketing.settings.costHint')"
+                        optional
+                        :error="(form.errors as Record<string, string | undefined>).segment_cost_amount ?? (costInvalid ? t('smsMarketing.settings.costInvalid') : undefined)"
+                    />
+                </div>
             </div>
         </Card>
 
-        <div>
+        <!-- One save for the two boxes above. -->
+        <div class="flex justify-end lg:col-span-2">
             <Button type="submit" variant="primary" :loading="form.processing" :disabled="invalid">{{ t('smsMarketing.common.save') }}</Button>
         </div>
     </form>

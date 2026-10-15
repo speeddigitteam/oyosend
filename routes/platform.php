@@ -15,6 +15,11 @@ use App\Platform\Http\Controllers\PlanController;
 use App\Platform\Http\Controllers\SettingsController;
 use App\Platform\Http\Controllers\TenantController;
 use App\Platform\Http\Controllers\TenantSubscriptionController;
+use App\Platform\Http\Controllers\Website\BlogController as WebsiteBlogController;
+use App\Platform\Http\Controllers\Website\BrandController as WebsiteBrandController;
+use App\Platform\Http\Controllers\Website\CompanyController as WebsiteCompanyController;
+use App\Platform\Http\Controllers\Website\EnquiryController as WebsiteEnquiryController;
+use App\Platform\Http\Controllers\Website\TextController as WebsiteTextController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -109,6 +114,36 @@ Route::middleware('auth:platform')->group(function () {
         Route::get('audit-log', [AuditLogController::class, 'index'])
             ->middleware('can:platform.audit.view')
             ->name('audit.index');
+
+        // The public website (docs/WEBSITE.md): its contact form's messages, the company's details, its words and its blog.
+        Route::get('website/messages', [WebsiteEnquiryController::class, 'index'])
+            ->middleware('can:platform.website.view')
+            ->name('website.messages.index');
+
+        Route::middleware('can:platform.website.manage')->group(function () {
+            Route::post('website/messages/{enquiry}/handled', [WebsiteEnquiryController::class, 'handled'])->name('website.messages.handled');
+            Route::delete('website/messages/{enquiry}/handled', [WebsiteEnquiryController::class, 'reopen'])->name('website.messages.reopen');
+            Route::delete('website/messages/{enquiry}', [WebsiteEnquiryController::class, 'destroy'])->name('website.messages.destroy');
+
+            Route::get('website/company', [WebsiteCompanyController::class, 'edit'])->name('website.company.edit');
+            Route::put('website/company', [WebsiteCompanyController::class, 'update'])->name('website.company.update');
+            Route::post('website/brand/{asset}', [WebsiteBrandController::class, 'store'])->name('website.brand.store');
+            Route::delete('website/brand/{asset}', [WebsiteBrandController::class, 'destroy'])->name('website.brand.destroy');
+
+            Route::get('website/texts', [WebsiteTextController::class, 'index'])->name('website.texts.index');
+            Route::put('website/texts/{section}', [WebsiteTextController::class, 'update'])->name('website.texts.update');
+            Route::delete('website/texts/{section}', [WebsiteTextController::class, 'reset'])->name('website.texts.reset');
+
+            // The blog (ADR 0037): articles, their pictures and a preview drawn by the website itself.
+            Route::get('website/blog', [WebsiteBlogController::class, 'index'])->name('website.blog.index');
+            Route::get('website/blog/create', [WebsiteBlogController::class, 'create'])->name('website.blog.create');
+            Route::post('website/blog', [WebsiteBlogController::class, 'store'])->name('website.blog.store');
+            Route::post('website/blog/media', [WebsiteBlogController::class, 'upload'])->middleware('throttle:30,1')->name('website.blog.media');
+            Route::post('website/blog/preview', [WebsiteBlogController::class, 'preview'])->middleware('throttle:60,1')->name('website.blog.preview');
+            Route::get('website/blog/{post}/edit', [WebsiteBlogController::class, 'edit'])->name('website.blog.edit');
+            Route::put('website/blog/{post}', [WebsiteBlogController::class, 'update'])->name('website.blog.update');
+            Route::delete('website/blog/{post}', [WebsiteBlogController::class, 'destroy'])->name('website.blog.destroy');
+        });
 
         Route::middleware('can:platform.settings.manage')->group(function () {
             Route::get('settings', [SettingsController::class, 'edit'])->name('settings.edit');

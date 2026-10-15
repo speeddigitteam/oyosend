@@ -82,7 +82,6 @@ import { formatMoney } from '@/Core/lib/format';
 import ConfirmRegistration from '@/Core/Pages/Central/ConfirmRegistration.vue';
 import Register from '@/Core/Pages/Central/Register.vue';
 import RegistrationSent from '@/Core/Pages/Central/RegistrationSent.vue';
-import Welcome from '@/Core/Pages/Central/Welcome.vue';
 
 function plan(overrides: Partial<PlanOffer> = {}): PlanOffer {
     return {
@@ -333,12 +332,17 @@ describe('the sign-up form', () => {
         expect(mountForm().text()).not.toContain(notice);
     });
 
-    it('links back to where an existing workspace can be found', () => {
+    it('links to the website page where an existing workspace can be found, in the language being read', () => {
         const link = mountForm()
             .findAll('a')
             .find((anchor) => anchor.text() === 'Find it and sign in');
 
-        expect(link?.attributes('href')).toBe('/central.home');
+        // A plain link: the website is not part of this Inertia app.
+        expect(link?.attributes('href')).toBe('/central.site.signin');
+
+        setLocale('bn');
+
+        expect(mountForm().find('p.mt-6 a').attributes('href')).toBe('/central.site.bn.signin');
     });
 
     it('is complete in Bengali', () => {
@@ -484,74 +488,5 @@ describe('the page the emailed link opens', () => {
             expect(wrapper.text()).not.toMatch(RAW_KEY);
             expect(wrapper.find('h1').text()).not.toBe('');
         }
-    });
-});
-
-describe('the landing page', () => {
-    const mountPage = (props: Partial<InstanceType<typeof Welcome>['$props']> = {}): VueWrapper =>
-        mount(Welcome, {
-            props: { domain: 'oyosend.test', registrationOpen: true, plans: [free, starter, pro, yearlyOnly], ...props },
-            global: { stubs: shell },
-        });
-
-    it('looks as it always did while sign-up is closed', () => {
-        const wrapper = mountPage({ registrationOpen: false, plans: [] });
-
-        expect(wrapper.findAll('a')).toHaveLength(0);
-        expect(wrapper.findAll('section')).toHaveLength(1);
-        expect(wrapper.text()).not.toContain('Create a workspace');
-        expect(wrapper.text()).not.toContain('Plans');
-
-        // Finding a workspace is then the one thing to do here.
-        expect(wrapper.find('button[type="submit"]').classes()).toContain('bg-brand');
-    });
-
-    it('offers to create a workspace while sign-up is open', () => {
-        const wrapper = mountPage({ plans: [] });
-        const create = wrapper.findAll('a').find((anchor) => anchor.text() === 'Create a workspace');
-
-        expect(create?.attributes('href')).toBe('/central.register');
-        expect(create?.classes()).toContain('bg-brand');
-
-        // The finder stays, as the quieter of the two actions.
-        expect(wrapper.find('input[name="workspace"]').exists()).toBe(true);
-        expect(wrapper.find('button[type="submit"]').classes()).not.toContain('bg-brand');
-        expect(wrapper.findAll('section')).toHaveLength(1);
-    });
-
-    it('prices every plan on offer and sends each to the sign-up form', () => {
-        const wrapper = mountPage();
-        const plans = wrapper.findAll('section')[1]!.findAll('li');
-
-        expect(plans.map((item) => item.find('h3').text())).toEqual(['Free', 'Starter', 'Pro', 'Annual']);
-
-        expect(plans[0]!.text()).toContain('Free');
-        expect(plans[0]!.text()).not.toContain('per month');
-
-        // The monthly price is the figure; the yearly one follows it.
-        expect(plans[1]!.findAll('p')[0]!.findAll('span').map((part) => part.text())).toEqual([money(150000), 'per month']);
-        expect(plans[1]!.findAll('p')[1]!.text()).toBe(`${money(1500000)} per year`);
-        expect(plans[1]!.text()).toContain('For a small team.');
-        expect(plans[1]!.text()).not.toContain('trial');
-
-        expect(plans[2]!.text()).toContain('14-day free trial');
-
-        expect(plans[3]!.findAll('p')[0]!.findAll('span').map((part) => part.text())).toEqual([money(990000), 'per year']);
-        expect(plans[3]!.text()).not.toContain('per month');
-
-        expect(plans.map((item) => item.find('a').attributes('href'))).toEqual([
-            '/central.register?plan=free',
-            '/central.register?plan=starter',
-            '/central.register?plan=pro',
-            '/central.register?plan=annual',
-        ]);
-        expect(plans[1]!.find('a').attributes('aria-label')).toBe('Choose the Starter plan');
-        expect(wrapper.text()).not.toMatch(RAW_KEY);
-    });
-
-    it('is complete in Bengali', () => {
-        setLocale('bn');
-
-        expect(mountPage().text()).not.toMatch(RAW_KEY);
     });
 });

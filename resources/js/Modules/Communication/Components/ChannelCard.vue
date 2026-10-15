@@ -116,7 +116,7 @@ function save(): void {
 
         <p v-if="onlyNone" class="text-sm text-ink-muted">{{ t('communication.settings.noProvider') }}</p>
 
-        <form v-else class="grid gap-4" @submit.prevent="save">
+        <form v-else class="@container grid gap-4" @submit.prevent="save">
             <p v-if="isPlatformMail" class="text-sm text-ink-muted">{{ t('communication.settings.emailPlatform') }}</p>
             <p v-if="selected?.isTestDouble" class="text-sm text-warn" role="status">{{ t('communication.settings.testDoubleNote') }}</p>
             <p v-if="isNone" class="text-sm text-ink-muted">{{ t('communication.settings.noProvider') }}</p>
@@ -128,7 +128,7 @@ function save(): void {
                 :error="form.errors.provider"
             />
 
-            <div v-if="selected && selected.fields.length > 0" class="grid gap-4 sm:grid-cols-2">
+            <div v-if="selected && selected.fields.length > 0" class="grid gap-4 @lg:grid-cols-2">
                 <template v-for="field in selected.fields" :key="field.key">
                     <Select
                         v-if="field.type === 'select'"
@@ -151,7 +151,7 @@ function save(): void {
                 </template>
             </div>
 
-            <div v-if="needsCredential" class="grid gap-4 sm:grid-cols-2">
+            <div v-if="needsCredential" class="grid gap-4 @lg:grid-cols-2">
                 <Select
                     v-model="form.credential_ref"
                     :options="referenceOptions(form.credential_ref)"
@@ -171,7 +171,7 @@ function save(): void {
                 />
             </div>
 
-            <div class="grid gap-4 sm:grid-cols-2">
+            <div class="grid gap-4 @lg:grid-cols-2">
                 <Input
                     v-model="form.rate_limit_per_minute"
                     class="max-w-xs"

@@ -42,35 +42,48 @@ function save(): void {
 <template>
     <PageHeader :eyebrow="t('emailMarketing.eyebrow')" :title="t('emailMarketing.settings.title')" :description="t('emailMarketing.settings.description')" />
 
-    <Card :title="t('emailMarketing.settings.sending')" :description="t('emailMarketing.settings.timezoneNote', { timezone })">
-        <form class="grid max-w-xl gap-5" novalidate @submit.prevent="save">
-            <Textarea
-                v-model="form.footer_address"
-                :label="t('emailMarketing.settings.footerAddress')"
-                :hint="t('emailMarketing.settings.footerAddressHint')"
-                maxlength="500"
-                :rows="3"
-                :error="form.errors.footer_address"
-            />
-            <Input
-                v-model="form.send_per_minute"
-                inputmode="numeric"
-                :label="t('emailMarketing.settings.perMinute')"
-                :hint="t('emailMarketing.settings.perMinuteHint', { ceiling: ceiling })"
-                :error="form.errors.send_per_minute ?? (rateInvalid ? t('emailMarketing.settings.perMinuteInvalid', { ceiling: ceiling }) : undefined)"
-            />
-            <Checkbox
-                v-model="form.track_clicks"
-                :label="t('emailMarketing.settings.trackClicks')"
-                :description="t('emailMarketing.settings.trackClicksHint')"
-            />
-            <div>
-                <Button type="submit" variant="primary" :loading="form.processing" :disabled="rateInvalid">{{ t('emailMarketing.common.save') }}</Button>
-            </div>
-        </form>
-    </Card>
+    <!-- Full width like the platform Settings page: the settings box beside what Communication manages. The fields lay
+         out by the box's own width (container queries), so they never stretch across the page; the save sits in the
+         box's footer. -->
+    <div class="grid gap-3 lg:grid-cols-3">
+        <Card class="lg:col-span-2" :title="t('emailMarketing.settings.sending')" :description="t('emailMarketing.settings.timezoneNote', { timezone })">
+            <form id="email-marketing-settings" class="@container" novalidate @submit.prevent="save">
+                <div class="grid gap-4 @2xl:grid-cols-2 @5xl:grid-cols-3">
+                    <div class="@2xl:col-span-2">
+                        <Textarea
+                            v-model="form.footer_address"
+                            :label="t('emailMarketing.settings.footerAddress')"
+                            :hint="t('emailMarketing.settings.footerAddressHint')"
+                            maxlength="500"
+                            :rows="3"
+                            :error="form.errors.footer_address"
+                        />
+                    </div>
+                    <Input
+                        v-model="form.send_per_minute"
+                        inputmode="numeric"
+                        :label="t('emailMarketing.settings.perMinute')"
+                        :hint="t('emailMarketing.settings.perMinuteHint', { ceiling: ceiling })"
+                        :error="form.errors.send_per_minute ?? (rateInvalid ? t('emailMarketing.settings.perMinuteInvalid', { ceiling: ceiling }) : undefined)"
+                    />
+                    <Checkbox
+                        v-model="form.track_clicks"
+                        :label="t('emailMarketing.settings.trackClicks')"
+                        :description="t('emailMarketing.settings.trackClicksHint')"
+                    />
+                </div>
+            </form>
+            <template #footer>
+                <div class="flex justify-end">
+                    <Button type="submit" form="email-marketing-settings" variant="primary" :loading="form.processing" :disabled="rateInvalid">
+                        {{ t('emailMarketing.common.save') }}
+                    </Button>
+                </div>
+            </template>
+        </Card>
 
-    <Card class="mt-3" :title="t('emailMarketing.settings.platformTitle')">
-        <p class="text-[0.8125rem] text-ink-muted">{{ t('emailMarketing.settings.platformBody') }}</p>
-    </Card>
+        <Card :title="t('emailMarketing.settings.platformTitle')">
+            <p class="text-[0.8125rem] text-ink-muted">{{ t('emailMarketing.settings.platformBody') }}</p>
+        </Card>
+    </div>
 </template>

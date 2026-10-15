@@ -81,3 +81,8 @@ now also lists the accounts the operator made available to it, by name.
 - Superseded rule: CLAUDE.md "Never store gateway credentials in the database" applies, after this ADR, to payment
   gateways and every non-messaging credential only. Messaging provider accounts are the single exception, and
   only in the encrypted write-only form described above.
+
+**Amendment (2026-10-14).** The owner later widened the exception: payment gateways (ADR 0028), Social and Meta Ads app
+credentials (ADR 0029) and operator AI provider accounts (ADR 0018) are stored the same way, encrypted and write-only,
+with the environment as the fallback. This ADR's statement that AI provider keys stay in the environment no longer
+holds.

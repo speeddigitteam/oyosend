@@ -7,6 +7,7 @@ namespace App\Modules\Support\Actions;
 use App\Core\Audit\AuditLogger;
 use App\Core\Billing\UsageLimits;
 use App\Core\Billing\UsageMeter;
+use App\Core\Communication\Contracts\InboxSignals;
 use App\Core\Contacts\Models\Company;
 use App\Core\Contacts\Models\Contact;
 use App\Core\Identity\Models\TenantMembership;
@@ -22,6 +23,7 @@ use App\Modules\Support\Events\TicketCustomerReplied;
 use App\Modules\Support\Events\TicketReopened;
 use App\Modules\Support\Events\TicketReplied;
 use App\Modules\Support\Events\TicketResolved;
+use App\Modules\Support\Inbox\TicketInboxSource;
 use App\Modules\Support\Models\Attachment;
 use App\Modules\Support\Models\Category;
 use App\Modules\Support\Models\Message;
@@ -58,6 +60,7 @@ final class TicketManager
         private readonly AuditLogger $audit,
         private readonly UsageLimits $limits,
         private readonly UsageMeter $meter,
+        private readonly InboxSignals $signals,
     ) {}
 
     /**
@@ -192,6 +195,7 @@ final class TicketManager
                 }
 
                 TicketCreated::dispatch($this->data($ticket));
+                $this->signals->changed(TicketInboxSource::KEY, $ticket->id);
 
                 return $ticket;
             });
@@ -286,6 +290,7 @@ final class TicketManager
             if ($changes !== []) {
                 $this->history->record($locked, TicketEventKind::Updated, $actor, ['fields' => implode(',', array_keys($changes))]);
                 $this->audit->record('support.ticket.updated', $locked, ['number' => $locked->number, 'fields' => array_keys($changes)]);
+                $this->signals->changed(TicketInboxSource::KEY, $locked->id);
             }
 
             return $locked;
@@ -388,6 +393,11 @@ final class TicketManager
                     'attachments' => count($stored),
                 ]);
 
+                // The inbox shows the conversation with the customer, never internal notes.
+                if ($kind !== MessageKind::InternalNote) {
+                    $this->signals->changed(TicketInboxSource::KEY, $locked->id);
+                }
+
                 return $message;
             });
         } catch (Throwable $exception) {
@@ -404,6 +414,7 @@ final class TicketManager
             $this->assertWritable($locked);
             $this->transition($locked, $to, $actor, CarbonImmutable::now());
             $locked->save();
+            $this->signals->changed(TicketInboxSource::KEY, $locked->id);
 
             return $locked;
         });
@@ -422,6 +433,7 @@ final class TicketManager
 
             $this->applyAssignment($locked, $assignee, $actor, auto: false);
             $locked->save();
+            $this->signals->changed(TicketInboxSource::KEY, $locked->id);
 
             return $locked;
         });
@@ -449,6 +461,7 @@ final class TicketManager
             $this->applyAssignment($locked, $assignee, $actor, auto: true);
             $locked->last_activity_at = $now;
             $locked->save();
+            $this->signals->changed(TicketInboxSource::KEY, $locked->id);
 
             return $locked;
         });

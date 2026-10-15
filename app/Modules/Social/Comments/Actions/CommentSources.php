@@ -12,6 +12,7 @@ use App\Modules\Social\Comments\Data\CommentActionFailed;
 use App\Modules\Social\Comments\Models\CommentSource;
 use App\Modules\Social\Comments\Models\PageClaim;
 use App\Modules\Social\Enums\AccountStatus;
+use App\Modules\Social\Messages\Models\MessagingSetting;
 use App\Modules\Social\Models\SocialAccount;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -60,7 +61,12 @@ final class CommentSources
     {
         DB::transaction(function () use ($account): void {
             CommentSource::query()->where('account_id', $account->id)->update(['is_enabled' => false, 'webhook_state' => CommentSource::NONE]);
-            PageClaim::query()->where('account_id', $account->id)->where('tenant_id', $this->context->requireId())->delete();
+
+            // Direct-message capture routes through the same claim (ADR 0031): it stays while messages still use it.
+            if (! MessagingSetting::query()->where('social_account_id', $account->id)->where('is_enabled', true)->exists()) {
+                PageClaim::query()->where('account_id', $account->id)->where('tenant_id', $this->context->requireId())->delete();
+            }
+
             $this->audit->record('social.comments.source_disabled', $account, ['platform' => $account->platform]);
         });
     }
@@ -96,8 +102,15 @@ final class CommentSources
         return $this->providers->for($account->platform)?->available() === true;
     }
 
-    private function claim(SocialAccount $account): void
+    /**
+     * Claim the account's Page for this workspace (one workspace per Page, enforced by a unique index). Also used by
+     * direct-message capture, which routes through the same claim (ADR 0031), with its own refusal text.
+     *
+     * @throws ValidationException when another workspace's connected account holds the Page
+     */
+    public function claim(SocialAccount $account, ?string $refusal = null): void
     {
+        $refusal ??= __('This Page already receives comments in another workspace. A Page can feed only one workspace.');
         $tenantId = $this->context->requireId();
         $existing = PageClaim::query()->where('platform', $account->platform)->where('external_id', $account->external_id)->first();
 
@@ -111,7 +124,7 @@ final class CommentSources
             $status = DB::table('social_accounts')->where('tenant_id', $existing->tenant_id)->where('id', $existing->account_id)->value('status');
 
             if ($status !== null && $status !== AccountStatus::Disconnected->value) {
-                throw ValidationException::withMessages(['account' => __('This Page already receives comments in another workspace. A Page can feed only one workspace.')]);
+                throw ValidationException::withMessages(['account' => $refusal]);
             }
 
             $existing->delete();
@@ -125,7 +138,7 @@ final class CommentSources
                 'external_id' => $account->external_id,
             ]);
         } catch (UniqueConstraintViolationException) {
-            throw ValidationException::withMessages(['account' => __('This Page already receives comments in another workspace. A Page can feed only one workspace.')]);
+            throw ValidationException::withMessages(['account' => $refusal]);
         }
     }
 }

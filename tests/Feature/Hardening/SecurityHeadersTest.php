@@ -25,6 +25,17 @@ describe('response headers', function () {
         }
     });
 
+    it('allows the microphone to the workspace itself only', function () {
+        $this->createTenant('acme');
+
+        expect($this->get('http://acme.localhost/login')->headers->get('Permissions-Policy'))
+            ->toBe('camera=(), microphone=(self), geolocation=(), payment=()');
+
+        foreach (['http://localhost/', 'http://admin.localhost/login'] as $url) {
+            expect($this->get($url)->headers->get('Permissions-Policy'))->toContain('microphone=()');
+        }
+    });
+
     it('sends HSTS only over HTTPS', function () {
         $response = $this->get('https://localhost/');
 

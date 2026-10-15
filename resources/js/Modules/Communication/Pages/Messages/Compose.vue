@@ -107,62 +107,67 @@ const contactHint = computed(() => {
     </PageHeader>
     <CommunicationNav current="messages" />
 
-    <p v-if="!anyReady" class="mb-3 max-w-3xl rounded-card bg-warn-soft px-4 py-3 text-sm text-warn" role="status">
+    <p v-if="!anyReady" class="mb-3 rounded-card bg-warn-soft px-4 py-3 text-sm text-warn" role="status">
         {{ t('communication.compose.noChannelReady') }}
     </p>
-    <p v-if="contacts.length === 0" class="mb-3 max-w-3xl rounded-card bg-hover px-4 py-3 text-sm text-ink-muted" role="status">
+    <p v-if="contacts.length === 0" class="mb-3 rounded-card bg-hover px-4 py-3 text-sm text-ink-muted" role="status">
         {{ t('communication.compose.noContacts') }}
     </p>
 
-    <form class="grid max-w-3xl gap-3" @submit.prevent="send">
+    <!-- Full width: one box whose fields are laid out by the box's own width (container queries). On a wide box the
+         recipient, channel and purpose share a row; the template, subject and message always take the whole row. -->
+    <form class="grid gap-3" @submit.prevent="send">
         <Card>
-            <div class="grid gap-4 sm:grid-cols-2">
-                <div class="sm:col-span-2">
+            <div class="@container">
+                <div class="grid gap-4 @2xl:grid-cols-2 @5xl:grid-cols-3">
+                    <!-- Without the purpose choice the recipient takes the room the purpose would have had. -->
+                    <div :class="['@2xl:col-span-2', canChoosePurpose ? '@5xl:col-span-1' : '']">
+                        <Select
+                            v-model="form.contact_id"
+                            :options="contactOptions"
+                            :label="t('communication.compose.contact')"
+                            :placeholder="t('communication.compose.contactPlaceholder')"
+                            :hint="contactHint"
+                            :error="form.errors.contact_id"
+                            required
+                        />
+                    </div>
+                    <Select v-model="form.channel" :options="channelOptions" :label="t('communication.compose.channel')" :error="form.errors.channel" />
                     <Select
-                        v-model="form.contact_id"
-                        :options="contactOptions"
-                        :label="t('communication.compose.contact')"
-                        :placeholder="t('communication.compose.contactPlaceholder')"
-                        :hint="contactHint"
-                        :error="form.errors.contact_id"
-                        required
+                        v-if="canChoosePurpose"
+                        v-model="form.purpose"
+                        :options="purposeOptions"
+                        :label="t('communication.compose.purpose')"
+                        :hint="t('communication.compose.purposeHint')"
+                        :error="form.errors.purpose"
                     />
-                </div>
-                <Select v-model="form.channel" :options="channelOptions" :label="t('communication.compose.channel')" :error="form.errors.channel" />
-                <Select
-                    v-if="canChoosePurpose"
-                    v-model="form.purpose"
-                    :options="purposeOptions"
-                    :label="t('communication.compose.purpose')"
-                    :hint="t('communication.compose.purposeHint')"
-                    :error="form.errors.purpose"
-                />
-                <p v-if="!canChoosePurpose" class="text-[0.8125rem] text-ink-muted sm:col-span-2" data-testid="purpose-fixed">
-                    {{ t('communication.compose.purposeFixed') }}
-                </p>
-                <div v-if="templateChoices.length > 0" class="sm:col-span-2">
-                    <Select
-                        v-model="form.template_id"
-                        :options="templateOptions"
-                        :label="t('communication.compose.template')"
-                        :hint="usesTemplate ? t('communication.compose.templateHint') : undefined"
-                        :error="form.errors.template_id"
-                        optional
-                    />
-                </div>
-                <div v-if="showsSubject" class="sm:col-span-2">
-                    <Input v-model="form.subject" :label="t('communication.compose.subject')" :error="form.errors.subject" maxlength="200" required />
-                </div>
-                <div v-if="!usesTemplate" class="sm:col-span-2">
-                    <Textarea
-                        v-model="form.body"
-                        :rows="8"
-                        :label="t('communication.compose.body')"
-                        :hint="t('communication.compose.bodyHint')"
-                        :error="form.errors.body"
-                        maxlength="5000"
-                        required
-                    />
+                    <p v-if="!canChoosePurpose" class="text-[0.8125rem] text-ink-muted @2xl:col-span-2 @5xl:col-span-3" data-testid="purpose-fixed">
+                        {{ t('communication.compose.purposeFixed') }}
+                    </p>
+                    <div v-if="templateChoices.length > 0" class="@2xl:col-span-2 @5xl:col-span-3">
+                        <Select
+                            v-model="form.template_id"
+                            :options="templateOptions"
+                            :label="t('communication.compose.template')"
+                            :hint="usesTemplate ? t('communication.compose.templateHint') : undefined"
+                            :error="form.errors.template_id"
+                            optional
+                        />
+                    </div>
+                    <div v-if="showsSubject" class="@2xl:col-span-2 @5xl:col-span-3">
+                        <Input v-model="form.subject" :label="t('communication.compose.subject')" :error="form.errors.subject" maxlength="200" required />
+                    </div>
+                    <div v-if="!usesTemplate" class="@2xl:col-span-2 @5xl:col-span-3">
+                        <Textarea
+                            v-model="form.body"
+                            :rows="8"
+                            :label="t('communication.compose.body')"
+                            :hint="t('communication.compose.bodyHint')"
+                            :error="form.errors.body"
+                            maxlength="5000"
+                            required
+                        />
+                    </div>
                 </div>
             </div>
         </Card>

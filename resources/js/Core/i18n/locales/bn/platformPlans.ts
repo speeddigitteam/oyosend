@@ -62,6 +62,9 @@ const platformPlans: MessageSchema['platformPlans'] = {
         name: 'নাম',
         description: 'বিবরণ',
         descriptionHint: 'এক লাইন, ওয়ার্কস্পেস যেখানে প্ল্যান বেছে নেয় সেখানে প্ল্যানের সঙ্গে দেখানো হয়।',
+        nameBn: 'বাংলায় নাম',
+        descriptionBn: 'বাংলায় বিবরণ',
+        bengaliHint: 'বাংলা ওয়েবসাইটে দেখানো হয়। খালি রাখলে ইংরেজিটি দেখানো হয়।',
         pricing: {
             title: 'মূল্য',
             description:

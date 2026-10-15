@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Modules\WhatsappMarketing\Actions;
 
+use App\Core\Communication\Contracts\InboxSignals;
 use App\Modules\WhatsappMarketing\Enums\MessageStatus;
 use App\Modules\WhatsappMarketing\Enums\RecipientState;
+use App\Modules\WhatsappMarketing\Inbox\ConversationInboxSource;
 use App\Modules\WhatsappMarketing\Models\Message;
 use App\Modules\WhatsappMarketing\Models\Recipient;
 use Carbon\CarbonInterface;
@@ -16,6 +18,8 @@ use Carbon\CarbonInterface;
  */
 final class StatusProgress
 {
+    public function __construct(private readonly InboxSignals $signals) {}
+
     public function message(Message $message, MessageStatus $to, ?string $failureCode, CarbonInterface $at): bool
     {
         $current = Message::query()->find($message->id) ?? $message;
@@ -39,6 +43,11 @@ final class StatusProgress
 
         $current->save();
         $message->setRawAttributes($current->getAttributes(), true);
+
+        // A delivery tick in a conversation. Campaign messages are left to polling: a campaign would flood the channel.
+        if ($current->campaign_id === null) {
+            $this->signals->changed(ConversationInboxSource::KEY, $current->conversation_id);
+        }
 
         return true;
     }

@@ -15,15 +15,13 @@ import { useFormat } from '@/Core/composables/useFormat';
 import PlatformLayout from '@/Core/Layouts/PlatformLayout.vue';
 import { limitDescription, limitLabel, moduleLabel } from '@/Core/lib/labels';
 import { route } from '@/Core/lib/route';
-import FormRule from '@/Platform/Components/FormRule.vue';
-import FormSection from '@/Platform/Components/FormSection.vue';
 import { fractionDigits, fromMinorUnits, toMinorUnits, toWholeNumber, type ParsedAmount } from '@/Platform/Components/Plans/amount';
 
 defineOptions({ layout: PlatformLayout });
 
 const props = defineProps<{
     /** `null` when creating a plan. */
-    plan: (PlanSummary & { subscribers: number }) | null;
+    plan: (PlanSummary & { subscribers: number; nameBn?: string | null; descriptionBn?: string | null }) | null;
     /** The optional modules of this build: what a plan can include. */
     modules: { key: string; name: string }[];
     /** Everything a plan can cap in this build. */
@@ -48,7 +46,9 @@ const startCurrency = props.plan?.currency ?? (props.currencies.includes(page.pr
 const form = useForm({
     key: props.plan?.key ?? '',
     name: props.plan?.name ?? '',
+    name_bn: props.plan?.nameBn ?? '',
     description: props.plan?.description ?? '',
+    description_bn: props.plan?.descriptionBn ?? '',
     currency: startCurrency,
     monthly_amount: fromMinorUnits(props.plan?.monthlyAmount, fractionDigits(startCurrency)),
     yearly_amount: fromMinorUnits(props.plan?.yearlyAmount, fractionDigits(startCurrency)),
@@ -129,7 +129,9 @@ function payload(): Record<string, unknown> {
     return {
         key: form.key.trim(),
         name: form.name.trim(),
+        name_bn: form.name_bn.trim() === '' ? null : form.name_bn.trim(),
         description: form.description.trim() === '' ? null : form.description.trim(),
+        description_bn: form.description_bn.trim() === '' ? null : form.description_bn.trim(),
         currency: form.currency,
         // Integer minor units, or null for "not sold for this interval".
         monthly_amount: monthly.ok ? monthly.value : null,
@@ -173,7 +175,7 @@ const subscribersNote = computed(() => {
 </script>
 
 <template>
-    <div class="max-w-4xl">
+    <div>
         <PageHeader
             :eyebrow="t('shell.nav.plans')"
             :title="plan ? t('platformPlans.editor.editTitle', { name: plan.name }) : t('platformPlans.editor.createTitle')"
@@ -187,10 +189,13 @@ const subscribersNote = computed(() => {
             </template>
         </PageHeader>
 
-        <form novalidate @submit.prevent="submit">
-            <Card>
-                <FormSection :title="t('platformPlans.editor.details.title')" :description="t('platformPlans.editor.details.description')">
-                    <div class="grid content-start gap-4 sm:grid-cols-2">
+        <!-- Full width like the platform Settings page: one box per part of the plan, side by side on wide screens; the
+             two long lists (modules, limits) and the availability strip across the row; one save beneath them all.
+             Each box lays out its own fields by its own width (container queries), not the screen's. -->
+        <form novalidate class="grid gap-3 lg:grid-cols-2 xl:grid-cols-3" @submit.prevent="submit">
+            <Card :title="t('platformPlans.editor.details.title')" :description="t('platformPlans.editor.details.description')">
+                <div class="@container">
+                    <div class="grid content-start gap-4 @lg:grid-cols-2">
                         <Input
                             v-model="form.name"
                             name="name"
@@ -213,7 +218,7 @@ const subscribersNote = computed(() => {
                             maxlength="40"
                             required
                         />
-                        <div class="sm:col-span-2">
+                        <div class="@lg:col-span-2">
                             <Input
                                 v-model="form.description"
                                 name="description"
@@ -225,70 +230,96 @@ const subscribersNote = computed(() => {
                                 optional
                             />
                         </div>
-                    </div>
-                </FormSection>
-
-                <FormRule />
-
-                <FormSection :title="t('platformPlans.editor.pricing.title')" :description="t('platformPlans.editor.pricing.description')">
-                    <div class="flex flex-col gap-4">
-                        <div class="grid content-start gap-4 sm:grid-cols-3">
-                            <Select
-                                v-model="form.currency"
-                                name="currency"
-                                :options="currencyOptions"
-                                :label="t('platformPlans.editor.currency')"
-                                :error="form.errors.currency"
-                            />
+                        <!-- The same in Bengali, for the Bengali website; left empty, it shows the English. -->
+                        <Input
+                            v-model="form.name_bn"
+                            name="name_bn"
+                            lang="bn"
+                            :label="t('platformPlans.editor.nameBn')"
+                            :hint="t('platformPlans.editor.bengaliHint')"
+                            :error="form.errors.name_bn"
+                            autocomplete="off"
+                            maxlength="80"
+                            optional
+                        />
+                        <div class="@lg:col-span-2">
                             <Input
-                                v-model="form.monthly_amount"
-                                name="monthly_amount"
-                                inputmode="decimal"
+                                v-model="form.description_bn"
+                                name="description_bn"
+                                lang="bn"
+                                :label="t('platformPlans.editor.descriptionBn')"
+                                :error="form.errors.description_bn"
                                 autocomplete="off"
-                                :label="t('platformPlans.editor.monthly')"
-                                :hint="amountHint('monthly')"
-                                :error="amountError('monthly') ?? form.errors.monthly_amount"
-                                optional
-                            />
-                            <Input
-                                v-model="form.yearly_amount"
-                                name="yearly_amount"
-                                inputmode="decimal"
-                                autocomplete="off"
-                                :label="t('platformPlans.editor.yearly')"
-                                :hint="amountHint('yearly')"
-                                :error="amountError('yearly') ?? form.errors.yearly_amount"
+                                maxlength="255"
                                 optional
                             />
                         </div>
-
-                        <p v-if="attempted && unpriced" class="flex items-start gap-2 text-[0.8125rem] text-danger" role="alert">
-                            <CircleAlert class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                            {{ t('platformPlans.editor.needsPrice') }}
-                        </p>
-
-                        <div class="sm:max-w-48">
-                            <Input
-                                v-model="form.trial_days"
-                                name="trial_days"
-                                inputmode="numeric"
-                                autocomplete="off"
-                                :label="t('platformPlans.editor.trialDays')"
-                                :hint="t('platformPlans.editor.trialDaysHint')"
-                                :error="form.errors.trial_days"
-                                maxlength="3"
-                                required
-                            />
-                        </div>
                     </div>
-                </FormSection>
+                </div>
+            </Card>
 
-                <FormRule />
+            <Card class="xl:col-span-2" :title="t('platformPlans.editor.pricing.title')" :description="t('platformPlans.editor.pricing.description')">
+                <div class="@container flex flex-col gap-4">
+                    <div class="grid content-start gap-4 @lg:grid-cols-3">
+                        <Select
+                            v-model="form.currency"
+                            name="currency"
+                            :options="currencyOptions"
+                            :label="t('platformPlans.editor.currency')"
+                            :error="form.errors.currency"
+                        />
+                        <Input
+                            v-model="form.monthly_amount"
+                            name="monthly_amount"
+                            inputmode="decimal"
+                            autocomplete="off"
+                            :label="t('platformPlans.editor.monthly')"
+                            :hint="amountHint('monthly')"
+                            :error="amountError('monthly') ?? form.errors.monthly_amount"
+                            optional
+                        />
+                        <Input
+                            v-model="form.yearly_amount"
+                            name="yearly_amount"
+                            inputmode="decimal"
+                            autocomplete="off"
+                            :label="t('platformPlans.editor.yearly')"
+                            :hint="amountHint('yearly')"
+                            :error="amountError('yearly') ?? form.errors.yearly_amount"
+                            optional
+                        />
+                    </div>
 
-                <FormSection :title="t('platformPlans.editor.modules.title')" :description="t('platformPlans.editor.modules.description')">
-                    <p v-if="modules.length === 0" class="text-[0.8125rem] text-ink-muted">{{ t('platformPlans.editor.modules.none') }}</p>
+                    <p v-if="attempted && unpriced" class="flex items-start gap-2 text-[0.8125rem] text-danger" role="alert">
+                        <CircleAlert class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                        {{ t('platformPlans.editor.needsPrice') }}
+                    </p>
 
-                    <div v-else class="flex flex-col gap-3">
+                    <div class="@sm:max-w-48">
+                        <Input
+                            v-model="form.trial_days"
+                            name="trial_days"
+                            inputmode="numeric"
+                            autocomplete="off"
+                            :label="t('platformPlans.editor.trialDays')"
+                            :hint="t('platformPlans.editor.trialDaysHint')"
+                            :error="form.errors.trial_days"
+                            maxlength="3"
+                            required
+                        />
+                    </div>
+                </div>
+            </Card>
+
+            <Card
+                class="lg:col-span-2 xl:col-span-3"
+                :title="t('platformPlans.editor.modules.title')"
+                :description="t('platformPlans.editor.modules.description')"
+            >
+                <p v-if="modules.length === 0" class="text-[0.8125rem] text-ink-muted">{{ t('platformPlans.editor.modules.none') }}</p>
+
+                <div v-else class="@container flex flex-col gap-3">
+                    <div class="grid gap-x-6 gap-y-3 @lg:grid-cols-2 @4xl:grid-cols-3">
                         <Checkbox
                             v-for="module in modules"
                             :key="module.key"
@@ -297,42 +328,51 @@ const subscribersNote = computed(() => {
                             :description="module.key"
                             @update:model-value="toggleModule(module.key, $event)"
                         />
-                        <p v-if="modulesError" class="text-[0.8125rem] text-danger" role="alert">{{ modulesError }}</p>
                     </div>
-                </FormSection>
+                    <p v-if="modulesError" class="text-[0.8125rem] text-danger" role="alert">{{ modulesError }}</p>
+                </div>
+            </Card>
 
-                <FormRule />
+            <Card
+                class="lg:col-span-2 xl:col-span-3"
+                :title="t('platformPlans.editor.limits.title')"
+                :description="t('platformPlans.editor.limits.description')"
+            >
+                <p v-if="limits.length === 0" class="text-[0.8125rem] text-ink-muted">{{ t('platformPlans.editor.limits.none') }}</p>
 
-                <FormSection :title="t('platformPlans.editor.limits.title')" :description="t('platformPlans.editor.limits.description')">
-                    <p v-if="limits.length === 0" class="text-[0.8125rem] text-ink-muted">{{ t('platformPlans.editor.limits.none') }}</p>
-
-                    <div v-else class="flex flex-col gap-4">
-                        <div v-for="limit in limits" :key="limit.key" class="grid gap-x-4 gap-y-1.5 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] sm:items-start">
-                            <Input
-                                v-model="form.limits[limit.key]"
-                                :name="`limits[${limit.key}]`"
-                                inputmode="numeric"
-                                autocomplete="off"
-                                :label="limitLabel(limit.key)"
-                                :placeholder="t('billing.terms.unlimited')"
-                                maxlength="12"
-                            />
-                            <p class="text-[0.8125rem] text-ink-subtle sm:pt-7">
-                                {{ limitDescription(limit.key) }}
-                                <span class="block">{{ t(`platformPlans.editor.limits.kind.${limit.kind}`) }}</span>
-                            </p>
+                <div v-else class="@container flex flex-col gap-4">
+                    <!-- Two columns of limits once the box is wide. Each limit puts its field beside its explanation when its
+                         own column has room, and above it when not. -->
+                    <div class="grid gap-x-6 gap-y-4 @3xl:grid-cols-2">
+                        <div v-for="limit in limits" :key="limit.key" class="@container">
+                            <div class="grid gap-x-4 gap-y-1.5 @md:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] @md:items-start">
+                                <Input
+                                    v-model="form.limits[limit.key]"
+                                    :name="`limits[${limit.key}]`"
+                                    inputmode="numeric"
+                                    autocomplete="off"
+                                    :label="limitLabel(limit.key)"
+                                    :placeholder="t('billing.terms.unlimited')"
+                                    maxlength="12"
+                                />
+                                <p class="text-[0.8125rem] text-ink-subtle @md:pt-7">
+                                    {{ limitDescription(limit.key) }}
+                                    <span class="block">{{ t(`platformPlans.editor.limits.kind.${limit.kind}`) }}</span>
+                                </p>
+                            </div>
                         </div>
-                        <p v-if="form.errors.limits" class="text-[0.8125rem] text-danger" role="alert">{{ form.errors.limits }}</p>
                     </div>
-                </FormSection>
+                    <p v-if="form.errors.limits" class="text-[0.8125rem] text-danger" role="alert">{{ form.errors.limits }}</p>
+                </div>
+            </Card>
 
-                <FormRule />
-
-                <FormSection
-                    :title="t('platformPlans.editor.availability.title')"
-                    :description="t('platformPlans.editor.availability.description')"
-                >
-                    <div class="flex flex-col gap-4">
+            <Card
+                class="lg:col-span-2 xl:col-span-3"
+                :title="t('platformPlans.editor.availability.title')"
+                :description="t('platformPlans.editor.availability.description')"
+            >
+                <div class="@container">
+                    <div class="grid content-start gap-4 @xl:grid-cols-2 @4xl:grid-cols-3">
                         <Checkbox
                             v-model="form.is_public"
                             :label="t('platformPlans.editor.isPublic')"
@@ -343,7 +383,7 @@ const subscribersNote = computed(() => {
                             :label="t('platformPlans.editor.isActive')"
                             :description="t('platformPlans.editor.isActiveDescription')"
                         />
-                        <div class="sm:max-w-48">
+                        <div class="@sm:max-w-48">
                             <Input
                                 v-model="form.sort_order"
                                 name="sort_order"
@@ -357,20 +397,19 @@ const subscribersNote = computed(() => {
                             />
                         </div>
                     </div>
-                </FormSection>
-
-                <template #footer>
-                    <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
-                        <p v-if="plan" class="mr-auto text-[0.8125rem] text-ink-muted">{{ subscribersNote }}</p>
-                        <Button variant="ghost" :href="route('platform.plans.index')" :disabled="form.processing">
-                            {{ t('common.actions.cancel') }}
-                        </Button>
-                        <Button type="submit" variant="primary" :loading="form.processing" :disabled="plan !== null && !form.isDirty">
-                            {{ plan ? t('common.actions.save') : t('platformPlans.editor.create') }}
-                        </Button>
-                    </div>
-                </template>
+                </div>
             </Card>
+
+            <!-- One save for every box above. -->
+            <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 px-1 lg:col-span-2 xl:col-span-3">
+                <p v-if="plan" class="mr-auto text-[0.8125rem] text-ink-muted">{{ subscribersNote }}</p>
+                <Button variant="ghost" :href="route('platform.plans.index')" :disabled="form.processing">
+                    {{ t('common.actions.cancel') }}
+                </Button>
+                <Button type="submit" variant="primary" :loading="form.processing" :disabled="plan !== null && !form.isDirty">
+                    {{ plan ? t('common.actions.save') : t('platformPlans.editor.create') }}
+                </Button>
+            </div>
         </form>
     </div>
 </template>

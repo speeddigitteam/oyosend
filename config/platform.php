@@ -193,6 +193,9 @@ return [
 
     'security' => [
         'csp' => env('SECURITY_CSP', 'report-only'),
+        // Extra image hosts for `img-src` (`https://host` or `https://*.host`), added by modules at boot: Social adds
+        // the platforms' profile-picture hosts (`social.avatar_hosts`). Anything else is dropped.
+        'img_hosts' => [],
     ],
 
     /*

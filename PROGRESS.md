@@ -346,6 +346,9 @@ Frontend and operations:
 7. A native Bengali speaker's review of the complete interface wording.
 8. Final name and brand mark approval.
 9. Production support-access policy and whether tenants must explicitly approve a session.
+10. Voice commands (ADR 0038, proposed, not built): whether stage 1 may use the browser's recognition (audio
+    processed by the browser vendor). Decided: part of the paid AI app; "run without Enter" is the member's own
+    preference with no workspace override.
 
 ## Phase 8 completion
 
@@ -489,6 +492,128 @@ outbox/mailer); a `ConsentRecorder` contract (public sign-up forms); whether STO
 OAuth redirect broker for Social; AI prices and `ANTHROPIC_API_KEY`; native Bengali review of all machine-written
 strings; Playwright runs; Sail/Docker/CI never executed.
 
+## Operator-managed credentials and the omnichannel inbox (2026-10-13 to 2026-10-14)
+
+Owner decisions this session: every integration credential is configured from the Super Admin panel, nothing in
+`.env` but the bootstrap floor (`APP_KEY`, database/cache/session/queue connections, `APP_DOMAIN`); and every chat
+channel is read and answered from one screen.
+
+- **Payment gateways and invoice issuer in the panel (ADR 0028).** `payment_gateway_accounts` (central, no `tenant_id`,
+  `secrets` encrypted and write-only) with `GatewayCredentials` resolving panel-first, environment-fallback; the
+  billing settings page edits SSLCommerz/aamarPay credentials, sandbox and enabled flags, and "clear" reverts to the
+  environment. Invoice prefix and issuer name/address/email/tax id joined `PlatformSettings`.
+- **Social and Meta Ads app credentials in the panel (ADR 0029).** `integration_credentials` (central, encrypted
+  secrets, public ids shown back); `IntegrationCredentials::apply()` overlays them on the config at boot, so no
+  `config('social.*')` / `config('meta_ads.*')` reader changed. Page `Platform/Pages/Integrations`.
+- **Unified inbox is a chat workspace (ADR 0030, amends ADR 0020 decision 4).** Optional contracts `InboxReplies`
+  (thread + reply) and `MarksInboxRead` beside `InboxSource`; the inbox never sends itself, each source calls its own
+  app's action. Split view, 15-second polling of the open thread (no Reverb), mark-read only by an explicit POST.
+  Sources with chat: WhatsApp conversations, Facebook comments (new source), Messenger, Instagram, website chat and
+  Support tickets (requester messages and public replies, never internal notes; a reply is a public reply).
+- **WhatsApp-Web-style inbox screen.** Full-height list + reading pane, always side by side on a wide screen (one or
+  the other below 768px), initials avatars, day separators, grouped bubbles, delivery ticks, jump-to-latest, older
+  messages on scroll-up, auto-growing composer. The list refreshes every 20 seconds through
+  `communication.inbox.poll` (read-only JSON, own throttle; Communication 1.3.0). Reply, read and poll each throttle on
+  their own key (a mark-read no longer spends the reply budget). "Unread" filters only the loaded rows.
+- **Messenger and Instagram direct messages (ADR 0031).** Through the existing Page webhook and Page claims (one Meta
+  callback URL), off by default (`SOCIAL_FACEBOOK_MESSAGING`, `SOCIAL_INSTAGRAM_MESSAGING`), per-Page capture switch
+  that merges subscribed fields (lead ads no longer drops other fields on switch-off), text-only replies inside the
+  24-hour window. Social "Messages" page; permissions `social.messages.view|reply`.
+- **Website live chat (ADR 0032).** Inside Support: `widget.js` loader, framed page with CSP `frame-ancestors` from the
+  workspace's allowed origins, same-origin visitor API with a hashed visitor token, throttles, polling. Support "Live
+  chat" page and settings; reuses the ticket permissions. Off by default.
+- **New migrations** (none edited in place): `2026_11_05_000100_create_payment_gateway_accounts_table`,
+  `2026_11_06_000100_create_integration_credentials_table`, `2026_11_07_000100_add_inbox_index_to_social_audience_comments`,
+  `2026_11_08_000100_create_social_direct_message_tables`, `2026_11_09_000100_create_support_live_chat_tables`. Applied
+  to the dev database with `permissions:sync` and `apps:sync` (Social 1.5.0, Support 1.1.0, Communication 1.2.0).
+- **Count tests reconciled** with the registry: 270 permissions, `meta_ads` and `notes` in the module lists, new
+  automation triggers/actions, Social scopable permissions and scheduled jobs, the stateless webhook and chat routes in
+  `RoutePipelineTest`, the read-only `whatsapp_conversation_get` AI tool. Two Lead Ads test bugs fixed (a closure
+  called as a method; arrow functions capturing a flag by value).
+- **One post to every channel (ADR 0033).** New adapters `InstagramPlatform` (photo, carousel up to 10, Reels; via the
+  Meta app and Page-linked professional accounts; panel switch, default off), `TikTokPlatform` (video, chunked
+  `FILE_UPLOAD`; `SELF_ONLY` until TikTok audits the app), `YouTubePlatform` (video, resumable upload; private until
+  Google's audit) and `PinterestPlatform` (image/carousel/video Pins; one connected account per board). Shared:
+  `requiresMedia` / `requiresVideo` / video bounds in `PlatformCapabilities`, optional `ValidatesMedia`, enforced in the
+  composer preflight and on submit/approve/schedule; a signed, expiring, stateless public media route
+  (`social.media.public`, Instagram only); TikTok/YouTube/Pinterest credentials and the Instagram switch in Super Admin →
+  Integrations. Social 1.6.0. No migration.
+- **Composer redesign.** `Posts/Form.vue` is a "Create post" screen: composer left, live per-platform preview right
+  (tabs per ticked platform, our tokens and lucide icons only), sticky "Publish now" / "Schedule" / "Submit for
+  approval" that save the post and then call the existing `schedule`/`submit` actions (a failed second step leaves a
+  saved draft and a toast).
+- **Inbox: server-side Unread filter and "Suggest a reply".** `InboxQuery::$unread` narrows every source by its own
+  unread rule (page, board, poll); the AI draft (`communication.inbox.suggest`) goes through the core `TextAssistant`
+  only, fills the composer and sends or saves nothing. Communication 1.4.0.
+- **Live chat → contact and ticket (amends ADR 0032).** "Save as contact" (via `ContactDirectory`, matched by email,
+  `core.contacts.manage`) and "Create ticket" (channel `chat`, the transcript as internal notes so nothing is emailed,
+  one ticket per chat, optional close). Migration `2026_11_10_000100_add_contact_and_ticket_to_support_chat_conversations`.
+  Support 1.2.0.
+- **Composer: account pictures and creator-chosen TikTok settings.** Avatars (CSP `img-src` widened to the platforms'
+  avatar CDNs through `platform.security.img_hosts`); TikTok privacy (no default, required), comment/duet/stitch and
+  commercial-content disclosure per target in `social_post_targets.options` (migration
+  `2026_11_10_000200_add_options_to_social_post_targets`), re-checked against TikTok at publish. Social 1.7.0 (its dev
+  catalogue row was rewritten once after a release-note typo fix; nothing released).
+- **Realtime inbox, wired but off (ADR 0035).** Every source signals `inbox.changed` `{source, id}` after commit through
+  the core `InboxSignals` contract on a private per-tenant channel (`POST /broadcasting/auth`, workspace host only,
+  `communication.inbox.view`); the page reloads through its existing endpoints and slows polling to 60 s while
+  connected. Added `pusher/pusher-php-server` 7.3.0, `laravel-echo` 2.5.0, `pusher-js` 8.6.0 (MIT; pusher-js pulls
+  `tweetnacl`, Unlicense, not bundled). `laravel/reverb` 1.12.0 is NOT installed: it would downgrade Guzzle 8→7 and
+  PSR-7 3→2 app-wide; owner decision pending (downgrade, wait for the next Reverb release, or run Reverb as a separate
+  install). Smoke-tested against a scratch Reverb server only. Communication 1.5.0.
+- **Browser check (Playwright, against the dev server).** Inbox, composer, Social accounts, Live chat (+ chat frame
+  and embedded widget) and Super Admin Integrations at 1440/1024/360 in both themes: no sideways scroll, no console
+  errors. Fixed: Button icons placed in the default slot (stacked above the label, or invisible inside the `sr-only`
+  label of icon-only buttons) moved to `#icon` in 19 files; Instagram's Integrations card now says it uses the Meta
+  app instead of "no credentials". Specs in `tests/e2e/session-verification/` (run only against :8000 so far).
+- **Notification bell.** `Core/Components/Shell/NotificationBell.vue` in the workspace top bar: unread badge, the
+  latest unread from `communication.notifications.summary`, mark one read and open it, mark all read, see all. Hidden
+  without `communication.notifications.view` and in a support session.
+- **Contacts: list and cards (Odoo style).** The people page switches between a dense list (initials avatar, a
+  Location column, the name opens the details, server-side sorting from the headers) and cards (Odoo's kanban:
+  avatar, job and company, email, phone, place, owner, the same row menu), remembered per browser. `?sort=` takes
+  `name|company|email|city|created` with `?direction=asc|desc` (blanks last, id as the tie-break) and is kept in the
+  page links. Checked in a browser at 1440 and 360 and in dark mode.
+- **A company's own page (Odoo's company form).** `GET /companies/{company}` (`core.contacts.companies.show`,
+  `core.contacts.view`, 404 outside the viewer's scope or workspace): the company's details with Edit/Delete, and its
+  people as cards under "Contacts" (at most 60; the rest via the filtered people list) with "Add a contact" that opens
+  the contact form with the company already chosen. The name on the companies list links to it; deleting from the page
+  returns to the list. Contact and company rows, and the form choices, now come from one `Contacts\Http\DirectoryPresenter`
+  shared by the three pages. Not built: Odoo's typed child addresses (invoice/delivery), which need a schema change.
+- **Incident (2026-10-15):** another session's script emptied `app/Core/CoreServiceProvider.php` (13:37); it was
+  restored from this session's Claude Code file-history snapshot of 14 Oct 20:48, checked against every later change
+  by that session (none after a Pint run), and the app and the core-dependent tests came back green.
+- **Per-route throttles.** `ThrottleRequestsPerRoute` replaces the `throttle` alias: a plain `throttle:N,M` now has one
+  counter per route and limit (before, all routes of a user shared one counter and a route limit inside the throttled
+  callback group counted each request twice). Two tests that leaned on the old double counting were corrected.
+
+Final gates (2026-10-14, fresh clone of the dev schema `oyosend_final3_testing`): Pest 4,716 tests, 4,715 passed; the
+one failure is `Platform/WebsiteAdminTest` from a concurrent, unfinished Website feature built in another session, not
+this work. Larastan clean; Pint clean except `HandleInertiaRequests.php` (that same Website work); vue-tsc 0; Vitest
+934 passed; `npm run build` ok. 149 more Bengali server strings merged; none missing.
+
+Earlier gates on a fresh schema clone (`oyosend_int_testing`): Pint and Larastan clean on the whole project; full Pest run
+4,471 tests, 4,464 passed first time and the 7 failures were stale test expectations (new modules, report providers,
+the WhatsApp read-only AI tool, the documented Page-claim unique indexes now listed in `TenantIndexesTest`), fixed and
+re-run green; vue-tsc 0 errors; Vitest 825 passed; `npm run build` ok. 377 Bengali server strings merged from
+`storage/app/pending-bn` into `lang/bn.json`; every `__()` string in `app/` now has a Bengali translation.
+
+Not verified: no live call to SSLCommerz, aamarPay, Facebook, Instagram or the Meta Marketing API; the chat widget was
+not embedded on a real second origin; the new pages were not checked in a browser at 360px or in dark mode. The
+Facebook comment inbox list reads every comment of a workspace per request (fine now, re-measure at volume). The
+stateless callback group allows 60 requests a minute per IP and host: Meta and WhatsApp deliver webhooks from few IPs,
+so a busy Page or number can exceed it (429, then platform retries and eventually a disabled subscription); the
+webhook routes verify signatures anyway, so their limit should be raised or keyed differently before production.
+
+Owner decisions taken on 2026-10-14:
+- AI provider keys in the database are approved (ADR 0018, ADR 0013 amended).
+- Reverb: wait for the `laravel/reverb` release that allows PSR-7 3; until then realtime stays off and the inbox polls.
+- `tweetnacl` (Unlicense, a transitive, unbundled dependency of `pusher-js`) is accepted.
+- Website-chat visitors may become contacts by an explicit member action (built).
+
+Still waiting: Messenger message tags beyond 24 hours (need Meta approval); whether to commit this work separately
+from the concurrent Website work.
+
 ## Operator AI provider accounts (2026-10-12)
 
 - **Super Admin > AI providers** (`platform.ai.*`, `Platform/Pages/Ai/Providers`, behind `platform.settings.manage`):
@@ -600,6 +725,60 @@ edited in place (CLAUDE.md); that ends with the first deploy.
     (ADR 0021 Part B):** several WhatsApp numbers per workspace; AI replying to customers by itself; templates through
     Meta's Management API; product catalogue / carts (needs a commerce app); appointment reminders (needs a booking
     app or a CRM activity-due trigger); Meta WhatsApp Flows.
+12. **Layout pass (2026-10-14).** The workspace and panel content is capped at `max-w-[88rem]` (was 78rem). Settings
+    and form pages that sat in a narrow column pinned to the left (`max-w-xl` to `max-w-4xl`) now use the full width:
+    a `lg:grid-cols-2 xl:grid-cols-3` grid of cards, one save row under them, fields laid out by each card's own width
+    (container queries). Pages: Platform Settings, Integrations, Messaging providers, Plans edit, New workspace; Profile,
+    Security, Onboarding; AI, Communication (with its channel cards), Notification preferences, Compose, Support and
+    Live chat settings; Email (settings, imports, sequence form, block editor), SMS, Social (settings, imports), HRM and
+    Talent settings. Names beside a badge wrap instead of being cut (AI features and tools, Meta Ads connections, ad
+    accounts and pages, Social comment pages, rules, message capture, account access). **Behaviour change in
+    `Input`/`Select`/`Textarea`:** `class` and `style` now go on the field wrapper, so the ~45 `sm:col-span-*` and the
+    `flex-1` search fields that silently did nothing now take effect; control styling moved to the new `control-class`
+    prop (11 places). Also fixed: the Email import "Download template" opened an Inertia visit to a CSV (now a plain
+    link, like Social); a bad Social AI daily cap no longer marks the hourly-limit field invalid. Checks: vue-tsc,
+    Vitest 46 files (new "form fields" case in `components.test.ts`), `npm run build`. Not checked in a browser.
+13. **Public website (2026-10-14, ADR 0034, `docs/WEBSITE.md`).** The root domain is now the company website, not the
+    one Inertia welcome page: home, apps overview, one page per optional module (17), pricing, security, about, FAQ,
+    contact (queued mail to info@oyosend.com), sign-in finder, privacy, terms and refund policy, each in English at the
+    root and Bengali under `/bn`. Server-rendered Blade (`resources/views/site`, `App\Core\Website`) so crawlers that
+    run no script read every word; one 1.5 kB script. Per page: canonical, `hreflang`, Open Graph/Twitter, JSON-LD
+    (Organization with the Uttara address and both phones, WebSite, WebPage, breadcrumbs, SoftwareApplication with offers
+    from the plans or the app's own App Store offer, FAQPage) and an "In short" answer box for answer engines.
+    `robots.txt` (static file removed), `sitemap.xml`, `llms.txt`; `X-Robots-Tag: noindex` on workspaces and the admin
+    panel; CSP `form-action` also allows `*.APP_DOMAIN`. Copy in `lang/{en,bn}/site*.php`, checked against manifests and
+    docs (features marked not built are left out); Bengali follows the glossary and is NFC. `Welcome.vue`, the `central`
+    vue-i18n namespace and `WelcomeController` were removed (`FindWorkspaceController` keeps the finder); sign-up pages
+    link to the website with full page loads (`Button` gained `native`). Tests: `tests/Feature/Central/WebsiteTest.php`;
+    old root-page assertions moved to `/register`. Checked in Chrome at 1440px and 360px, light and dark, no sideways
+    scroll. **Owner decisions:** the legal pages are drafts for a lawyer (refund window of 7 days and the cases refunded,
+    payout in 7-10 working days, liability capped at 12 months' fees, notice periods, the legal entity and trade licence,
+    provider names, when a closed workspace is deleted, whether gateway fees are deducted from refunds); plan names and
+    descriptions show as typed (English) on Bengali pages; SSLCommerz and aamarPay are named but not yet run against
+    their sandboxes. Not measured: Lighthouse, Search Console, Rich Results Test.
+14. **Website managed from the Super Admin panel (2026-10-14, ADR 0034 amendment).** Super Admin > Website: Messages
+    (contact-form enquiries now stored in `website_enquiries`, searchable, marked answered or deleted, audited),
+    Company (name, email, phones, English and Bengali address, map link, contact recipient, Facebook/LinkedIn/YouTube/
+    Instagram/X pages as `website.*` platform settings over `config/site.php`; footer icons and `sameAs`), Words (every
+    word of every page in both languages, stored in `website_texts` and laid over `lang/*/site*.php` by a translation
+    loader decorator, so templates are unchanged; words only, placeholders kept, reset per part). Plans gained
+    `name_bn`/`description_bn` for the Bengali website. New migration `2026_11_20_000100_create_website_tables` (applied
+    to the dev database), abilities `platform.website.view` (also Support Admin) and `platform.website.manage`, morph
+    alias `website_enquiry`, mailable renamed `WebsiteEnquiryMail`. Tests: `tests/Feature/Platform/WebsiteAdminTest.php`.
+    The panel pages were not opened in a browser (the panel needs a two-factor sign-in).
+15. **Logo and favicon upload (2026-10-14).** Super Admin > Website > Company: logo, logo for dark backgrounds and
+    favicon, each uploaded on its own (`SiteBrand`, `BrandController`), used by the website (header, footer, structured
+    data, favicon and touch icon) and by every Inertia area (shared `app.brand`, `Logo.vue`; favicon in `app.blade.php`).
+    Raster only (SVG refused), size/dimension checks, square favicon; stored on `site.brand.disk` under
+    `platform/brand/` with content-hash names, served by the stateless central route `/brand/{file}` (`central.brand`)
+    with immutable caching and a sandboxing CSP; replacing or removing deletes the old file. Tests in
+    `WebsiteAdminTest` ("the logo and favicon") and `tests/js/platformWebsite.test.ts`.
+16. **Home hero redesigned (2026-10-14).** After a reference the owner shared: a split hero (headline with an underlined
+    phrase, true figures, a glass "start your workspace" card) over drifting brand light, then a workspace drawn in HTML
+    that tilts up into place on scroll with a floating "the assistant drafted, you decide" card. The card posts to the new
+    `central.register.start`, which carries company and email to the sign-up form in the session (`prefill` prop).
+    The reference's invented metrics were not copied. Checked in Chrome at 1440px and 360px, light and dark, English and
+    Bengali, with motion on and off; no sideways scroll.
 
 ## Notes app added (2026-10-13)
 
@@ -665,6 +844,33 @@ reuses existing patterns (settings row, `TenantStorage`, browser-print documents
 - **Not done:** no browser pass; per-template visual polish is deliberately light (accent / spacing only); the
   letterhead has no adjustable content margins yet (bands sit flush, content flows between).
 
+## Inbox section rail (2026-10-14)
+
+On the unified inbox's chat screen the Communication sections moved from the tab row into a WhatsApp-style icon
+rail on the card's left edge (md and up): `CommunicationNav` gained `variant="rail"` (Inbox, Notifications,
+Messages, Templates, Consent and suppression; Settings pinned to the bottom; permission-filtered;
+`aria-current="page"`; icon-only with an sr-only name and a hover title). Below `md`, in the board view and on
+the other Communication pages the tab row is unchanged. No server change, no new string. Test:
+`tests/js/communication-rail.test.ts`. Doc: `docs/COMMUNICATION.md` ("The chat screen"). Not committed; made on
+top of the uncommitted ADR 0020 inbox work in `Inbox/Index.vue` (two small template edits).
+
+## Dark sidebar (2026-10-14)
+
+The shell sidebar is now always dark, in the workspace and the Super Admin panel, on desktop and in the mobile
+drawer, whatever theme the person chose for the page. `AppShell.vue` sets `data-theme="dark"` on the `<aside>` and
+the drawer's `DialogContent`, both drawn with `glass-solid` (92% opaque; the 62% `glass` looked muddy grey over a light page); the existing `[data-theme='dark']` token block then applies inside them (colours and
+`color-scheme`), so no new colour token and no contrast change. Relies on `@theme inline` and on no `:root` token
+being derived from another (both noted in `resources/js/README.md`). Menus opened from the sidebar render in a portal
+and keep the page theme. Not committed; `AppShell.vue` also holds uncommitted concurrent work.
+
+## Rotating hero title (2026-10-15)
+
+The home page title's highlighted ending now takes turns with other endings every 2.8 s (`site.home.title_rotate`
+in `lang/en|bn/site.php`; `[data-rotate]` in `home.blade.php`, `.site-rotate` in `app.css`, the loop in
+`resources/js/site.ts`). Screen readers get the first ending only (the visible one is `aria-hidden`, a hidden
+static copy sits beside it); reduced motion and no JavaScript keep the original text; a hidden tab skips its turns.
+Not committed; the site is still uncommitted work.
+
 ## Telephony app added (2026-10-15)
 
 New first-party optional module `telephony` (category Customer Support, one free offer, depends on `core`): call log,
@@ -676,7 +882,7 @@ own, build now against fakes). Doc: `docs/TELEPHONY.md` (linked from `docs/INDEX
 - **Tables** (new migration `2026_10_15_000100_create_telephony_tables.php`): `telephony_settings`,
   `telephony_extensions`, `telephony_calls`, `telephony_webhook_events`. Secrets encrypted and write-only. No recording.
 - **Permissions (3):** `telephony.calls.view` (scopable), `telephony.calls.make`, `telephony.settings.manage`. Totals
-  now `core` + 18 optional modules and 271 permissions (counts updated in CLAUDE.md, docs/MODULES.md and the tests).
+  now `core` + 18 optional modules and 273 permissions (counts updated in CLAUDE.md, docs/MODULES.md and the tests).
 - **Softphone:** new dependency `jssip` 3.13.8 (MIT; its dependencies debug, events and sdp-transform are MIT). The
   member's own SIP password is handed only to their browser on request (ADR 0036, SECURITY 5d.12).
 - **Bridge calls:** Asterisk ARI adapter behind `PbxClient`, with an SSRF guard (`PbxUrlGuard`, https, public addresses,
@@ -691,3 +897,42 @@ own, build now against fakes). Doc: `docs/TELEPHONY.md` (linked from `docs/INDEX
   RoutePipelineTest (stateless `telephony.events`), ModuleRegistryTest, AutomationRegistryTest, AppCatalogTest,
   EntitlementTest and PlanManagementTest.
 - **Not done:** no live PBX/browser/IPTSP run; no hold, transfer, queues or IVR; no usage limit.
+
+## Website blog added (2026-10-15)
+
+A blog for the public website, written in Super Admin > Website > Blog. Decision record ADR 0037; behaviour in
+`docs/WEBSITE.md` (section "Blog"); tables in `docs/DATABASE.md` section 2. **Built and tested, unreviewed, not yet
+checked in a browser.**
+
+- **Tables** (new migration `2026_11_21_000100_create_blog_tables.php`): `blog_posts`, `blog_post_translations`,
+  platform-wide (no `tenant_id`), central connection. Morph alias `blog_post`.
+- **Public:** `/blog` (topics, app filter, featured lead, pages of twelve), `/blog/{slug}` (only in the languages it is
+  written in), `/blog/feed.xml` (Atom), the same under `/bn`; stateless `/blog/media/{file}` for pictures. Sitemap,
+  `llms.txt`, header, footer, home page and app pages link to it once there is an article in that language.
+  `BlogPosting` / `Blog` / `FAQPage` structured data; `PageMeta` gained a share picture, article times, language
+  fallbacks and a feed link; the shared page frame moved to `App\Core\Website\SitePages` (SiteController delegates).
+- **Safety:** Markdown rendered on the server with raw HTML escaped, unsafe links dropped and only the blog's own
+  pictures kept; uploads redrawn with GD (metadata dropped, upright, at most 2400 px wide); the admin preview is drawn
+  by the server into an iframe with an empty `sandbox`; no `v-html`.
+- **Admin:** `Platform/Pages/Website/Blog/{Index,Edit}.vue`, helpers in `Platform/Components/Website/blogEditor.ts`,
+  a "Blog" tab in `WebsiteNav`, i18n `platformWebsite.blog` (en + bn), server strings in `lang/bn.json`, words of the
+  blog pages editable under Words > "Blog pages". `platform.website.manage` only; saves audited
+  (`platform.website.post_*`).
+- **Tests:** `tests/Feature/Central/BlogTest.php`, `tests/Feature/Platform/BlogAdminTest.php`,
+  `tests/js/platformBlog.test.ts`; `tests/js/platformWebsite.test.ts` now expects the Blog tab.
+- **Not done:** pictures are never deleted automatically; no tags, comments, search or analytics; no browser or
+  Lighthouse pass. Not committed.
+- **Incident:** while this was built, a patch script in this session wrote `app/Core/CoreServiceProvider.php` as
+  0 bytes (an unchecked `preg_replace` result). It was restored by session oyosend-f9 from Claude's file history
+  (the 2026-10-14 snapshot, which every later change was checked against: only a no-op pint run came after it), and
+  the blog's two lines were then added with the Edit tool. No other file was affected (checked for empty files).
+
+## Voice commands proposal (2026-10-15)
+
+The owner asked for voice commands. ADR 0038 proposes them (not built; no code changed): speech becomes a transcript
+for the command palette or the AI assistant box and never acts on its own; per the owner, "run without pressing
+Enter" is a member preference (off by default). Stage 1 uses the browser's Web Speech API, stage 2 transcription
+through `AiGateway`. Side finding recorded in the ADR: `SecurityHeaders` sends `microphone=()` on every response,
+which also blocks the Telephony softphone's `getUserMedia`. The owner then decided that voice is part of the paid AI app (new permission
+`ai.voice.use`, switch on `ai_settings`) and that the member preference needs no workspace override. Still waiting
+for the stage 1 engine decision before building.

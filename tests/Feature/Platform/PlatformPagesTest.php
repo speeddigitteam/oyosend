@@ -41,7 +41,7 @@ describe('the dashboard', function () {
                 // 3 owners + 2 added people (one of them in two workspaces).
                 ->where('stats.users', 5)
                 ->where('stats.memberships', 6)
-                ->where('stats.modules', 16)
+                ->where('stats.modules', 18)
                 ->has('recentTenants', 3)
                 ->has('health', 4));
 
@@ -195,5 +195,48 @@ describe('the tenant directory', function () {
         $this->actingAsPlatformUser($this->admin)
             ->get('http://admin.localhost/tenants')
             ->assertInertia(fn (AssertableInertia $page) => $page->where('tenants.total', 2));
+    });
+});
+
+describe('the audit log', function () {
+    it('pages past the first thirty entries and back', function () {
+        foreach (range(1, 35) as $n) {
+            app(AuditLogger::class)->record('platform.paging_check', properties: ['n' => $n]);
+        }
+
+        $next = null;
+
+        $this->actingAsPlatformUser($this->admin)
+            ->get('http://admin.localhost/audit-log?search=paging')
+            ->assertOk()
+            ->assertInertia(function (AssertableInertia $page) use (&$next): void {
+                $entries = $page->toArray()['props']['entries'];
+                $next = $entries['next_page_url'];
+
+                expect($entries['data'])->toHaveCount(30)
+                    ->and($entries['per_page'])->toBe(30)
+                    ->and($entries['data'][0]['properties'])->toBe(['n' => 35])
+                    ->and($entries['prev_page_url'])->toBeNull()
+                    // The link keeps the active search.
+                    ->and($next)->toStartWith('http://admin.localhost/audit-log?search=paging&cursor=');
+            });
+
+        $previous = null;
+
+        $this->get($next)
+            ->assertOk()
+            ->assertInertia(function (AssertableInertia $page) use (&$previous): void {
+                $entries = $page->toArray()['props']['entries'];
+                $previous = $entries['prev_page_url'];
+
+                expect($entries['data'])->toHaveCount(5)
+                    ->and($entries['data'][4]['properties'])->toBe(['n' => 1])
+                    ->and($entries['next_page_url'])->toBeNull()
+                    ->and($previous)->toBeString();
+            });
+
+        $this->get($previous)
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->has('entries.data', 30));
     });
 });

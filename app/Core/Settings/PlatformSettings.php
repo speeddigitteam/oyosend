@@ -30,6 +30,27 @@ final class PlatformSettings
         'billing.issuer_address' => 'platform.billing.issuer.address',
         'billing.issuer_email' => 'platform.billing.issuer.email',
         'billing.issuer_tax_id' => 'platform.billing.issuer.tax_id',
+        // The public website's company details (App\Core\Website\SiteCompany, docs/WEBSITE.md).
+        'website.name' => 'site.company.name',
+        'website.email' => 'site.company.email',
+        'website.phone_1' => 'site.company.phone_1',
+        'website.phone_2' => 'site.company.phone_2',
+        'website.street' => 'site.company.street',
+        'website.locality' => 'site.company.locality',
+        'website.city' => 'site.company.city',
+        'website.postal_code' => 'site.company.postal_code',
+        'website.address_bn' => 'site.company.address_bn',
+        'website.map_url' => 'site.company.map_url',
+        'website.contact_recipient' => 'site.contact_recipient',
+        'website.social.facebook' => 'site.social.facebook',
+        'website.social.linkedin' => 'site.social.linkedin',
+        'website.social.youtube' => 'site.social.youtube',
+        'website.social.instagram' => 'site.social.instagram',
+        'website.social.x' => 'site.social.x',
+        // Uploaded brand images, by file name (App\Core\Website\SiteBrand).
+        'website.logo' => 'site.brand.logo',
+        'website.logo_dark' => 'site.brand.logo_dark',
+        'website.favicon' => 'site.brand.favicon',
     ];
 
     private const string CACHE_KEY = 'platform:settings';

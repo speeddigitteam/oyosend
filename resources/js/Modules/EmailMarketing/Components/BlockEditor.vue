@@ -97,7 +97,7 @@ const variableOptions = (): { value: string; label: string }[] => [
             <li
                 v-for="(block, index) in blocks"
                 :key="index"
-                class="glass-well rounded-card p-4"
+                class="@container glass-well rounded-card p-4"
                 :aria-label="t('emailMarketing.editor.blockLabel', { number: index + 1, type: t(`emailMarketing.editor.types.${block.type}`) })"
             >
                 <div class="mb-3 flex flex-wrap items-center gap-2">
@@ -111,7 +111,7 @@ const variableOptions = (): { value: string; label: string }[] => [
                             :aria-label="t('emailMarketing.editor.moveUp')"
                             @click="move(index, -1)"
                         >
-                            <ArrowUp class="size-4" aria-hidden="true" />
+                            <template #icon><ArrowUp class="size-4" aria-hidden="true" /></template>
                         </Button>
                         <Button
                             size="sm"
@@ -121,24 +121,26 @@ const variableOptions = (): { value: string; label: string }[] => [
                             :aria-label="t('emailMarketing.editor.moveDown')"
                             @click="move(index, 1)"
                         >
-                            <ArrowDown class="size-4" aria-hidden="true" />
+                            <template #icon><ArrowDown class="size-4" aria-hidden="true" /></template>
                         </Button>
                         <Button size="sm" variant="ghost" icon :disabled="disabled" :aria-label="t('emailMarketing.editor.remove')" @click="remove(index)">
-                            <Trash2 class="size-4" aria-hidden="true" />
+                            <template #icon><Trash2 class="size-4" aria-hidden="true" /></template>
                         </Button>
                     </span>
                 </div>
 
-                <div v-if="block.type === 'heading'" class="grid gap-3 sm:grid-cols-3">
-                    <Input
-                        class="sm:col-span-3"
-                        :model-value="block.text"
-                        :label="t('emailMarketing.editor.headingText')"
-                        maxlength="160"
-                        :disabled="disabled"
-                        :error="fieldError(index, 'text')"
-                        @update:model-value="patch(index, { text: String($event ?? '') })"
-                    />
+                <!-- Input passes its class to the inner control, so a full-row field gets a wrapper that spans. -->
+                <div v-if="block.type === 'heading'" class="grid gap-3 @lg:grid-cols-3">
+                    <div class="@lg:col-span-3">
+                        <Input
+                            :model-value="block.text"
+                            :label="t('emailMarketing.editor.headingText')"
+                            maxlength="160"
+                            :disabled="disabled"
+                            :error="fieldError(index, 'text')"
+                            @update:model-value="patch(index, { text: String($event ?? '') })"
+                        />
+                    </div>
                     <Select
                         :model-value="String(block.level)"
                         :label="t('emailMarketing.editor.level')"
@@ -166,18 +168,19 @@ const variableOptions = (): { value: string; label: string }[] => [
                     />
                 </div>
 
-                <div v-else-if="block.type === 'text'" class="grid gap-3 sm:grid-cols-2">
-                    <Textarea
-                        class="sm:col-span-2"
-                        :model-value="block.text"
-                        :label="t('emailMarketing.editor.textBody')"
-                        :hint="t('emailMarketing.editor.textHint')"
-                        :rows="5"
-                        :maxlength="maxText"
-                        :disabled="disabled"
-                        :error="fieldError(index, 'text')"
-                        @update:model-value="patch(index, { text: String($event ?? '') })"
-                    />
+                <div v-else-if="block.type === 'text'" class="grid gap-3 @md:grid-cols-2">
+                    <div class="@md:col-span-2">
+                        <Textarea
+                            :model-value="block.text"
+                            :label="t('emailMarketing.editor.textBody')"
+                            :hint="t('emailMarketing.editor.textHint')"
+                            :rows="5"
+                            :maxlength="maxText"
+                            :disabled="disabled"
+                            :error="fieldError(index, 'text')"
+                            @update:model-value="patch(index, { text: String($event ?? '') })"
+                        />
+                    </div>
                     <Select
                         :model-value="block.align"
                         :label="t('emailMarketing.editor.align')"
@@ -194,18 +197,19 @@ const variableOptions = (): { value: string; label: string }[] => [
                     />
                 </div>
 
-                <div v-else-if="block.type === 'image'" class="grid gap-3 sm:grid-cols-2">
-                    <Input
-                        class="sm:col-span-2"
-                        type="url"
-                        inputmode="url"
-                        :model-value="asImage(block).url"
-                        :label="t('emailMarketing.editor.imageUrl')"
-                        :hint="t('emailMarketing.editor.imageHint')"
-                        :disabled="disabled"
-                        :error="fieldError(index, 'url') ?? (asImage(block).url !== '' && !isHttps(asImage(block).url) ? t('emailMarketing.editor.httpsOnly') : undefined)"
-                        @update:model-value="patch(index, { url: String($event ?? '') })"
-                    />
+                <div v-else-if="block.type === 'image'" class="grid gap-3 @md:grid-cols-2">
+                    <div class="@md:col-span-2">
+                        <Input
+                            type="url"
+                            inputmode="url"
+                            :model-value="asImage(block).url"
+                            :label="t('emailMarketing.editor.imageUrl')"
+                            :hint="t('emailMarketing.editor.imageHint')"
+                            :disabled="disabled"
+                            :error="fieldError(index, 'url') ?? (asImage(block).url !== '' && !isHttps(asImage(block).url) ? t('emailMarketing.editor.httpsOnly') : undefined)"
+                            @update:model-value="patch(index, { url: String($event ?? '') })"
+                        />
+                    </div>
                     <Input
                         :model-value="asImage(block).alt"
                         :label="t('emailMarketing.editor.imageAlt')"
@@ -226,7 +230,7 @@ const variableOptions = (): { value: string; label: string }[] => [
                     />
                 </div>
 
-                <div v-else-if="block.type === 'button'" class="grid gap-3 sm:grid-cols-2">
+                <div v-else-if="block.type === 'button'" class="grid gap-3 @md:grid-cols-2">
                     <Input
                         :model-value="asButton(block).label"
                         :label="t('emailMarketing.editor.buttonLabel')"
@@ -265,7 +269,7 @@ const variableOptions = (): { value: string; label: string }[] => [
 
                 <p v-else-if="block.type === 'divider'" class="text-[0.8125rem] text-ink-subtle">{{ t('emailMarketing.editor.dividerHint') }}</p>
 
-                <div v-else-if="block.type === 'spacer'" class="grid gap-3 sm:grid-cols-2">
+                <div v-else-if="block.type === 'spacer'" class="grid gap-3 @md:grid-cols-2">
                     <Input
                         type="number"
                         min="8"

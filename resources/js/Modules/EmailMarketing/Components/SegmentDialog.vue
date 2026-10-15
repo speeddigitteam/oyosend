@@ -172,7 +172,7 @@ function submit(): void {
                             :aria-label="t('emailMarketing.segments.removeRule')"
                             @click="form.rules.splice(index, 1)"
                         >
-                            <Trash2 class="size-4" aria-hidden="true" />
+                            <template #icon><Trash2 class="size-4" aria-hidden="true" /></template>
                         </Button>
                     </div>
                     <p v-if="form.errors[`rules.${index}` as keyof typeof form.errors]" class="text-sm text-danger sm:col-span-4" role="alert">

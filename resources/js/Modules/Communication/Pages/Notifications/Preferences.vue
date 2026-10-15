@@ -45,8 +45,9 @@ function save(): void {
     </PageHeader>
     <CommunicationNav current="notifications" />
 
-    <form class="grid max-w-3xl gap-3" @submit.prevent="save">
-        <Card flush>
+    <!-- Full width: the choices on the left, the notes about them beside it on wide screens, one save below both. -->
+    <form class="grid gap-3 lg:grid-cols-3" @submit.prevent="save">
+        <Card flush class="lg:col-span-2">
             <table class="w-full text-sm">
                 <caption class="sr-only">{{ t('communication.preferences.title') }}</caption>
                 <thead>
@@ -82,12 +83,14 @@ function save(): void {
             </table>
         </Card>
 
-        <p v-if="!emailAvailable" class="rounded-card bg-warn-soft px-4 py-3 text-sm text-warn" role="status">
-            {{ t('communication.preferences.emailUnavailable') }}
-        </p>
-        <p class="text-sm text-ink-subtle">{{ t('communication.preferences.critical') }} {{ t('communication.preferences.saved') }}</p>
+        <div class="grid content-start gap-3">
+            <p v-if="!emailAvailable" class="rounded-card bg-warn-soft px-4 py-3 text-sm text-warn" role="status">
+                {{ t('communication.preferences.emailUnavailable') }}
+            </p>
+            <p class="text-sm text-ink-subtle">{{ t('communication.preferences.critical') }} {{ t('communication.preferences.saved') }}</p>
+        </div>
 
-        <div class="flex justify-end">
+        <div class="flex justify-end lg:col-span-3">
             <Button type="submit" variant="primary" :loading="form.processing">{{ t('communication.common.save') }}</Button>
         </div>
     </form>

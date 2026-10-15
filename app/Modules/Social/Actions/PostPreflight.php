@@ -19,10 +19,13 @@ use App\Modules\Social\Models\SocialAccount;
  */
 final class PostPreflight
 {
-    public function __construct(private readonly PostContentRules $rules) {}
+    public function __construct(
+        private readonly PostContentRules $rules,
+        private readonly TargetOptions $options,
+    ) {}
 
     /**
-     * @param  list<array{account_id: string, body_override: string|null}>  $targets
+     * @param  list<array{account_id: string, body_override: string|null, options?: array<string, mixed>|null}>  $targets
      * @param  list<string>  $mediaIds
      * @return list<array<string, mixed>>
      */
@@ -39,9 +42,14 @@ final class PostPreflight
         $post->setRelation('targets', collect($targets)
             ->filter(fn (array $target): bool => $accounts->has($target['account_id']))
             ->map(function (array $target) use ($accounts): PostTarget {
-                $row = new PostTarget(['account_id' => $target['account_id'], 'body_override' => $target['body_override']]);
+                $account = $accounts->get($target['account_id']);
+                $row = new PostTarget([
+                    'account_id' => $target['account_id'],
+                    'body_override' => $target['body_override'],
+                    'options' => $account === null ? null : $this->options->forAccount($account, $target['options'] ?? null),
+                ]);
                 $row->forceFill(['id' => 'preview-'.$target['account_id']]);
-                $row->setRelation('account', $accounts->get($target['account_id']));
+                $row->setRelation('account', $account);
 
                 return $row;
             })->values());

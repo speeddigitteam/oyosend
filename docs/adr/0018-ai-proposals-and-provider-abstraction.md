@@ -1,6 +1,6 @@
 # ADR 0018 — AI never changes data on its own; providers sit behind one contract and one gateway
 
-- **Status:** Accepted, with one open item recorded under "Open decision: operator AI provider accounts"
+- **Status:** Accepted. The open item on operator AI provider accounts was decided by the owner on 2026-10-14 (approved).
 - **Date:** 2026-10-13
 - **Phase:** 11 (AI Assistant)
 
@@ -66,7 +66,11 @@ chat-completions servers) and will change.
    to its membership. Retention is a workspace setting of 1 to 365 days (default 90) enforced by the daily
    `ai.retention` job.
 
-### Open decision: operator AI provider accounts
+### Decided (2026-10-14): operator AI provider accounts
+
+**The owner approved storing operator AI provider keys in the database, encrypted and write-only, with the environment
+as the fallback (ADR 0013 amended, CLAUDE.md updated).** The history of the question follows.
+
 
 The environment key was the original mechanism. The code now also contains operator AI provider accounts
 (Super Admin > AI providers, `platform.ai.*`, table `ai_provider_accounts`, `AiProviderAccounts`,

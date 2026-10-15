@@ -19,7 +19,10 @@ use App\Core\Communication\Inbox\InboxState;
  * `definition()->permission`.
  *
  * A source is READ-ONLY over its own records and narrows them exactly as its own inbox or list does. It applies the
- * query's states, owner and search itself. Replies and changes stay in the owning app, which the item's URL opens.
+ * query's states, owner, search and unread filter itself; "unread" means exactly what makes its items' `unread`
+ * greater than zero, and a source without an unread notion returns nothing for it. Changes stay in the owning app, which the item's URL opens. A source may
+ * also implement {@see InboxReplies} to let a member read and answer a conversation from the inbox (ADR 0030); the
+ * reply still goes through the owning app's own action.
  */
 interface InboxSource
 {
@@ -36,8 +39,8 @@ interface InboxSource
     public function items(InboxQuery $query, ?InboxCursor $after = null): array;
 
     /**
-     * How many conversations the member may see in each state, with the query's owner and search applied and its
-     * states ignored.
+     * How many conversations the member may see in each state, with the query's owner, search and unread filter
+     * applied and its states ignored.
      *
      * @return array<value-of<InboxState>, int>
      */

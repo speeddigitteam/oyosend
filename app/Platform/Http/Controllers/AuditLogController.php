@@ -37,22 +37,29 @@ final class AuditLogController
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->cursorPaginate(30)
-            ->withQueryString()
-            ->through(fn (AuditLog $entry): array => [
-                'id' => $entry->id,
-                'event' => $entry->event,
-                'actor' => $entry->actor_label,
-                'actorType' => $entry->actor_type,
-                'subject' => $entry->subject_label,
-                'subjectType' => $entry->subject_type,
-                'properties' => $entry->properties,
-                'workspace' => $entry->tenant?->only(['id', 'name', 'slug']),
-                'ipAddress' => $entry->ip_address,
-                'createdAt' => $entry->created_at->toIso8601String(),
-            ]);
+            ->withQueryString();
 
         return Inertia::render('Platform/Pages/Audit/Index', [
-            'entries' => $entries,
+            // Built by hand rather than with through(): the paginator derives its
+            // cursors from the sort columns of the rows it holds, so the rows
+            // must still be models when the page links are read.
+            'entries' => [
+                'data' => $entries->getCollection()->map(fn (AuditLog $entry): array => [
+                    'id' => $entry->id,
+                    'event' => $entry->event,
+                    'actor' => $entry->actor_label,
+                    'actorType' => $entry->actor_type,
+                    'subject' => $entry->subject_label,
+                    'subjectType' => $entry->subject_type,
+                    'properties' => $entry->properties,
+                    'workspace' => $entry->tenant?->only(['id', 'name', 'slug']),
+                    'ipAddress' => $entry->ip_address,
+                    'createdAt' => $entry->created_at->toIso8601String(),
+                ])->all(),
+                'per_page' => $entries->perPage(),
+                'prev_page_url' => $entries->previousPageUrl(),
+                'next_page_url' => $entries->nextPageUrl(),
+            ],
             'filters' => ['search' => $search],
         ]);
     }

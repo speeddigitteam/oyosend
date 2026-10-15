@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\WhatsappMarketing\Actions;
 
 use App\Core\Audit\AuditLogger;
+use App\Core\Communication\Contracts\InboxSignals;
 use App\Core\Communication\Data\ChannelEvent;
 use App\Core\Contacts\ContactDirectory;
 use App\Core\Contacts\Models\Contact;
@@ -17,6 +18,7 @@ use App\Modules\WhatsappMarketing\Enums\SenderType;
 use App\Modules\WhatsappMarketing\Events\ConversationAssigned;
 use App\Modules\WhatsappMarketing\Events\FeedbackReceived;
 use App\Modules\WhatsappMarketing\Events\MessageReceived;
+use App\Modules\WhatsappMarketing\Inbox\ConversationInboxSource;
 use App\Modules\WhatsappMarketing\Jobs\BackfillConversationTimeline;
 use App\Modules\WhatsappMarketing\Models\Conversation;
 use App\Modules\WhatsappMarketing\Models\Message;
@@ -43,6 +45,7 @@ final class ConversationManager
         private readonly AuditLogger $audit,
         private readonly ConversationTimeline $timeline,
         private readonly FeedbackCollector $feedback,
+        private readonly InboxSignals $signals,
     ) {}
 
     /**
@@ -166,6 +169,7 @@ final class ConversationManager
         }
 
         if ($result !== null) {
+            $this->signals->changed(ConversationInboxSource::KEY, $result->conversation->id);
             event(new MessageReceived([
                 'conversation_id' => $result->conversation->id,
                 'message_id' => $result->message->id,
@@ -258,6 +262,7 @@ final class ConversationManager
             ]);
             $conversation->setRawAttributes($locked->getAttributes(), true);
 
+            $this->signals->changed(ConversationInboxSource::KEY, $locked->id);
             event(new ConversationAssigned([
                 'conversation_id' => $locked->id,
                 'contact_id' => $locked->contact_id,
@@ -289,6 +294,7 @@ final class ConversationManager
 
             $conversation->save();
             $this->audit->record('whatsapp_marketing.conversation.'.($status === ConversationStatus::Closed ? 'closed' : 'reopened'), $conversation);
+            $this->signals->changed(ConversationInboxSource::KEY, $conversation->id);
         });
 
         return $conversation;
@@ -373,6 +379,7 @@ final class ConversationManager
     {
         if ($conversation->unread_count > 0) {
             $conversation->forceFill(['unread_count' => 0])->save();
+            $this->signals->changed(ConversationInboxSource::KEY, $conversation->id);
         }
     }
 

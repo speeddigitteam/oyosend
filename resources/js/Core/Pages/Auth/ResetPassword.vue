@@ -57,7 +57,7 @@ function submit(): void {
             :label="t('auth.reset.email')"
             :error="form.errors.email"
             :readonly="emailFromLink"
-            :class="emailFromLink ? 'text-ink-muted' : ''"
+            :control-class="emailFromLink ? 'text-ink-muted' : ''"
             :autofocus="!emailFromLink"
             autocomplete="username"
             inputmode="email"

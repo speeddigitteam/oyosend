@@ -4,14 +4,21 @@ use App\Core\Access\Http\Middleware\EnsureModuleEntitled;
 use App\Core\Billing\Http\Middleware\EnsureWorkspaceIsSubscribed;
 use App\Core\Http\Middleware\HandleCentralInertia;
 use App\Core\Http\Middleware\HandleTenantInertia;
+use App\Core\Http\Middleware\NoIndex;
 use App\Core\Http\Middleware\SecurityHeaders;
 use App\Core\Http\Middleware\SetLocale;
+use App\Core\Http\Middleware\ThrottleRequestsPerRoute;
 use App\Core\Identity\Http\Middleware\EnsureTenantMember;
 use App\Core\Support\ErrorPageResponder;
 use App\Core\Tenancy\Http\Middleware\EnsureCentralContext;
 use App\Core\Tenancy\Http\Middleware\EnsureTenantIsActive;
 use App\Core\Tenancy\Http\Middleware\InitializeTenancy;
 use App\Core\Tenancy\Support\TenantHost;
+use App\Core\Website\Blog\BlogMedia;
+use App\Core\Website\Http\Controllers\BlogMediaController;
+use App\Core\Website\Http\Controllers\BrandAssetController;
+use App\Core\Website\Http\Middleware\SetSiteLocale;
+use App\Core\Website\SiteBrand;
 use App\Platform\Console\BenchmarkCommand;
 use App\Platform\Console\CreatePlatformAdminCommand;
 use App\Platform\Console\VerifyBackupCommand;
@@ -53,6 +60,20 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->name('central.')
                 ->group(base_path('routes/central.php'));
 
+            // The uploaded logo and favicon, loaded by every host: stateless, cached for good (docs/WEBSITE.md).
+            Route::domain($hosts->domain())
+                ->middleware('central.callback')
+                ->get('brand/{file}', BrandAssetController::class)
+                ->where('file', SiteBrand::FILE_PATTERN)
+                ->name('central.brand');
+
+            // The blog's images: stateless and cached for good, like the logo, with room for a page full of them.
+            Route::domain($hosts->domain())
+                ->middleware([EnsureCentralContext::class, 'throttle:600,1'])
+                ->get('blog/media/{file}', BlogMediaController::class)
+                ->where('file', BlogMedia::FILE_PATTERN)
+                ->name('central.blog.media');
+
             // Tenant workspaces ({tenant}.APP_DOMAIN) are registered by the
             // module providers - see App\Core\Modules\ModuleServiceProvider.
         },
@@ -67,7 +88,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // which the framework's TrustProxies middleware reads by itself.
         $middleware->web(append: [SecurityHeaders::class]);
 
+        // Only the central site belongs in search results (docs/WEBSITE.md).
         $middleware->group('tenant', [
+            NoIndex::class,
             InitializeTenancy::class,
             SetLocale::class,
             HandleTenantInertia::class,
@@ -78,6 +101,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Payment gateway callbacks: the tenant from the hostname and nothing
         // else - no session, no cookies. See routes/tenant-callbacks.php.
         $middleware->group('tenant.callback', [
+            NoIndex::class,
             InitializeTenancy::class,
             'throttle:60,1',
         ]);
@@ -95,6 +119,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->group('platform', [
+            NoIndex::class,
             InitializePlatformContext::class,
             SetLocale::class,
             HandlePlatformInertia::class,
@@ -105,6 +130,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'entitled' => EnsureModuleEntitled::class,
             'subscribed' => EnsureWorkspaceIsSubscribed::class,
             'platform.2fa' => EnsurePlatformTwoFactor::class,
+            'site.locale' => SetSiteLocale::class,
+            // One counter per route and limit, not one per user for every route (see the class).
+            'throttle' => ThrottleRequestsPerRoute::class,
         ]);
 
         // The context (tenant, central or platform) must be settled before

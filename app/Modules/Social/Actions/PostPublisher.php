@@ -23,6 +23,7 @@ use App\Modules\Social\Platforms\PublishPayload;
 use App\Modules\Social\Platforms\PublishSession;
 use App\Modules\Social\Platforms\SocialPlatforms;
 use App\Modules\Social\Platforms\StepwisePublisher;
+use App\Modules\Social\Support\PublicMediaUrls;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
@@ -54,6 +55,7 @@ final class PostPublisher
         private readonly PostRollup $rollup,
         private readonly SocialSettings $settings,
         private readonly TenantStorage $storage,
+        private readonly PublicMediaUrls $publicUrls,
     ) {}
 
     /**
@@ -496,6 +498,8 @@ final class PostPublisher
                 height: $item->height,
                 durationMs: $item->duration_ms,
                 ranger: fn (int $offset, int $length): string => $this->readRange($item->path, $offset, $length),
+                // Made only when an adapter asks (a platform that fetches media itself): each URL briefly exposes the file.
+                publicUrl: fn (): string => $this->publicUrls->for($item),
             );
         })->values()->all();
 
@@ -505,6 +509,7 @@ final class PostPublisher
             media: $media,
             idempotencyKey: $target->idempotency_key,
             postType: $post->post_type ?? PostType::Post,
+            targetOptions: $target->options,
         );
     }
 

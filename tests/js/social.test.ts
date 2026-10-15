@@ -601,16 +601,18 @@ describe('social messages', () => {
         const groups = new Set([...manifest.matchAll(/new PermissionDefinition\('social\.[\w.]+', '(\w+)'/g)].map((match) => match[1]!));
         const nav = [...manifest.matchAll(/new NavigationItem\('(social\w+)'/g)].map((match) => match[1]!);
 
-        expect(permissions).toHaveLength(23);
-        expect(nav).toHaveLength(11);
+        expect(permissions).toHaveLength(25);
+        expect(nav).toHaveLength(12);
         expect([...groups].sort()).toEqual([
-            'social_accounts', 'social_analytics', 'social_comments', 'social_imports', 'social_leadads', 'social_library', 'social_media', 'social_posts', 'social_settings',
+            'social_accounts', 'social_analytics', 'social_comments', 'social_imports', 'social_leadads', 'social_library', 'social_media', 'social_messages',
+            'social_posts', 'social_settings',
         ]);
 
         for (const messages of [en, bn]) {
             expect(typeof messages.catalogue.modules.social).toBe('string');
             expect(typeof messages.appStore.catalog.social.name).toBe('string');
-            expect(messages.appStore.catalog.social.features).toHaveLength(11);
+            // 14 since Social 1.7 (TikTok settings chosen per post, ADR 0033).
+            expect(messages.appStore.catalog.social.features).toHaveLength(14);
 
             for (const limit of ['social.scheduled_posts_per_month', 'social.connected_accounts']) {
                 expect((messages.catalogue.limits as Record<string, { label: string }>)[limit]?.label, limit).toBeTruthy();

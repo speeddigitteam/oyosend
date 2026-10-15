@@ -11,6 +11,8 @@ use App\Modules\Social\Comments\Data\CommentEvent;
 use App\Modules\Social\Comments\Models\CommentSource;
 use App\Modules\Social\Comments\Models\PageClaim;
 use App\Modules\Social\Enums\AccountStatus;
+use App\Modules\Social\Messages\Ingest\MessageWebhook;
+use App\Modules\Social\Messages\MessagingAvailability;
 use App\Modules\Social\Models\SocialAccount;
 use App\Modules\Social\Platforms\Facebook\FacebookCommentsWebhook;
 use Illuminate\Support\Facades\Cache;
@@ -18,7 +20,8 @@ use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
- * Turns a verified Facebook Page `feed` delivery into inbox changes.
+ * Turns a verified Facebook Page `feed` delivery into inbox changes, and hands the `messaging` entries of a Page or an
+ * Instagram account to {@see MessageWebhook} (direct messages, ADR 0031): a Meta app has one callback URL.
  *
  * Order is the security model: the signature over the raw bytes first; only then is the body parsed; an event is
  * applied only when the Page is claimed by exactly one account and that account's workspace is the one that was
@@ -34,6 +37,7 @@ final class WebhookReceiver
         private readonly TenantContext $context,
         private readonly EntitlementChecker $entitlements,
         private readonly CommentIngestor $ingestor,
+        private readonly MessageWebhook $messages,
     ) {}
 
     /**
@@ -43,8 +47,10 @@ final class WebhookReceiver
     public function receive(string $body, ?string $signature, ?string $onlyTenantId): array
     {
         $secret = config('social.platforms.facebook.client_secret');
+        $comments = (bool) config('social_comments.enabled', true);
 
-        if (! (bool) config('social_comments.enabled', true) || ! is_string($secret) || $secret === '') {
+        // The same callback carries Messenger and Instagram direct messages when the operator switched them on.
+        if ((! $comments && MessagingAvailability::platforms() === []) || ! is_string($secret) || $secret === '') {
             return [404, 'Not found'];
         }
 
@@ -64,7 +70,7 @@ final class WebhookReceiver
 
         $retry = false;
 
-        foreach (FacebookCommentsWebhook::events($payload, (int) config('social_comments.webhook.max_changes', 200)) as $event) {
+        foreach ($comments ? FacebookCommentsWebhook::events($payload, (int) config('social_comments.webhook.max_changes', 200)) : [] as $event) {
             $claim = PageClaim::query()->where('platform', 'facebook')->where('external_id', $event->pageId)->first();
 
             // Unclaimed, or claimed by another workspace than the one asked: ignored, and nothing is disclosed.
@@ -84,6 +90,9 @@ final class WebhookReceiver
                 $retry = $this->context->run($tenant, fn (): bool => $this->guarded($claim, $event)) || $retry;
             }
         }
+
+        // `entry[].messaging[]` of a Page (Messenger) or an Instagram account: routed by the same claims (ADR 0031).
+        $retry = $this->messages->receive($payload, $onlyTenantId) || $retry;
 
         return $retry ? [503, 'Try again'] : [self::OK, 'OK'];
     }

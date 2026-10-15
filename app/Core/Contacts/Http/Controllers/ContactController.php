@@ -8,6 +8,7 @@ use App\Core\Access\AccessChecker;
 use App\Core\Access\Enums\AccessScope;
 use App\Core\Access\RecordAccess;
 use App\Core\Contacts\ContactDirectory;
+use App\Core\Contacts\Http\DirectoryPresenter;
 use App\Core\Contacts\Models\Company;
 use App\Core\Contacts\Models\Contact;
 use App\Core\Identity\Enums\MembershipStatus;
@@ -16,6 +17,7 @@ use App\Core\Identity\Models\User;
 use App\Core\Support\Like;
 use App\Core\Support\Toast;
 use App\Core\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -37,11 +39,15 @@ final class ContactController
 
     public const string DELETE = 'core.contacts.delete';
 
+    /** The columns the list can be sorted by (`?sort=` with `?direction=asc|desc`). */
+    public const array SORTS = ['name', 'company', 'email', 'city', 'created'];
+
     public function __construct(
         private readonly RecordAccess $records,
         private readonly AccessChecker $access,
         private readonly ContactDirectory $directory,
         private readonly TenantContext $context,
+        private readonly DirectoryPresenter $presenter,
     ) {}
 
     public function index(Request $request): Response
@@ -52,9 +58,13 @@ final class ContactController
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'company' => ['nullable', 'string', 'size:26'],
+            'sort' => ['nullable', 'string', 'in:'.implode(',', self::SORTS)],
+            'direction' => ['nullable', 'string', 'in:asc,desc'],
         ]);
 
         $search = trim((string) ($filters['search'] ?? ''));
+        $sort = (string) ($filters['sort'] ?? 'name');
+        $direction = (string) ($filters['direction'] ?? 'asc');
         $company = isset($filters['company'])
             ? $this->records->constrain(Company::query(), $actor, self::VIEW)->find($filters['company'])
             : null;
@@ -69,42 +79,21 @@ final class ContactController
                 ->orWhere('email', 'like', Like::contains($search))
                 ->orWhere('phone', 'like', Like::contains($search))))
             ->when($company !== null, fn ($query) => $query->where('company_id', $company?->getKey()))
-            ->orderBy('first_name')
-            ->orderBy('last_name')
-            ->orderBy('id')
+            ->tap(fn (Builder $query) => $this->sorted($query, $sort, $direction))
             ->paginate(25)
             ->withQueryString()
-            ->through(fn (Contact $contact): array => [
-                'id' => $contact->id,
-                'name' => $contact->fullName(),
-                'firstName' => $contact->first_name,
-                'lastName' => $contact->last_name,
-                'email' => $contact->email,
-                'phone' => $contact->phone,
-                'jobTitle' => $contact->job_title,
-                'address' => $contact->address,
-                'city' => $contact->city,
-                'country' => $contact->country,
-                'notes' => $contact->notes,
-                'company' => $contact->company?->only(['id', 'name']),
-                'owner' => $contact->owner === null ? null : [
-                    'id' => $contact->owner->id,
-                    'name' => $contact->owner->user->name,
-                ],
-                // Hide what the viewer's scope does not reach; the server checks again on every change.
-                'editable' => $this->records->allows($actor, self::MANAGE, $contact),
-                'deletable' => $this->records->allows($actor, self::DELETE, $contact),
-                'createdAt' => $contact->created_at->toIso8601String(),
-            ]);
+            ->through(fn (Contact $contact): array => $this->presenter->contact($contact, $actor));
 
         return Inertia::render('Core/Pages/Contacts/Index', [
             'contacts' => $contacts,
             'filters' => [
                 'search' => $search,
                 'company' => $company?->only(['id', 'name']),
+                'sort' => $sort,
+                'direction' => $direction,
             ],
-            'companies' => $this->companyOptions($actor),
-            'owners' => $this->ownerOptions($actor),
+            'companies' => $this->presenter->companyOptions($actor),
+            'owners' => $this->presenter->ownerOptions($actor),
             'canCreate' => $actor->can(self::MANAGE),
         ]);
     }
@@ -225,42 +214,24 @@ final class ContactController
     }
 
     /**
-     * Companies the viewer can attach a contact to.
+     * Orders the list; the id last, so equal values keep one stable order across pages.
      *
-     * @return list<array{id: string, name: string}>
+     * @param  Builder<Contact>  $query
      */
-    private function companyOptions(User $actor): array
+    private function sorted(Builder $query, string $sort, string $direction): void
     {
-        if (! $actor->can(self::MANAGE)) {
-            return [];
-        }
+        match ($sort) {
+            // Contacts without a company go last either way.
+            'company' => $query->orderByRaw('company_id is null')->orderBy(
+                Company::query()->select('name')->whereColumn('companies.id', 'contacts.company_id')->limit(1),
+                $direction,
+            ),
+            'email' => $query->orderByRaw('email is null')->orderBy('email', $direction),
+            'city' => $query->orderByRaw('city is null')->orderBy('city', $direction)->orderBy('first_name'),
+            'created' => $query->orderBy('created_at', $direction),
+            default => $query->orderBy('first_name', $direction)->orderBy('last_name', $direction),
+        };
 
-        return $this->records->constrain(Company::query(), $actor, self::VIEW)
-            ->orderBy('name')
-            ->limit(500)
-            ->get(['id', 'name'])
-            ->map(fn (Company $company): array => ['id' => $company->id, 'name' => $company->name])
-            ->all();
-    }
-
-    /**
-     * Members a contact can be handed to. Empty unless the viewer may reassign.
-     *
-     * @return list<array{id: string, name: string}>
-     */
-    private function ownerOptions(User $actor): array
-    {
-        if ($this->access->scopeFor($actor, self::MANAGE) !== AccessScope::All) {
-            return [];
-        }
-
-        return TenantMembership::query()
-            ->where('status', MembershipStatus::Active)
-            ->with('user:id,name')
-            ->get()
-            ->map(fn (TenantMembership $membership): array => ['id' => $membership->id, 'name' => $membership->user->name])
-            ->sortBy('name')
-            ->values()
-            ->all();
+        $query->orderBy('id', $direction);
     }
 }

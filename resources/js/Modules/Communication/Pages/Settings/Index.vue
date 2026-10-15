@@ -57,39 +57,45 @@ function save(): void {
     <PageHeader :eyebrow="t('communication.eyebrow')" :title="t('communication.settings.title')" :description="t('communication.settings.description')" />
     <CommunicationNav current="settings" />
 
-    <div class="grid max-w-3xl gap-3">
-        <form class="grid gap-3" @submit.prevent="save">
+    <div class="grid gap-3">
+        <!-- Full width like the platform Settings page: the three setting boxes side by side on wide screens, one save
+             for all three below them. Each box lays out its own fields by its own width (container queries). -->
+        <form class="grid gap-3 lg:grid-cols-2 xl:grid-cols-3" @submit.prevent="save">
             <Card :title="t('communication.settings.sender')" :description="t('communication.settings.senderHint')">
-                <div class="grid gap-4 sm:grid-cols-2">
-                    <Input
-                        v-model="form.from_name"
-                        :label="t('communication.settings.fromName')"
-                        :hint="t('communication.settings.fromNameHint')"
-                        :error="form.errors.from_name"
-                        optional
-                        maxlength="120"
-                    />
-                    <Input
-                        v-model="form.reply_to_email"
-                        type="email"
-                        :label="t('communication.settings.replyTo')"
-                        :hint="t('communication.settings.replyToHint')"
-                        :error="form.errors.reply_to_email"
-                        optional
-                        maxlength="190"
-                    />
+                <div class="@container flex flex-col gap-4">
+                    <div class="grid content-start gap-4 @lg:grid-cols-2">
+                        <Input
+                            v-model="form.from_name"
+                            :label="t('communication.settings.fromName')"
+                            :hint="t('communication.settings.fromNameHint')"
+                            :error="form.errors.from_name"
+                            optional
+                            maxlength="120"
+                        />
+                        <Input
+                            v-model="form.reply_to_email"
+                            type="email"
+                            :label="t('communication.settings.replyTo')"
+                            :hint="t('communication.settings.replyToHint')"
+                            :error="form.errors.reply_to_email"
+                            optional
+                            maxlength="190"
+                        />
+                    </div>
+                    <div>
+                        <p class="text-sm wrap-break-word text-ink-muted">
+                            {{ t('communication.settings.platformSender') }}:
+                            <span class="font-mono text-ink">{{ senderGuidance.platformSender }}</span>
+                        </p>
+                        <p class="mt-2 text-sm text-ink-subtle">{{ t('communication.settings.domainGuidance') }}</p>
+                    </div>
                 </div>
-                <p class="mt-4 text-sm text-ink-muted">
-                    {{ t('communication.settings.platformSender') }}:
-                    <span class="font-mono text-ink">{{ senderGuidance.platformSender }}</span>
-                </p>
-                <p class="mt-2 text-sm text-ink-subtle">{{ t('communication.settings.domainGuidance') }}</p>
             </Card>
 
             <Card :title="t('communication.settings.quietHours')" :description="t('communication.settings.quietHoursHint')">
-                <div class="grid gap-4">
+                <div class="@container flex flex-col gap-4">
                     <Checkbox v-model="form.quiet_hours_enabled" :label="t('communication.settings.quietHoursEnabled')" />
-                    <div class="grid gap-4 sm:grid-cols-2">
+                    <div class="grid content-start gap-4 @lg:grid-cols-2">
                         <Input
                             v-model="form.quiet_hours_start"
                             type="time"
@@ -108,7 +114,7 @@ function save(): void {
                 </div>
             </Card>
 
-            <Card :title="t('communication.settings.footer')" :description="t('communication.settings.footerHint')">
+            <Card class="lg:col-span-2 xl:col-span-1" :title="t('communication.settings.footer')" :description="t('communication.settings.footerHint')">
                 <Textarea
                     v-model="form.footer_text"
                     :rows="3"
@@ -119,7 +125,8 @@ function save(): void {
                 />
             </Card>
 
-            <div class="flex justify-end">
+            <!-- One save for the three boxes above. -->
+            <div class="flex justify-end lg:col-span-2 xl:col-span-3">
                 <Button type="submit" variant="primary" :loading="form.processing">{{ t('communication.settings.saveSettings') }}</Button>
             </div>
         </form>
@@ -128,6 +135,9 @@ function save(): void {
             <h2 class="text-lg text-ink">{{ t('communication.settings.channels') }}</h2>
             <p class="mt-1 text-sm text-ink-muted">{{ t('communication.settings.channelsHint') }}</p>
         </div>
-        <ChannelCard v-for="channel in channels" :key="channel.channel" :channel="channel" :credential-refs="credentialRefs" :credential-labels="credentialLabels" />
+        <!-- One box per channel; each saves on its own. -->
+        <div class="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+            <ChannelCard v-for="channel in channels" :key="channel.channel" :channel="channel" :credential-refs="credentialRefs" :credential-labels="credentialLabels" />
+        </div>
     </div>
 </template>

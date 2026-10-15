@@ -22,6 +22,8 @@ const DYNAMIC_QUEUE_CLASSES = [
 const CENTRAL_QUEUE_CLASSES = [
     // Sent from the central sign-up, before any workspace exists.
     'App\Core\Registration\Mail\ConfirmRegistrationMail',
+    // A message from the website's contact form, to the company's own inbox.
+    'App\Core\Website\Mail\WebsiteEnquiryMail',
 ];
 
 /** @return list<class-string> */

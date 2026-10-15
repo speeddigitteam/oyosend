@@ -16,6 +16,8 @@ export interface AppProps {
     timezone: string;
     currency: string;
     numerals: Numerals;
+    /** The logo an operator uploaded (Super Admin > Website); null for the built-in mark. */
+    brand?: { logo: string | null; logoDark: string | null };
 }
 
 export interface AuthUser {

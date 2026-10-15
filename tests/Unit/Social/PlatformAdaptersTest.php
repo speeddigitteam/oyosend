@@ -13,6 +13,7 @@ use App\Modules\Social\Platforms\PlatformAvailability;
 use App\Modules\Social\Platforms\PublishPayload;
 use App\Modules\Social\Platforms\SocialPlatforms;
 use App\Modules\Social\Platforms\TokenSet;
+use App\Modules\Social\Platforms\UnavailablePlatform;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
@@ -47,8 +48,17 @@ it('reports a platform as not configured, with the reason, until its app credent
 it('lists unbuilt platforms as unavailable and refuses every call instead of simulating', function () {
     $platforms = app(SocialPlatforms::class);
 
+    // YouTube has its adapter (tests/Unit/Social/YouTubePlatformTest.php).
+    // TikTok has its adapter (tests/Unit/Social/TikTokPlatformTest.php).
+    // Instagram has its adapter (tests/Unit/Social/InstagramPlatformTest.php).
+    // Pinterest has its adapter (tests/Unit/Social/PinterestPlatformTest.php).
+    // Every listed platform is now built, so the placeholder itself is checked: a platform this build does not
+    // drive is listed honestly and refuses every call.
     foreach (['instagram', 'youtube', 'tiktok', 'pinterest'] as $key) {
-        $platform = $platforms->get($key);
+        expect($platforms->get($key))->not->toBeInstanceOf(UnavailablePlatform::class);
+    }
+
+    foreach ([new UnavailablePlatform('futurenet', 'FutureNet', 'Not built yet.')] as $platform) {
 
         expect($platform->availability()->available)->toBeFalse()
             ->and($platform->availability()->code)->toBe(PlatformAvailability::NOT_IMPLEMENTED)

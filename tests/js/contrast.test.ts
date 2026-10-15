@@ -198,6 +198,36 @@ describe.each(Object.keys(themes))('contrast on glass, %s theme', (name) => {
         ).toEqual([]);
     });
 
+    it('keeps chat text readable on the wallpaper and on both kinds of bubble', () => {
+        // The message area lays its warm surface and then the line pattern over the glass; a bubble sits on top of that.
+        const failed: string[] = [];
+
+        for (const [where, glass] of surfaces()) {
+            const wall = over(colour('chat-wallpaper'), over(colour('chat-surface'), glass));
+            const layers: Array<[string, Rgb, string[]]> = [
+                ['the wallpaper', wall, ['ink', 'ink-muted', 'ink-subtle', 'brand-text']],
+                ['--chat-in', over(colour('chat-in'), wall), ['ink', 'ink-muted', 'ink-subtle', 'brand-text', 'accent-text', 'danger']],
+                ['--chat-out', over(colour('chat-out'), wall), ['ink', 'ink-muted', 'ink-subtle', 'brand-text', 'accent-text', 'danger']],
+            ];
+
+            for (const [name, surface, texts] of layers) {
+                for (const text of texts) {
+                    const ratio = contrast(solid(text), surface);
+
+                    if (ratio < AA) {
+                        failed.push(`--${text} on ${name} over ${where}: ${ratio.toFixed(2)}`);
+                    }
+                }
+            }
+        }
+
+        expect(failed).toEqual([]);
+    });
+
+    it('keeps an unread count readable on its solid accent pill', () => {
+        expect(contrast(solid('accent-ink'), solid('accent'))).toBeGreaterThanOrEqual(AA);
+    });
+
     it('keeps labels readable on filled buttons and solid panels', () => {
         expect(contrast(solid('brand-ink'), solid('brand'))).toBeGreaterThanOrEqual(AA);
         expect(contrast(solid('brand-ink'), solid('brand-hover'))).toBeGreaterThanOrEqual(AA);

@@ -110,6 +110,7 @@ import platformAudit from './platformAudit';
 import platformBilling from './platformBilling';
 import platformMessaging from './platformMessaging';
 import platformIntegrations from './platformIntegrations';
+import platformWebsite from './platformWebsite';
 import platformPlans from './platformPlans';
 import platformSettings from './platformSettings';
 import platformAi from './platformAi';
@@ -119,7 +120,6 @@ import workspace from './workspace';
 import audit from './audit';
 import auth from './auth';
 import catalogue from './catalogue';
-import central from './central';
 import common from './common';
 import dashboard from './dashboard';
 import errors from './errors';
@@ -139,7 +139,6 @@ const bn: MessageSchema = {
     audit,
     settings,
     platform,
-    central,
     catalogue,
     errors,
     organization,
@@ -179,6 +178,7 @@ const bn: MessageSchema = {
     platformAi,
     platformMessaging,
     platformIntegrations,
+    platformWebsite,
 };
 
 export default bn;

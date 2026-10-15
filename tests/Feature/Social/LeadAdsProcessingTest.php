@@ -176,10 +176,13 @@ it('cuts off a delivery that names too many leads and answers try-again when the
 
 it('retries a transient failure with a wait, then gives up and lets a person retry', function () {
     // One fake whose answer flips: Facebook is down, then back (re-calling Http::fake only appends a stub).
+    // By reference: an arrow function would capture the value once, so the later flip would never reach the fake.
     $up = false;
-    Http::fake(fn () => $up
-        ? Http::response($this->leadNode())
-        : Http::response(['error' => ['code' => 2, 'message' => 'Service temporarily unavailable']], 500));
+    Http::fake(function () use (&$up) {
+        return $up
+            ? Http::response($this->leadNode())
+            : Http::response(['error' => ['code' => 2, 'message' => 'Service temporarily unavailable']], 500);
+    });
 
     $this->leadWebhook($this->tenant, $this->leadgenPayload())->assertOk();
 
@@ -223,10 +226,13 @@ it('waits out Facebook rate limiting without spending attempts', function () {
 
 it('moves the account to needs-reauthorization on an expired token, keeps the lead, and fetches it after reconnecting', function () {
     Event::fake([AccountNeedsReauthorization::class]);
+    // By reference, so reconnecting below changes what the fake answers.
     $reconnected = false;
-    Http::fake(fn () => $reconnected
-        ? Http::response($this->leadNode())
-        : Http::response(['error' => ['code' => 190, 'message' => 'Error validating access token: Session has expired']], 400));
+    Http::fake(function () use (&$reconnected) {
+        return $reconnected
+            ? Http::response($this->leadNode())
+            : Http::response(['error' => ['code' => 190, 'message' => 'Error validating access token: Session has expired']], 400);
+    });
 
     $this->leadWebhook($this->tenant, $this->leadgenPayload())->assertOk();
 

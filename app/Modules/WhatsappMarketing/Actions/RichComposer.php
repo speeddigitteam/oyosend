@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\WhatsappMarketing\Actions;
 
 use App\Core\Communication\Contracts\ChannelGateway;
+use App\Core\Communication\Contracts\InboxSignals;
 use App\Core\Communication\Data\DeliveryState;
 use App\Core\Communication\Data\MarketingChannel;
 use App\Core\Communication\Data\MarketingMessage;
@@ -19,6 +20,7 @@ use App\Modules\WhatsappMarketing\Enums\Direction;
 use App\Modules\WhatsappMarketing\Enums\MessageStatus;
 use App\Modules\WhatsappMarketing\Enums\MessageType;
 use App\Modules\WhatsappMarketing\Enums\SenderType;
+use App\Modules\WhatsappMarketing\Inbox\ConversationInboxSource;
 use App\Modules\WhatsappMarketing\Models\Conversation;
 use App\Modules\WhatsappMarketing\Models\Message;
 use App\Modules\WhatsappMarketing\Support\Interactive;
@@ -46,6 +48,7 @@ final class RichComposer
         private readonly VariableResolver $variables,
         private readonly SettingsManager $settings,
         private readonly TenantContext $context,
+        private readonly InboxSignals $signals,
     ) {}
 
     /**
@@ -222,6 +225,7 @@ final class RichComposer
             $locked->unread_count = 0;
             $locked->save();
             $conversation->setRawAttributes($locked->getAttributes(), true);
+            $this->signals->changed(ConversationInboxSource::KEY, $locked->id);
         });
     }
 

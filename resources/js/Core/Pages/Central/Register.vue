@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
+import { Head, useForm, usePage } from '@inertiajs/vue3';
 import { Hourglass } from 'lucide-vue-next';
 import { computed, ref, useId, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -41,10 +41,12 @@ const props = defineProps<{
     selectedPlan: string | null;
     /** A new workspace waits for the platform's operators to approve it. */
     needsApproval: boolean;
+    /** What the website's start form was given, to begin with. */
+    prefill?: { company: string; email: string };
 }>();
 
 const page = usePage();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const format = useFormat();
 
 const hasPlans = computed(() => props.plans.length > 0);
@@ -59,11 +61,11 @@ function startingInterval(): BillingInterval {
 
 const form = useForm({
     name: '',
-    email: '',
+    email: props.prefill?.email ?? '',
     password: '',
     password_confirmation: '',
-    company: '',
-    slug: '',
+    company: props.prefill?.company ?? '',
+    slug: suggestAddress(props.prefill?.company ?? ''),
     locale: page.props.app.locale as string,
     plan: props.selectedPlan ?? '',
     interval: startingInterval(),
@@ -230,7 +232,7 @@ function submit(): void {
             v-model="form.slug"
             name="slug"
             mono
-            class="text-right"
+            control-class="text-right"
             :style="{ paddingRight: suffixRoom(suffix) }"
             :label="t('register.form.address')"
             :hint="t('register.form.addressHint')"
@@ -340,6 +342,7 @@ function submit(): void {
 
     <p class="mt-6 border-t border-line pt-4 text-[0.8125rem] text-ink-muted">
         {{ t('register.form.existing') }}
-        <Link :href="route('central.home')" class="font-medium text-brand-text hover:underline">{{ t('register.form.find') }}</Link>
+        <!-- The website's sign-in page, in the language being read: a full page load, it is not part of this app. -->
+        <a :href="route(locale === 'bn' ? 'central.site.bn.signin' : 'central.site.signin')" class="font-medium text-brand-text hover:underline">{{ t('register.form.find') }}</a>
     </p>
 </template>

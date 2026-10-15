@@ -1,11 +1,11 @@
-import type { PostPreview, PostType } from './types';
+import type { PostPreview, PostType, TikTokOptions } from './types';
 
 export interface PreflightInput {
     post_type: PostType;
     body: string;
     link_url: string;
     hashtag_set_id: string;
-    targets: { account_id: string; body_override: string | null }[];
+    targets: { account_id: string; body_override: string | null; options?: TikTokOptions | null }[];
     media_ids: string[];
 }
 

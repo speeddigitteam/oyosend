@@ -31,11 +31,14 @@ use Illuminate\Validation\ValidationException;
  */
 final class PostManager
 {
-    public function __construct(private readonly AuditLogger $audit) {}
+    public function __construct(
+        private readonly AuditLogger $audit,
+        private readonly TargetOptions $options,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $attributes  title, body, link_url, campaign_id, category_id, hashtag_set_id, scheduled_for (UTC Carbon|null)
-     * @param  list<array{account_id: string, body_override?: string|null}>  $targets
+     * @param  list<array{account_id: string, body_override?: string|null, options?: array<string, mixed>|null}>  $targets  `options` absent leaves a target's options as they are
      * @param  list<string>  $mediaIds
      */
     public function create(array $attributes, array $targets, array $mediaIds, ?TenantMembership $owner = null): Post
@@ -57,7 +60,7 @@ final class PostManager
 
     /**
      * @param  array<string, mixed>  $attributes
-     * @param  list<array{account_id: string, body_override?: string|null}>|null  $targets  null leaves the accounts as they are
+     * @param  list<array{account_id: string, body_override?: string|null, options?: array<string, mixed>|null}>|null  $targets  null leaves the accounts as they are
      * @param  list<string>|null  $mediaIds  null leaves the media as it is
      */
     public function update(Post $post, array $attributes, ?array $targets, ?array $mediaIds): Post
@@ -182,13 +185,21 @@ final class PostManager
             ?? throw ValidationException::withMessages([$field => __('The selected option is not available.')]);
     }
 
-    /** @param list<array{account_id: string, body_override?: string|null}> $targets */
+    /**
+     * @param  list<array{account_id: string, body_override?: string|null, options?: array<string, mixed>|null}>  $targets
+     */
     private function syncTargets(Post $post, array $targets): void
     {
         $wanted = [];
+        /** @var array<string, array<string, mixed>|null> $chosen options sent per account; an absent key keeps the stored ones */
+        $chosen = [];
 
         foreach ($targets as $target) {
             $wanted[$target['account_id']] = $target['body_override'] ?? null;
+
+            if (array_key_exists('options', $target)) {
+                $chosen[$target['account_id']] = $target['options'];
+            }
         }
 
         $accounts = SocialAccount::query()->whereIn('id', array_keys($wanted))->get()->keyBy('id');
@@ -212,17 +223,21 @@ final class PostManager
         foreach ($wanted as $accountId => $override) {
             $override = $override === null || trim($override) === '' ? null : $override;
             $current = $existing->get($accountId);
+            $options = array_key_exists($accountId, $chosen)
+                ? ['options' => $this->options->forAccount($accounts[$accountId], $chosen[$accountId])]
+                : [];
 
             if ($current === null) {
                 PostTarget::query()->create([
                     'post_id' => $post->id,
                     'account_id' => $accountId,
                     'body_override' => $override,
+                    ...$options,
                     'status' => TargetStatus::Pending,
                     'idempotency_key' => sha1($post->id.':'.$accountId),
                 ]);
             } elseif ($current->status !== TargetStatus::Published) {
-                $current->update(['body_override' => $override]);
+                $current->update(['body_override' => $override, ...$options]);
             }
         }
     }

@@ -57,6 +57,9 @@ export default {
         name: 'Name',
         description: 'Description',
         descriptionHint: 'One line, shown with the plan where workspaces choose one.',
+        nameBn: 'Name in Bengali',
+        descriptionBn: 'Description in Bengali',
+        bengaliHint: 'Shown on the Bengali website. Left empty, the English is shown.',
         pricing: {
             title: 'Price',
             description:

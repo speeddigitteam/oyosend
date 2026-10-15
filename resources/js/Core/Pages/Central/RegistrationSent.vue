@@ -65,7 +65,7 @@ const validity = computed(() =>
 
         <div class="mt-4 flex flex-wrap gap-2">
             <Button :href="route('central.register')">{{ t('register.sent.again') }}</Button>
-            <Button variant="ghost" :href="route('central.home')">{{ t('register.sent.home') }}</Button>
+            <Button variant="ghost" :href="route('central.home')" native>{{ t('register.sent.home') }}</Button>
         </div>
     </section>
 </template>

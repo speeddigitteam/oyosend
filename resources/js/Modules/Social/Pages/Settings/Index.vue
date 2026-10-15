@@ -32,7 +32,8 @@ const form = useForm({
 const limit = computed(() => (/^\d{1,3}$/.test(form.account_hourly_limit.trim()) ? Number(form.account_hourly_limit.trim()) : null));
 const cap = computed(() => (/^\d{1,4}$/.test(form.ai_daily_cap.trim()) ? Number(form.ai_daily_cap.trim()) : null));
 const capInvalid = computed(() => cap.value === null || cap.value > 5000);
-const invalid = computed(() => limit.value === null || limit.value < 1 || limit.value > 100 || capInvalid.value);
+const limitInvalid = computed(() => limit.value === null || limit.value < 1 || limit.value > 100);
+const invalid = computed(() => limitInvalid.value || capInvalid.value);
 
 function save(): void {
     form.transform((data) => ({
@@ -46,23 +47,30 @@ function save(): void {
 <template>
     <PageHeader :eyebrow="t('social.eyebrow')" :title="t('social.settings.title')" :description="t('social.settings.description')" />
 
-    <Card :title="t('social.settings.publishing')" :description="t('social.settings.timezoneNote', { timezone })">
-        <form class="grid max-w-xl gap-5" novalidate @submit.prevent="save">
-            <Checkbox
-                v-model="form.require_approval"
-                :label="t('social.settings.requireApproval')"
-                :description="t('social.settings.requireApprovalHint')"
-            />
-            <Input
-                v-model="form.account_hourly_limit"
-                inputmode="numeric"
-                :label="t('social.settings.hourlyLimit')"
-                :hint="t('social.settings.hourlyLimitHint')"
-                :error="form.errors.account_hourly_limit ?? (invalid ? t('social.settings.hourlyLimitInvalid') : undefined)"
-            />
-            <div class="grid gap-2 border-t border-line pt-4">
-                <h3 class="text-sm font-semibold text-ink">{{ t('socialAi.settings.title') }}</h3>
-                <p class="text-[0.8125rem] text-ink-muted">{{ t('socialAi.settings.description') }}</p>
+    <!-- Full width like the platform Settings page: publishing and AI each in a box of their own, side by side on wide
+         screens, one save below them. Each box lays out its own fields by its own width (container queries). -->
+    <form class="grid gap-3 lg:grid-cols-2" novalidate @submit.prevent="save">
+        <Card :title="t('social.settings.publishing')" :description="t('social.settings.timezoneNote', { timezone })">
+            <div class="@container">
+                <div class="grid content-start gap-4 @lg:grid-cols-2">
+                    <Checkbox
+                        v-model="form.require_approval"
+                        :label="t('social.settings.requireApproval')"
+                        :description="t('social.settings.requireApprovalHint')"
+                    />
+                    <Input
+                        v-model="form.account_hourly_limit"
+                        inputmode="numeric"
+                        :label="t('social.settings.hourlyLimit')"
+                        :hint="t('social.settings.hourlyLimitHint')"
+                        :error="form.errors.account_hourly_limit ?? (limitInvalid ? t('social.settings.hourlyLimitInvalid') : undefined)"
+                    />
+                </div>
+            </div>
+        </Card>
+
+        <Card :title="t('socialAi.settings.title')" :description="t('socialAi.settings.description')">
+            <div class="grid content-start gap-2">
                 <Input
                     v-model="form.ai_daily_cap"
                     inputmode="numeric"
@@ -74,9 +82,11 @@ function save(): void {
                     {{ t('socialAi.settings.usedToday', { count: format.number(aiUsedToday) }) }}
                 </p>
             </div>
-            <div>
-                <Button type="submit" variant="primary" :loading="form.processing" :disabled="invalid">{{ t('social.common.save') }}</Button>
-            </div>
-        </form>
-    </Card>
+        </Card>
+
+        <!-- One save for the two boxes above. -->
+        <div class="flex justify-end lg:col-span-2">
+            <Button type="submit" variant="primary" :loading="form.processing" :disabled="invalid">{{ t('social.common.save') }}</Button>
+        </div>
+    </form>
 </template>

@@ -268,7 +268,7 @@ onBeforeUnmount(() => window.clearTimeout(copiedTimer));
                     name="workspace_address"
                     :aria-label="t('workspace.settings.url.title')"
                     :hint="t('workspace.settings.url.hint')"
-                    class="text-ink-muted"
+                    control-class="text-ink-muted"
                     mono
                     readonly
                 >

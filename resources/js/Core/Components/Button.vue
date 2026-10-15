@@ -13,6 +13,8 @@ const props = withDefaults(
         type?: 'button' | 'submit' | 'reset';
         /** Renders an Inertia link instead of a button. */
         href?: string;
+        /** With `href`: a plain link that loads the page in full, for anything outside this app (the website, a file). */
+        native?: boolean;
         loading?: boolean;
         disabled?: boolean;
         /** Full width. */
@@ -56,7 +58,11 @@ const inactive = computed(() => props.disabled || props.loading);
 </script>
 
 <template>
-    <Link v-if="href" :href="href" :class="classes" :aria-disabled="inactive || undefined">
+    <a v-if="href && native" :href="href" :class="classes" :aria-disabled="inactive || undefined">
+        <slot name="icon" />
+        <slot />
+    </a>
+    <Link v-else-if="href" :href="href" :class="classes" :aria-disabled="inactive || undefined">
         <slot name="icon" />
         <slot />
     </Link>

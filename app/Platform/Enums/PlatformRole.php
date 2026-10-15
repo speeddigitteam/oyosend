@@ -31,6 +31,8 @@ enum PlatformRole: string
         'platform.billing.manage',
         'platform.audit.view',
         'platform.settings.manage',
+        'platform.website.view',
+        'platform.website.manage',
     ];
 
     /**
@@ -46,6 +48,8 @@ enum PlatformRole: string
                 'platform.plans.view',
                 'platform.billing.view',
                 'platform.audit.view',
+                // Reading the website's messages is support work; answering them happens by email.
+                'platform.website.view',
             ], true),
         };
     }

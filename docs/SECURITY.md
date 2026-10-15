@@ -24,7 +24,7 @@ not an empty result; what the browser receives (`permissions`, `navigation`) is 
 | Records inside a tenant | Enforced | A scopable permission reaches a person's own, their department's, their branch's or all records. The controller narrows lists and single records through `RecordAccess`; a record outside the scope is a 404 | `Core/Access/RecordAccess.php`, `Concerns/HasRecordOwner.php`, ADR 0007 |
 | Search results | **Not applicable yet** | Scout is installed (`database` driver) but no model is searchable. The first searchable model needs a cross-tenant search test before it ships | — |
 | Exports | Enforced | CSV exports (reports, email and SMS campaign recipients, subscriber lists and groups, payroll reports, social posts) are built by the same code and for the same member as the screen, are formula-safe (`=`, `+`, `-`, `@`, tab, CR get an apostrophe), narrowed to the viewer's `core.contacts.view` scope where they list people, throttled where they are on-demand and audited for reports (`reports.report.exported`). There is no whole-workspace data export (section 9) | `Core/Reporting/Support/CsvWriter.php`, module `*Exporter` / `CsvSafe` classes, `docs/REPORTS.md` |
-| WebSocket channels | **Not applicable yet** | Reverb is not installed; `BROADCAST_CONNECTION=log`; there is no `routes/channels.php` | — |
+| WebSocket channels | Enforced (off by default) | One private channel per workspace (`private-tenant.{id}.inbox`). A subscription is signed only on the workspace host, for a member of the hostname's tenant who holds `communication.inbox.view`; the channel's tenant id must equal the hostname's. The payload is `{source, id}`, never content. With realtime off the route answers 404. No `routes/channels.php`: channels are registered by modules through `RealtimeChannel` (section 5d.4a, ADR 0035) | `Core/Realtime/Http/Controllers/ChannelAuthorizationController.php`, `Modules/Communication/Realtime/InboxChannel.php` |
 | Notifications | Partly | Workspace mail is queued with `RequiresTenantContext` and built inside the tenant context (invitation, invoice, receipt, workspace ready); password-reset links are generated with the active tenant's host. The sign-up confirmation is platform mail: no tenant exists yet. The optional Communication app adds a per-member notification centre and the outbox; every notification query is narrowed to the signed-in membership (section 5d.4) | `Core/Identity/Mail`, `Core/Billing/Mail`, `Platform/Mail`, `Core/Registration/Mail` |
 | Automation executions | Enforced | A run executes inside its workflow's tenant context; each step re-checks the workspace's entitlement to `automation` and to the step's module and the permission of the member the workflow runs as; triggers match only workflows of the event's tenant; inbound webhook tokens are looked up inside the hostname's tenant; run idempotency keys are tenant-first (section 5d.7) | `Modules/Automation`, `docs/WORKFLOWS.md` |
 | Unique constraints | Enforced | Tenant-first on tenant-owned identities/names, with validation scoped the same way. Deliberate global exceptions are listed in `docs/DATABASE.md`: identity email, token hashes, app licence id and platform-wide billing identifiers | `database/migrations`, `docs/DATABASE.md` |
@@ -56,7 +56,12 @@ for as typed (member search, audit search, the Super Admin tenant list).
   message and take the same minimum time (`CredentialVerifier`, a 250 ms `Timebox`). The forgot-password form
   always answers the same way; for a member the link is created and sent after the response has gone out
   (`defer()`), so neither the answer nor its timing reveals membership (`PasswordResetLinkController`).
-- **Throttling.** `LoginThrottle`: 5 failures per minute per (area or tenant, email, IP). Route throttles: forgot
+- **Throttling.** Every `throttle:N,M` keeps its own counter per route and limit (`ThrottleRequestsPerRoute`, the
+  `throttle` alias, 2026-10-14): the framework's default keys a plain throttle by user or host and IP alone, so all
+  routes shared one budget and a route limit inside a throttled group (the stateless callbacks) counted each request
+  twice. An explicit third argument still shares a counter on purpose; named limiters are unchanged. Each limit below
+  is therefore per route (a group limit such as the two-factor settings applies to each route in it).
+  `LoginThrottle`: 5 failures per minute per (area or tenant, email, IP). Route throttles: forgot
   and reset password 6/min, sign-in and second-factor challenge 30/min per IP, invitation acceptance 10/min (an
   existing account's password there goes through the same `LoginThrottle` lockout as the sign-in form), handoff 20/min, password change 6/min, two-factor
   settings 10/min, platform enrolment 10/min, workspace finder 20/min, sign-up 6/min, sign-up confirmation
@@ -313,6 +318,19 @@ for as typed (member search, audit search, the Super Admin tenant list).
   existing ticket only when the sender is that ticket's requester: sequential ticket numbers are not a credential.
 - Events carry ids and scalars, never message text, requester names or email addresses. Automation can create
   tickets, assign them and add internal notes; no action replies to a customer, resolves, merges or closes.
+- **Website live chat** (ADR 0032, `docs/SUPPORT.md` section 15). The loader, the frame and the JSON API are stateless
+  `tenant.callback` routes plus `entitled:support` (no session, cookie, CSRF token or Inertia) and answer 404 while the
+  chat is off, the workspace suspended or locked, or not entitled. The frame may be framed only by the workspace's
+  listed origins (CSP `frame-ancestors`, canonical `https` origins, `'none'` plus `X-Frame-Options: DENY` without any)
+  and runs its inline script and style under a per-response nonce with `default-src 'self'`, `connect-src 'self'` and
+  `form-action 'none'`; messages are rendered with `textContent`, never `innerHTML`. The API accepts only same-origin
+  requests (`Origin` equal to the workspace origin, or `Sec-Fetch-Site: same-origin`; 403 otherwise) and sends no CORS
+  headers. The visitor token is 256 random bits, returned once, stored only as SHA-256 and reaches one conversation of
+  one workspace; any other token is a 404. Limits per address (HMAC-keyed) and per token, a per-workspace hourly cap,
+  a honeypot, length and character rules are listed in `docs/SUPPORT.md` 15.4. No IP address is stored and visitor
+  actions are not audited (an audit entry records the address); no shared contact is created from anonymous input.
+  The loader and the frame accept `postMessage` only from the expected origin and window. Not yet embedded on a real
+  second origin in a browser.
 
 ## 5d.3. Payroll
 
@@ -373,6 +391,27 @@ Details: `docs/COMMUNICATION.md`.
 - **Scope.** A timeline is visible only for contacts the viewer may see (`core.contacts.view` scope); a
   notification is visible only to its member; messages follow `communication.messages.view` scope.
 
+## 5d.4a. Realtime inbox channel (ADR 0035)
+
+- **A signal, never content.** `inbox.changed` carries `{source, id}`: no text, name, number or count. The page asks
+  the inbox's own endpoints again, which apply every source permission and record scope. A member with
+  `communication.inbox.view` but not a source's permission learns only that a conversation id of that source changed.
+- **One private channel per workspace**, `private-tenant.{tenantId}.inbox`. A subscription is signed (HMAC with the
+  Reverb app secret) by `POST /broadcasting/auth` (`core.realtime.auth`), registered **only** in the workspace route
+  stack: `web` + `tenant`, `auth:web`, `auth.session`, `member`, `subscribed`, `throttle:120,1,realtime-auth`. The
+  central and admin hosts have no such route (404); with realtime off it answers 404 too. The channel's tenant id
+  must equal the tenant of the hostname (`hash_equals`; never trusted from the name alone) and `AccessChecker` must
+  allow `communication.inbox.view` (entitlement, active membership, grant). Only `private-tenant.{id}.{name}` names
+  are considered (no presence, no encrypted channels), `socket_id` must be `digits.digits`, and a `callback`
+  parameter is refused (no JSONP). Every refusal is the same 403.
+- **The secret stays on the server.** The page gets the public key, the websocket host, port, scheme, its channel name
+  and the auth path in a page prop; no `VITE_REVERB_*` value and no secret is built into the bundle. The settings
+  are environment-only (infrastructure, like the queue connection), validated before use (host name pattern, port
+  range, http/https), so nothing from them can widen the CSP.
+- **Writes never depend on it.** Signals leave after the outermost transaction commits (nothing for a rollback), as
+  a tenant-bound queued job; a failure is logged by exception class only (a message could carry the server address
+  or a signed query) and never reaches the write.
+
 ## 5d.5. Social: tokens, publishing and media
 
 - The `social` route group requires tenant resolution, `entitled:social`, authentication, the membership check and the
@@ -380,8 +419,9 @@ Details: `docs/COMMUNICATION.md`.
   viewer's scope is a 404.
 - Platform tokens are stored only through the `encrypted` cast on `social_accounts`, are `$hidden`, never in
   props, JSON, audit entries, events, logs or exception messages (`TokenSet` / `AccountCredentials` redact
-  themselves; platform error text has the live token stripped). Platform app credentials are operator environment
-  variables read in `config/social.php`, never database rows or settings.
+  themselves; platform error text has the live token stripped). Platform app credentials are set by the operator in
+  the Super Admin panel (`integration_credentials`, encrypted and write-only, ADR 0029) with the environment read in
+  `config/social.php` as the fallback; a workspace never sees or sets them.
 - The OAuth `state` is random, bound to the session, the signed-in member and a 10-minute expiry, checked with
   `hash_equals` and consumed on first use; PKCE verifiers live in the session. A granted-pages selection is kept
   encrypted in the workspace cache for 10 minutes, bound to the member, and deleted when used.
@@ -397,8 +437,20 @@ Details: `docs/COMMUNICATION.md`.
 - Media is verified by content and allow-listed (no SVG), stored through `TenantStorage` under a generated name and
   served only by an authorised route with `nosniff` and a sandboxing CSP. CSV imports are size/row capped, UTF-8
   only, column-whitelisted and never evaluated; CSV output is neutralised against spreadsheet formulas.
+- **Public, expiring media URLs** (ADR 0033; `GET social/public-media/{media}` on the workspace host,
+  `tenant.callback` + `entitled:social`: no session, no cookies, throttled 60/min per IP). The only way a library file
+  leaves the workspace without a signed-in member. A URL is made only by the publisher, only when an adapter asks for
+  it (`MediaFile::publicUrl()`, for a platform whose API fetches the media itself: Instagram), for one file of a post
+  being published. It is a Laravel temporary signed route, valid for `social.media.public_url_minutes` (default 120,
+  clamped to 5..1440); the signature covers path and query (the media id, the issuing workspace and the expiry), and
+  the controller also requires the named workspace to be the host's workspace and finds the file through the
+  tenant-scoped model and `TenantStorage`. A missing, tampered or expired signature, another workspace's host or id,
+  or a missing file is the same bare 404. **Exposure:** anyone holding the URL (the platform's fetcher, or anyone it
+  leaks to) can download that one file until it expires; nothing else is reachable through it, and it is never logged,
+  stored or shown in a page. The response is `nosniff`, sandboxed CSP, `no-store`, `noindex`, `no-referrer`.
 - No platform adapter has been run against its live API here; each needs the platform's app review. Instagram,
-  YouTube, TikTok and Pinterest are refused with a reason, not simulated.
+  YouTube, TikTok and Pinterest are refused with a reason until their adapters are installed and configured, not
+  simulated.
 
 ## 5d.5b. SMS Marketing: consent, opt-out and numbers
 
@@ -546,25 +598,6 @@ Full design in `docs/WORKFLOWS.md`; the security rules:
   opens it runs it with their own permission and scope. Only the owner, or a holder of `reports.saved.manage_all`,
   may change or delete one; anyone else gets a `404`.
 
-## 5d.11. Operator tooling: health probes, backup verification, benchmark
-
-Decision record: ADR 0019. Procedures: `docs/DEPLOYMENT.md` section 8, `docs/BACKUP_RESTORE.md`,
-`docs/PERFORMANCE.md`.
-
-- `GET /health` answers `{"status":"ok"}` to anyone and nothing else. `GET /health/ready` is readable only from an
-  address in `HEALTH_ALLOWED_IPS` or with the `HEALTH_TOKEN` bearer (constant-time compare); everyone else gets a
-  **404**, so the endpoint's existence is not disclosed. It carries platform-wide counts and service names only: no
-  tenant names or ids, no credentials, no exception text. Both are outside the `web` group (no session, no
-  cookies). Behind a proxy `TRUSTED_PROXIES` must be set first or the IP gate sees the proxy.
-- `ops:verify-backup` never touches the application's database: it creates a scratch database whose name must end in
-  `_restore_check`, refuses an existing one, refuses a dump that contains `USE`, `CREATE|DROP DATABASE|SCHEMA`,
-  `SOURCE`, `SYSTEM` or a `\!` client command (also inside version comments), passes the database password in
-  `MYSQL_PWD` not on the command line, strips credentials from error text and drops only a database it created.
-  A dump is secret-bearing (every tenant, encrypted columns): store and transfer it accordingly.
-- `ops:benchmark` seeds a workspace into a database and so refuses production and any database not named
-  `*testing`. It writes synthetic data only.
-- None of these commands is reachable from the web.
-
 ## 5d.12. Telephony: PBX credentials, softphone password, events (ADR 0036)
 
 - Each workspace enters its own PBX. The ARI password, the TURN credential, the webhook secret and every member's SIP
@@ -584,6 +617,25 @@ Decision record: ADR 0019. Procedures: `docs/DEPLOYMENT.md` section 8, `docs/BAC
 - Browser reports about a call are accepted only from the call's owner and are ignored once the PBX confirmed the
   call, so the log of consequence is the PBX's. No call is recorded.
 
+## 5d.11. Operator tooling: health probes, backup verification, benchmark
+
+Decision record: ADR 0019. Procedures: `docs/DEPLOYMENT.md` section 8, `docs/BACKUP_RESTORE.md`,
+`docs/PERFORMANCE.md`.
+
+- `GET /health` answers `{"status":"ok"}` to anyone and nothing else. `GET /health/ready` is readable only from an
+  address in `HEALTH_ALLOWED_IPS` or with the `HEALTH_TOKEN` bearer (constant-time compare); everyone else gets a
+  **404**, so the endpoint's existence is not disclosed. It carries platform-wide counts and service names only: no
+  tenant names or ids, no credentials, no exception text. Both are outside the `web` group (no session, no
+  cookies). Behind a proxy `TRUSTED_PROXIES` must be set first or the IP gate sees the proxy.
+- `ops:verify-backup` never touches the application's database: it creates a scratch database whose name must end in
+  `_restore_check`, refuses an existing one, refuses a dump that contains `USE`, `CREATE|DROP DATABASE|SCHEMA`,
+  `SOURCE`, `SYSTEM` or a `\!` client command (also inside version comments), passes the database password in
+  `MYSQL_PWD` not on the command line, strips credentials from error text and drops only a database it created.
+  A dump is secret-bearing (every tenant, encrypted columns): store and transfer it accordingly.
+- `ops:benchmark` seeds a workspace into a database and so refuses production and any database not named
+  `*testing`. It writes synthetic data only.
+- None of these commands is reachable from the web.
+
 ## 5e. Browser security headers
 
 `App\Core\Http\Middleware\SecurityHeaders`, appended to the `web` group:
@@ -595,11 +647,28 @@ Decision record: ADR 0019. Procedures: `docs/DEPLOYMENT.md` section 8, `docs/BAC
 | `Referrer-Policy` | `strict-origin-when-cross-origin` - a referrer never carries the path, where invitation and confirmation tokens are |
 | `Permissions-Policy` | camera, microphone, geolocation and payment off |
 | `Strict-Transport-Security` | `max-age=31536000; includeSubDomains`, when the request arrived over HTTPS |
-| `Content-Security-Policy` | Scripts from this origin or carrying this response's nonce only; no objects; forms post to this origin only |
+| `Content-Security-Policy` | Scripts from this origin or carrying this response's nonce only; no objects; forms post to this origin, which may redirect to a workspace host (`form-action 'self' {scheme}://*.APP_DOMAIN`: the website's "find my workspace" form, ADR 0034) |
+| `X-Robots-Tag` | `noindex, nofollow` on every workspace and Super Admin response (`NoIndex`): only the website on the root domain is meant for search results |
+
+Uploaded brand images (Super Admin > Website) are raster files only (PNG, JPG, WebP; the favicon PNG or ICO), size-
+and dimension-checked on the server, stored under a content-hash name the server chose and served from `/brand/{file}`
+with `nosniff`, `Content-Security-Policy: default-src 'none'; sandbox` and only names matching the pattern it writes.
+
+Website words changed in the panel (`website_texts`) are printed escaped like every other word; a change cannot add
+markup, remove a placeholder or reach a key that is not already a word of the website.
 
 **The Content-Security-Policy is sent report-only by default** (`SECURITY_CSP=report-only`): the browser lists
 violations in its console and blocks nothing. It has not been watched in a browser yet. Set `SECURITY_CSP=enforce`
 after doing that; `off` removes the header. Horizon's dashboard is excluded from the policy.
+
+Images: `img-src` is this origin, `data:`, `blob:` and the hosts modules add to `platform.security.img_hosts` (only
+`https://host` or `https://*.host` entries pass; anything else is dropped). Social adds the platforms' profile-picture
+hosts (`social.avatar_hosts`: Facebook/Instagram CDNs, LinkedIn, X, TikTok, YouTube, Pinterest), so the composer can
+show connected accounts' pictures loaded directly by the browser with `referrerpolicy="no-referrer"`; nothing is
+proxied, and a picture on any other host falls back to initials.
+
+Websockets: while realtime is on (ADR 0035), `connect-src` also lists the Reverb origin browsers use (`ws://host:port`
+or `wss://host:port`, built from the validated `REVERB_CLIENT_*` settings); nothing is added while it is off.
 
 **Deploy checklist (browser hardening):** set `SECURITY_CSP=enforce` once the console has been watched clean
 (`style-src` still allows `'unsafe-inline'`, limitation 4); serve over HTTPS so HSTS is sent; leave
@@ -666,7 +735,7 @@ Open after Phase 5 implementation. Decide and fix, or accept and record.
 ## 9. Deferred
 
 Changing an email address, and verifying one outside sign-up and invitation; API tokens with scoped abilities
-(Sanctum, when first needed); login session management screen; channel authorization (Reverb, Phase 8); webhook
+(Sanctum, when first needed); login session management screen; webhook
 signature verification and encrypted integration credentials; a general file manager on top of `TenantStorage`;
 per-tenant queue quotas; audit retention; custom domains; a gateway with a global webhook (it needs a central
 endpoint that resolves the tenant from its own record of the payment).

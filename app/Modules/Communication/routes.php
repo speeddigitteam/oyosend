@@ -29,6 +29,29 @@ Route::middleware(['auth:web', 'auth.session', 'member', 'subscribed'])->prefix(
     Route::get('inbox', [InboxController::class, 'index'])
         ->middleware('can:communication.inbox.view')
         ->name('communication.inbox.index');
+    // The list's own refresh: the newest page for the same filters, as JSON, read-only. Its throttle has its own key
+    // (the third argument), so a tab left open never uses up the budget of replies and reads.
+    Route::get('inbox/poll', [InboxController::class, 'poll'])
+        ->middleware(['can:communication.inbox.view', 'throttle:60,1,inbox-poll'])
+        ->name('communication.inbox.poll');
+    // A reply written in the inbox (ADR 0030). The inbox also checks the source's own view and reply permissions and
+    // hands the text to the owning app's action; it never sends anything itself.
+    Route::post('inbox/{source}/{id}/reply', [InboxController::class, 'reply'])
+        ->middleware(['can:communication.inbox.view', 'throttle:30,1,inbox-reply'])
+        ->where(['source' => '[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*', 'id' => '[0-9A-Za-z]{26}'])
+        ->name('communication.inbox.reply');
+    // The member read the open conversation (ADR 0030): a POST, never a side effect of loading the page. Reply and read
+    // each count on their own key, so opening conversations never spends the reply budget.
+    Route::post('inbox/{source}/{id}/read', [InboxController::class, 'read'])
+        ->middleware(['can:communication.inbox.view', 'throttle:120,1,inbox-read'])
+        ->where(['source' => '[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*', 'id' => '[0-9A-Za-z]{26}'])
+        ->name('communication.inbox.read');
+    // A reply suggestion from the AI text assistant for the composer (ADR 0030, ADR 0024): the same gates as a reply,
+    // and it sends, saves and marks nothing. Its own throttle key, so drafting never spends the reply budget.
+    Route::post('inbox/{source}/{id}/suggest', [InboxController::class, 'suggest'])
+        ->middleware(['can:communication.inbox.view', 'throttle:20,1,inbox-suggest'])
+        ->where(['source' => '[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*', 'id' => '[0-9A-Za-z]{26}'])
+        ->name('communication.inbox.suggest');
 
     // Message log and composer. `create` is declared before the `{message}` routes.
     Route::get('messages', [MessageController::class, 'index'])

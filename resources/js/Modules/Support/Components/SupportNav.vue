@@ -5,7 +5,7 @@ import Button from '@/Core/Components/Button.vue';
 import { useAccess } from '@/Core/composables/useAccess';
 import { route } from '@/Core/lib/route';
 
-defineProps<{ current: 'tickets' | 'kb' | 'canned' | 'reports' | 'queues' | 'sla' | 'settings' }>();
+defineProps<{ current: 'tickets' | 'liveChat' | 'kb' | 'canned' | 'reports' | 'queues' | 'sla' | 'settings' }>();
 
 const { t } = useI18n();
 const { can } = useAccess();
@@ -13,6 +13,7 @@ const { can } = useAccess();
 const items = computed(() =>
     [
         { value: 'tickets', name: 'support.tickets.index', permission: 'support.tickets.view' },
+        { value: 'liveChat', name: 'support.live_chat.index', permission: 'support.tickets.view' },
         { value: 'kb', name: 'support.kb.index', permission: 'support.kb.view' },
         { value: 'canned', name: 'support.canned.index', permission: 'support.canned.view' },
         { value: 'reports', name: 'support.reports.index', permission: 'support.reports.view' },

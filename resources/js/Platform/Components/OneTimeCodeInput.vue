@@ -69,7 +69,7 @@ defineExpose({ focus: () => input.value?.focus() });
         autocomplete="one-time-code"
         autocapitalize="off"
         spellcheck="false"
-        class="tabular h-12 font-mono text-lg tracking-[0.3em]"
+        control-class="tabular h-12 font-mono text-lg tracking-[0.3em]"
         v-bind="$attrs"
         @update:model-value="model = toCode(String($event ?? ''))"
         @input="clean"

@@ -20,6 +20,7 @@ use App\Modules\Social\Models\PostMedia;
 use App\Modules\Social\Models\PostTarget;
 use App\Modules\Social\Models\SocialAccount;
 use App\Modules\Social\Platforms\PostTypeAware;
+use App\Modules\Social\Platforms\ProvidesPostOptions;
 use App\Modules\Social\Platforms\SocialPlatforms;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -94,11 +95,23 @@ final class SocialPresenter
             'platformLabel' => $full['platformLabel'],
             'name' => $full['name'],
             'handle' => $full['handle'],
+            // The profile picture the platform gave at connect time, http(s) only; the browser loads it directly.
+            'avatarUrl' => self::webUrl($account->avatar_url),
             'status' => $full['status'],
             'usable' => $account->isUsable() && $full['platformAvailable'] && ($full['capabilities']['publish'] ?? false),
             'capabilities' => $full['capabilities'],
             'postTypes' => $this->postTypes($account->platform),
         ];
+    }
+
+    /** An absolute http(s) address, or null for anything else (a `javascript:` or `data:` URL is never passed on). */
+    private static function webUrl(?string $url): ?string
+    {
+        if ($url === null || preg_match('~^https?://[^\s/?#]+[^\s]*$~i', $url) !== 1) {
+            return null;
+        }
+
+        return $url;
     }
 
     /**
@@ -254,6 +267,10 @@ final class SocialPresenter
                 'accountName' => $target->account->name,
                 'accountStatus' => $target->account->status->value,
                 'bodyOverride' => $target->body_override,
+                // Settings chosen per account (TikTok); `hasPublishOptions` with null options marks a target saved
+                // before they existed, which publishes with the earlier automatic settings.
+                'hasPublishOptions' => $this->platforms->find($target->account->platform) instanceof ProvidesPostOptions,
+                'publishOptions' => $target->options,
                 'status' => $target->status->value,
                 'attempts' => $target->attempts,
                 'remoteState' => $target->remote_state,

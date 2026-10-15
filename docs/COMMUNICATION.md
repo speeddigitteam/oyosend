@@ -1,6 +1,6 @@
 # Communication platform
 
-State: Phase 8 complete (backend and bilingual UI; no header notification bell yet). Module key `communication`, optional app, free offer ("Included"), depends on `core`.
+State: Phase 8 complete (backend and bilingual UI; a notification bell in the workspace top bar). Module key `communication`, optional app, free offer ("Included"), depends on `core`.
 Spec: `MASTER_PROMPT.md` sections 12 (provider and consent rules), 19 (notification and communication centre)
 and 21 (integration centre, where relevant). Code: `app/Modules/Communication`, contracts in
 `app/Core/Communication`, config in `config/communication.php`.
@@ -60,6 +60,7 @@ Phase 8; doing so is a follow-up per module.
 | Preferences | `communication_notification_preferences`: per member, channel (`in_app`, `email`) and category. No row = `config('communication.category_defaults')` (in-app on, email off) |
 | Unread count | Dedicated JSON endpoint `GET /communication/notifications/summary` (count plus latest 8 unread). It is **not** a shared Inertia prop: that would add a query to every page of every workspace |
 | Dashboard | Widget `communication.notifications` (component `NotificationsWidget`): `{unread, items[5]}` |
+| Top bar | `NotificationBell` (in `TenantLayout`, for members with `communication.notifications.view`, never in a support session): the unread count ("9+" above nine) and the latest unread from the summary endpoint, asked on load, on every page visit, when opened and every 60 seconds while the tab is visible; choosing one marks it read and follows its link; "Mark all as read" and "See all notifications" |
 | Access | `communication.notifications.view`, not scopable. Every query is narrowed to the signed-in membership; another member's notification is a 404 |
 
 ## 3. Channels, providers and credentials
@@ -274,16 +275,22 @@ a fixed Blade view that escapes the text. A subject is collapsed to one line (he
 - Messages sent through the outbox add their own entry (linked by `message_id`, status read live).
 - Contact merges move timeline entries, messages and suppressions; consent keeps the stricter answer.
 
-## 8a. Unified inbox (ADR 0020)
+## 8a. Unified inbox (ADR 0020, ADR 0030)
 
 `GET /communication/inbox` (`communication.inbox.index`, `can:communication.inbox.view`) shows the conversations of
 every inbox source the member may use, newest first.
 
 **Sources.** A source implements the core contract `App\Core\Communication\Contracts\InboxSource` and is tagged
-`InboxSource::TAG` in its own app. Two exist today:
+`InboxSource::TAG` in its own app. Six exist today:
 
-- `whatsapp_marketing.conversations` (WhatsApp, narrowed by `ConversationAccess`);
-- `support.tickets` (Support, narrowed by `TicketAccess`; resolved, closed and merged count as closed).
+- `whatsapp_marketing.conversations` (WhatsApp, narrowed by `ConversationAccess`; chat);
+- `social.comments` (Facebook comment threads of the Social app, narrowed by the `social.comments.view` scope; chat);
+- `social.messenger` and `social.instagram` (Facebook Page and Instagram direct messages of the Social app, narrowed by the
+  `social.messages.view` scope and the Page allow-list; chat, marks read; replies only inside the 24-hour window, ADR 0031);
+- `support.live_chat` (Support website chat, narrowed by `ChatAccess`; chat, marks read, ADR 0032);
+- `support.tickets` (Support, narrowed by `TicketAccess`; resolved, closed and merged count as closed; chat: the
+  requester's messages and the public replies, never internal notes; a reply is a public reply, refused on a closed or
+  merged ticket).
 
 A source is listed only when the workspace is entitled to its module and the member holds its permission. Holding
 `communication.inbox.view` alone shows nothing but a "no inbox available" message.
@@ -296,7 +303,14 @@ A source is listed only when the workspace is entitled to its module and the mem
 - state: `open`, `unassigned`, `active`, `closed` or `all`;
 - source;
 - owner: `me` or `unassigned`;
-- search, which each source applies to its own fields.
+- search, which each source applies to its own fields;
+- `unread=1` (`InboxQuery::$unread`, Communication 1.4.0): only conversations whose item would show an unread count,
+  by each source's own notion: WhatsApp, Messenger/Instagram and website chat `unread_count > 0`; support tickets
+  awaiting a reply (`last_customer_message_at` set and later than `last_agent_message_at`, or no agent message);
+  Facebook comment threads with a comment still awaiting an answer (`awaiting > 0`, so never a `closed` thread). A
+  source without an unread notion returns nothing. It narrows the board's columns and totals, paging and the list's
+  refresh as well. Each filter is one more condition on the source's existing tenant-leading index walk (no new index:
+  unread rows are a minority read in the same order, and the ticket rule compares two columns of the row).
 
 **Board.** `?view=board` shows three columns, each with up to 25 items and the column's total.
 
@@ -304,14 +318,125 @@ A source is listed only when the workspace is entitled to its module and the mem
 that does not decode, or names a source the member does not have, is a validation error. The page drops `after`
 from the address after loading more, so a reload starts at the newest.
 
-**Replies and actions.** These stay in the owning app: every item links to that app's own conversation or ticket
-page. The inbox imports no WhatsApp or Support class.
+**Chat (ADR 0030).** A source that also implements the optional core contract
+`App\Core\Communication\Contracts\InboxReplies` can be read and answered from the inbox. Every list item carries
+`chat` (true for such a source); the others still link to their own app.
+
+- **Opening.** `?open={source}:{id}` opens the conversation beside the list (the lazy `thread` prop: title, channel,
+  the owning app's URL, the newest 50 messages oldest first, `hasOlder`). `messages` (up to 200) loads older ones;
+  older still stay in the owning app. It is resolved only in the list view. Loading the page, opening and polling are
+  read-only.
+- **Not available.** For a conversation the member may not open (missing, another workspace's, out of scope), a source
+  without chat or one the workspace is not entitled to, `thread` is null, on the first open and on a poll alike. The
+  pane then says "This conversation is no longer available", polling stops and a button returns to the list. No error
+  page, and the same answer for every reason.
+- **Read state: an explicit POST, never on a GET.** A source with an unread state also implements the optional core
+  contract `App\Core\Communication\Contracts\MarksInboxRead` (the thread then carries `marksRead`).
+  `POST /communication/inbox/{source}/{id}/read` (`communication.inbox.read`, `can:communication.inbox.view`, 120 per
+  minute on its own counter, session and CSRF of the workspace `web` group) calls `UnifiedInbox::markRead()`: the same entitlement,
+  view-permission and chat checks as a thread, the source's own thread as the visibility guard (404 otherwise), then
+  the source clears the state exactly as its own page does (WhatsApp: `ConversationManager::markRead()`). A chat source
+  without an unread state (Facebook comments) is a silent no-op. It answers 204 to the page's background call and
+  redirects back for a plain form. The page posts it when a conversation opens with an unread badge (or outside the
+  loaded list) and when a poll brings new inbound messages, never while the tab is hidden, and clears the badge at
+  once without reloading the list. A link with `?open=` therefore marks nothing read.
+- **Replying.** `POST /communication/inbox/{source}/{id}/reply` (`communication.inbox.reply`,
+  `can:communication.inbox.view`, 30 per minute on its own counter, `text` required, at most 4096 characters). `UnifiedInbox` checks the
+  source's view permission and entitlement (404), the source's reply permission (403:
+  `whatsapp_marketing.conversations.reply`, `social.comments.reply`, `social.messages.reply`, `support.tickets.reply` for
+  tickets and website chat) and that the member may open the conversation (404), then hands the text to the source. The source calls
+  the owning app's own action (`Messenger::reply()`, `CommentActions::reply()`, `DirectMessages`, `LiveChatManager`,
+  `TicketManager::addMessage()` as a public reply),
+  which applies the channel's rules. A refusal (the WhatsApp 24-hour window closed, a
+  deleted comment, a channel that is not connected) comes back as a validation error on `text`. The inbox never sends
+  anything itself.
+- **The composer.** It is hidden from a member without the source's reply permission. When a reply cannot be written
+  now, the source's reason (`replyBlockedReason`) and an "Open in app" link replace it; outside the WhatsApp window that
+  means sending an approved template from the WhatsApp inbox. On a desktop (a fine pointer, 768 px and wider) Enter
+  sends and Shift+Enter starts a new line; on touch and narrow screens Enter is a new line. Ctrl+Enter or Cmd+Enter
+  always sends. It grows to six lines, and shows how many of the 4096 characters are left only in the last 200. A reply
+  shows at once as "sending" (a clock) and gives way to the stored message when the server answers; a refusal shows
+  its reason under the composer and puts the text back.
+- **Freshness.** While a conversation is open the page reloads only `thread` every 15 seconds, not while the tab is
+  hidden and never two requests at once. The list refreshes itself every 20 seconds the same way, through
+  `GET /communication/inbox/poll` (`communication.inbox.poll`, `can:communication.inbox.view`, 60 per minute on a
+  throttle key of its own, so it never uses up the reply or read budget). It takes the list filters (`source`, `owner`,
+  `state`, `search`, `unread`, validated as on the page), answers the newest page as JSON (`{items, next}`, the same rows as the
+  page's `list.items`) and is read-only. The page merges it into the rows on screen: a row already shown is updated and
+  moves up, a new one comes first, the pages loaded with "Load more" stay and "Load more" continues where it was. An
+  answer for filters that are no longer on screen is dropped.
+- **Realtime (Communication 1.5.0, ADR 0035).** When the platform runs a Reverb server (`BROADCAST_CONNECTION=reverb`
+  and the `REVERB_*` values; `docs/DEPLOYMENT.md` section 4a), the page also listens on the workspace's private channel
+  `private-tenant.{tenantId}.inbox` for `inbox.changed` signals. A signal is `{source, id}` only, never content; the
+  page answers it by asking the endpoints above again (the list's `communication.inbox.poll`, and the `thread` reload
+  when the open conversation is the one that changed), gathering signals for 400 ms and asking once. While subscribed
+  both pollers slow down to once a minute as a safety net; when the connection drops they return to 15/20 seconds and
+  the page asks again once it is back. The page gets the connection details as its `realtime` prop (`{key, host, port,
+  scheme, channel, authEndpoint}`, never the secret; null while realtime is off, and then nothing loads). The
+  subscription is signed by the core route `POST /broadcasting/auth` (`core.realtime.auth`) on the workspace host only:
+  session, membership, paywall, `throttle:120,1,realtime-auth`, the channel's tenant must be the hostname's and the
+  member must hold `communication.inbox.view` (`AccessChecker`: entitlement, active membership, grant); 403 otherwise,
+  404 while realtime is off. The source apps send the signal through the core contract
+  `App\Core\Communication\Contracts\InboxSignals` after their write commits (WhatsApp: inbound, outbound, statuses of
+  conversation messages but not of campaign messages, assignment, close, read; Messenger/Instagram: messages, receipts,
+  replies, read, close, assignment; Facebook comments: new, removed, hidden, replied, handled, assigned, by thread;
+  website chat: every message, close, read; tickets: created, edited, public and customer replies but never internal
+  notes, status, assignment). The signal is queued on `notifications`; a failure is logged by class and never reaches
+  the write. If the server cannot be reached the page warns once in the console and keeps polling.
+- **The chat screen.** The list view fills the window below the shell's top bar (the page asks for it with
+  `useFullHeightPage`); the list and the conversation scroll on their own. From the `md` breakpoint the Communication
+  sections leave the tab row and become an icon rail on the card's left edge, like a desktop messenger
+  (`CommunicationNav variant="rail"`: Inbox, Notifications, Messages, Templates, Consent and suppression, with Settings
+  pinned to the bottom; each shown only with its permission, the current one marked `aria-current="page"`); below `md`
+  the tab row stays. The board view and the other Communication pages keep the tab row. Rows show an avatar (initials from the title
+  on a tint picked from the conversation's key), the title, the time (today the time, then "Yesterday", the weekday
+  within a week, otherwise the date, in the workspace timezone), the preview, the channel icon, an unread count, the
+  status and the owner. Quick filters above the list: All, Unread, Mine, Unassigned, the status and the channel, each a
+  server filter above ("All" clears Unread and the owner), so paging and the refresh follow it. With Unread on, a
+  conversation read on screen keeps its row (without the badge) until the list is asked for again. The board has an
+  "Unread only" checkbox for the same filter. The conversation shows day separators, groups messages from one side and author within five minutes, names
+  the author only when a side has more than one in view, and marks outgoing messages with a tick: a clock while queued
+  or sending, one tick when sent, two when delivered, two in the accent colour when read, an alert when failed or
+  blocked. Message text is rendered as text; only `http` and `https` addresses become links (`target="_blank"`,
+  `rel="noopener noreferrer nofollow"`). An attachment is a chip with an icon of its kind when the source stores one
+  (`attachmentKind`: `image`, `video`, `audio` or `file`; WhatsApp and Messenger/Instagram do). The log opens at the
+  newest message and stays there while the reader is there; otherwise a "jump to latest" button counts what arrived.
+  Scrolling to the top loads older messages and keeps the place; a "Load older messages" button stays for the keyboard.
+- **Suggest a reply (Communication 1.4.0).** When the member can answer the open conversation now and the workspace has
+  the AI assistant (the thread's `aiDrafting`: the AI app is installed and the workspace is entitled to `ai`), the
+  composer shows a "Suggest a reply" button (a sparkles icon). `POST /communication/inbox/{source}/{id}/suggest`
+  (`communication.inbox.suggest`, `can:communication.inbox.view`, 20 per minute on its own throttle key `inbox-suggest`,
+  session and CSRF of the workspace `web` group) resolves the conversation through `UnifiedInbox::answerable()`: the
+  same entitlement, view and chat checks as a thread (404), the source's reply permission (403), a conversation the
+  member may not open or answer (404), and a channel that refuses a reply now (422 on `text` with the source's
+  reason). `InboxReplySuggestions` then reads the newest 10 messages, takes the newest customer message with text as
+  the input (422 when there is none) and the others as two quoted context blocks (`earlier_messages`,
+  `replies_since`; "Customer:"/"Business:" lines, no names, each message cut to 500 characters, newest kept within
+  2000), and calls the core `TextAssistant` (ADR 0024) with `TextKind::ReplySuggestion`, purpose
+  `inbox:reply:{source}:{messageId}` (the same message is metered once and replayed for an hour), the customer's own
+  language (`locale` null), a friendly tone, at most 600 characters, the channel as `platform` and the member's
+  membership for the rate limit. It answers `{state, text, message, retryable}`; `text` only when `state` is `ok`,
+  otherwise `message` is the assistant's safe wording (`not_configured`, `disabled`, `limit_reached`, `refused`,
+  `failed`). It sends, saves and marks nothing. The page puts the text into the composer (keeping what the member had
+  typed to restore), labels it "AI-generated. Check it before sending." until it is sent or cleared, and shows the
+  message under the composer otherwise. The member sends it through the normal reply. Communication imports nothing
+  of the AI app, only the core contract.
+- **Narrow screens.** Below 768 px the list and the open conversation take turns; a back button or Escape returns to
+  the list. From the board, a chat item opens in the list view.
+- **Channels.** Each row and the open conversation show the channel as a generic icon with its name:
+  `whatsapp`, `facebook`, `messenger`, `instagram`, `web` (website chat) and `support`
+  (`communication.inbox.channels.*`). Any other channel gets a generic icon named by the source's label, so a new
+  source needs no change to these pages.
+
+The inbox imports no WhatsApp, Social or Support class.
 
 **Not built.**
 
-- No reply pane inside the inbox.
-- No live updates; the page reloads on request.
-- Sorting runs in each source's own query: `last_message_at` and `last_activity_at`, then the id.
+- The Reverb server package is not installed (ADR 0035: its release conflicts with Guzzle 8); until it runs, the inbox
+  polls only.
+- No templates, media, interactive messages, notes, assignment or closing from the inbox; those stay in the owning app.
+- Sorting runs in each source's own query: `last_message_at`, the newest comment of a Facebook thread and
+  `last_activity_at`, then the id.
 
 ## 9. Permissions, navigation, limits, schedules
 

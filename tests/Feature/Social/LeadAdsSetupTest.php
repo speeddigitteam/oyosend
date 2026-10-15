@@ -69,7 +69,7 @@ it('explains missing permissions and does not subscribe or claim', function () {
     });
     Http::assertNotSent(fn ($request) => str_contains($request->url(), 'subscribed_apps'));
 
-    $this->get(($this->url()))->assertInertia(fn (AssertableInertia $page) => $page
+    $this->get(($this->url)())->assertInertia(fn (AssertableInertia $page) => $page
         ->where('pages.0.state', 'failed')
         ->where('pages.0.missingScopes', ['leads_retrieval', 'pages_manage_ads', 'pages_manage_metadata']));
 });
@@ -86,7 +86,7 @@ it('refuses to switch on when the operator has not enabled or configured lead ad
     config(['social.lead_ads.webhook_verify_token' => null]);
     $this->post(($this->url)('/accounts/'.$account->id.'/enable'))->assertSessionHasErrors('page');
 
-    $this->get(($this->url()))->assertInertia(fn (AssertableInertia $page) => $page->where('availability.problem', 'webhook_not_configured'));
+    $this->get(($this->url)())->assertInertia(fn (AssertableInertia $page) => $page->where('availability.problem', 'webhook_not_configured'));
     Http::assertNothingSent();
 });
 
@@ -163,7 +163,7 @@ it('shows the setup page with counts, history, forms and the CRM-not-available s
 
     $lead = $this->inTenant($this->tenant, fn () => LeadAdLead::query()->sole());
 
-    $this->get(($this->url()).'?lead='.$lead->id)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+    $this->get(($this->url)().'?lead='.$lead->id)->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
         ->component('Modules/Social/Pages/LeadAds/Index')
         ->where('availability.crmAvailable', false)
         ->where('availability.problem', null)
@@ -182,7 +182,7 @@ it('shows the setup page with counts, history, forms and the CRM-not-available s
         ->where('canManage', true));
 
     // Neither tokens nor answers reach the browser.
-    $html = json_encode($this->get(($this->url()))->viewData('page'));
+    $html = json_encode($this->get(($this->url)())->viewData('page'));
     expect($html)->not->toContain(self::PAGE_TOKEN)->not->toContain('Rahim')->not->toContain('rahim@example.com');
 });
 
@@ -196,11 +196,11 @@ it('enforces view and manage permissions and the entitlement', function () {
     [$nobody] = $this->socialMember($this->tenant, ['social.posts.view']);
 
     $this->actingAsMember($this->tenant, $nobody);
-    $this->get(($this->url()))->assertForbidden();
+    $this->get(($this->url)())->assertForbidden();
 
     $this->startNewBrowserSession();
     $this->actingAsMember($this->tenant, $viewer);
-    $this->get(($this->url()))->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('canManage', false));
+    $this->get(($this->url)())->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('canManage', false));
     $this->post(($this->url)('/accounts/'.$set['account']->id.'/enable'))->assertForbidden();
     $this->post(($this->url)('/accounts/'.$set['account']->id.'/backfill'))->assertForbidden();
     $this->post(($this->url)('/forms/'.$set['form']->id.'/switch'), ['enabled' => false])->assertForbidden();

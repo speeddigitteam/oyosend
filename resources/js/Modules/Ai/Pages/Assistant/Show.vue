@@ -92,11 +92,11 @@ function usedTools(message: ChatMessage): string[] {
     <PageHeader :eyebrow="t('ai.eyebrow')" :title="conversation.title || t('ai.assistant.untitled')" :description="t('ai.assistant.privacy')">
         <template #actions>
             <Button variant="ghost" :href="route('ai.assistant.index')">
-                <ArrowLeft class="size-4" aria-hidden="true" />
+                <template #icon><ArrowLeft class="size-4" aria-hidden="true" /></template>
                 {{ t('ai.conversation.back') }}
             </Button>
             <Button variant="ghost" @click="confirmDelete = true">
-                <Trash2 class="size-4" aria-hidden="true" />
+                <template #icon><Trash2 class="size-4" aria-hidden="true" /></template>
                 {{ t('ai.conversation.delete') }}
             </Button>
         </template>

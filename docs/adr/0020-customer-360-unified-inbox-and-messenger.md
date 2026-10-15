@@ -89,6 +89,8 @@ Meta allows one webhook callback URL per app.
      apps.
    - **Replies stay in the owning app.** Opening a conversation goes to the app that owns it, and that app replies
      through `ChannelGateway`. An embedded reply pane would need a reply contract and is out of scope.
+     *Amended by ADR 0030: a source may implement `InboxReplies`; its conversations are then read and answered in the
+     inbox, and the reply still goes through the owning app's own action.*
    - **Source order:** WhatsApp first, then Support (email tickets), then Messenger.
 
 5. **The inbox board and the sales board stay separate.** One shows who is answering a conversation; the other shows

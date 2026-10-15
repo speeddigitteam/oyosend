@@ -8,7 +8,8 @@
 
     <title inertia>{{ config('app.name') }}</title>
 
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    @php($favicon = app(\App\Core\Website\SiteBrand::class)->favicon())
+    <link rel="icon" type="{{ $favicon['type'] }}" href="{{ $favicon['href'] }}">
 
     {{-- Resolve the theme before first paint so there is no flash of the wrong one. --}}
     <script @if ($nonce = Vite::cspNonce()) nonce="{{ $nonce }}" @endif>

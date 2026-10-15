@@ -125,7 +125,7 @@ function quantity(milli: number): string {
             </Button>
             <Dropdown v-if="hasMore">
                 <template #trigger>
-                    <Button icon variant="secondary" :aria-label="t('invoicing.common.moreActions')"><Ellipsis class="size-4" aria-hidden="true" /></Button>
+                    <Button icon variant="secondary" :aria-label="t('invoicing.common.moreActions')"><template #icon><Ellipsis class="size-4" aria-hidden="true" /></template></Button>
                 </template>
                 <DropdownItem v-if="abilities.issueCreditNote" @select="crediting = true">
                     <ReceiptText aria-hidden="true" />{{ t('invoicing.creditNotes.issue') }}

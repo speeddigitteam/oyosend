@@ -113,8 +113,9 @@ function connectionLabel(connection: ConnectionRow): string {
 
         <ul v-if="connections.length > 0" class="divide-y divide-line border-t border-line" data-testid="connections">
             <li v-for="connection in connections" :key="connection.id" class="flex flex-wrap items-center gap-3 px-5 py-3">
-                <div class="min-w-0 flex-1">
-                    <p class="truncate text-sm font-medium text-ink">{{ connection.userName ?? t('metaAds.accounts.unnamed') }}</p>
+                <!-- The name wraps below its own line rather than being cut; the state and buttons move under it when narrow. -->
+                <div class="min-w-48 flex-1">
+                    <p class="text-sm font-medium wrap-break-word text-ink">{{ connection.userName ?? t('metaAds.accounts.unnamed') }}</p>
                     <p class="text-xs text-ink-subtle">
                         {{ connection.canManage ? t('metaAds.accounts.canManage') : t('metaAds.accounts.readOnly') }}
                         <template v-if="connection.tokenExpiresAt"> · {{ t('metaAds.accounts.expires', { when: format.date(connection.tokenExpiresAt, 'date') }) }}</template>
@@ -151,8 +152,8 @@ function connectionLabel(connection: ConnectionRow): string {
 
         <ul v-if="accounts.length > 0" class="divide-y divide-line border-t border-line" data-testid="accounts">
             <li v-for="account in accounts" :key="account.id" class="flex flex-wrap items-center gap-3 px-5 py-3">
-                <div class="min-w-0 flex-1">
-                    <p class="truncate text-sm font-medium text-ink">{{ account.name }}</p>
+                <div class="min-w-48 flex-1">
+                    <p class="text-sm font-medium wrap-break-word text-ink">{{ account.name }}</p>
                     <p class="truncate text-xs text-ink-subtle">
                         {{ account.externalId }} · {{ account.currency }}<template v-if="account.timezone"> · {{ account.timezone }}</template>
                         <template v-if="account.businessName"> · {{ account.businessName }}</template>
@@ -192,8 +193,8 @@ function connectionLabel(connection: ConnectionRow): string {
         <p v-if="!socialPages.available" class="text-[0.8125rem] text-ink-muted" data-testid="pages-unavailable">{{ t('metaAds.accounts.pages.unavailable') }}</p>
         <p v-else-if="socialPages.pages.length === 0" class="text-[0.8125rem] text-ink-muted" data-testid="pages-none">{{ t('metaAds.accounts.pages.none') }}</p>
         <ul v-else class="grid gap-1.5 text-sm" data-testid="pages">
-            <li v-for="page in socialPages.pages" :key="page.id" class="flex items-center justify-between gap-3">
-                <span class="min-w-0 truncate text-ink">{{ page.name }}</span>
+            <li v-for="page in socialPages.pages" :key="page.id" class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+                <span class="min-w-0 wrap-break-word text-ink">{{ page.name }}</span>
                 <Badge :tone="page.status === 'connected' ? 'ok' : 'warn'" dot>{{ t(`metaAds.accounts.pages.${page.status}`) }}</Badge>
             </li>
         </ul>

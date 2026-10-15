@@ -10,12 +10,14 @@ import AppShell from '@/Core/Components/Shell/AppShell.vue';
 import Breadcrumb from '@/Core/Components/Shell/Breadcrumb.vue';
 import type { Command } from '@/Core/Components/Shell/CommandPalette.vue';
 import LocaleSwitch from '@/Core/Components/Shell/LocaleSwitch.vue';
+import NotificationBell from '@/Core/Components/Shell/NotificationBell.vue';
 import type { ShellNavSection } from '@/Core/Components/Shell/SidebarNav.vue';
 import SubscriptionNotice from '@/Core/Components/Shell/SubscriptionNotice.vue';
 import SupportSessionBanner from '@/Core/Components/Shell/SupportSessionBanner.vue';
 import ThemeToggle from '@/Core/Components/Shell/ThemeToggle.vue';
 import UserMenu from '@/Core/Components/Shell/UserMenu.vue';
 import WorkspaceSwitcher from '@/Core/Components/Shell/WorkspaceSwitcher.vue';
+import { useAccess } from '@/Core/composables/useAccess';
 import { useTheme } from '@/Core/composables/useTheme';
 import { isCurrentRoute, route } from '@/Core/lib/route';
 
@@ -30,6 +32,7 @@ import { isCurrentRoute, route } from '@/Core/lib/route';
 const page = usePage();
 const { t, te } = useI18n();
 const { toggle } = useTheme();
+const { can } = useAccess();
 
 const user = computed(() => page.props.auth?.user ?? null);
 
@@ -187,6 +190,8 @@ const commands = computed<Command[]>(() => [
         <template #topbar-end>
             <LocaleSwitch v-if="!inSupportSession" />
             <ThemeToggle />
+            <!-- The member's own notifications; a support session is not that member, so it sees none. -->
+            <NotificationBell v-if="!inSupportSession && can('communication.notifications.view')" />
             <UserMenu
                 v-if="user"
                 :user="user"

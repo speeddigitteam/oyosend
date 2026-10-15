@@ -14,6 +14,7 @@ use App\Modules\Social\Http\Controllers\InsightsDashboard;
 use App\Modules\Social\Http\Controllers\LibraryController;
 use App\Modules\Social\Http\Controllers\MediaController;
 use App\Modules\Social\Http\Controllers\PostController;
+use App\Modules\Social\Http\Controllers\PostOptionsController;
 use App\Modules\Social\Http\Controllers\PreflightController;
 use App\Modules\Social\Http\Controllers\SettingsController;
 use Illuminate\Support\Facades\Route;
@@ -40,6 +41,11 @@ Route::middleware(['auth:web', 'auth.session', 'member', 'subscribed'])->prefix(
     Route::post('posts/preflight', PreflightController::class)
         ->middleware(['can:social.posts.view', 'throttle:120,1'])
         ->name('social.posts.preflight');
+    // The choices a platform offers one account (TikTok creator info) for the composer's per-account settings.
+    // Also needs create or edit (checked in the controller); reads only, its own limit per member.
+    Route::get('posts/creator-info/{account}', PostOptionsController::class)
+        ->middleware(['can:social.posts.view', 'throttle:30,1'])
+        ->name('social.posts.creator_info');
     Route::get('posts/create', [PostController::class, 'create'])->middleware('can:social.posts.create')->name('social.posts.create');
     Route::post('posts', [PostController::class, 'store'])->middleware('can:social.posts.create')->name('social.posts.store');
     Route::get('posts/{post}', [PostController::class, 'show'])->middleware('can:social.posts.view')->name('social.posts.show');

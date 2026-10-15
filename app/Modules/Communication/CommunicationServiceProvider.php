@@ -12,6 +12,7 @@ use App\Core\Communication\Contracts\ChannelGateway;
 use App\Core\Communication\Contracts\ChannelNumberDirectory;
 use App\Core\Communication\Contracts\ChannelNumberRegistry;
 use App\Core\Communication\Contracts\ConsentRecorder;
+use App\Core\Communication\Contracts\InboxSignals;
 use App\Core\Communication\Contracts\InteractionRecorder;
 use App\Core\Communication\Contracts\MarketingAudience;
 use App\Core\Communication\Contracts\MediaGateway;
@@ -27,6 +28,7 @@ use App\Core\Modules\ModuleServiceProvider;
 use App\Core\Modules\NavigationItem;
 use App\Core\Modules\PermissionDefinition;
 use App\Core\Modules\WidgetDefinition;
+use App\Core\Realtime\Contracts\RealtimeChannel;
 use App\Modules\Communication\Actions\ChannelNumbers;
 use App\Modules\Communication\Actions\CommunicationContactMergeReference;
 use App\Modules\Communication\Actions\MarketingAudienceResolver;
@@ -73,6 +75,8 @@ use App\Modules\Communication\Models\NotificationPreference;
 use App\Modules\Communication\Models\Suppression;
 use App\Modules\Communication\Models\UnsubscribeToken;
 use App\Modules\Communication\Models\WebhookEvent;
+use App\Modules\Communication\Realtime\BroadcastInboxSignals;
+use App\Modules\Communication\Realtime\InboxChannel;
 use App\Modules\Communication\Testing\InMemoryProvider;
 use App\Modules\Communication\Widgets\NotificationsWidget;
 use Illuminate\Support\Facades\Event;
@@ -128,6 +132,9 @@ final class CommunicationServiceProvider extends ModuleServiceProvider
         $this->app->bind(MediaGateway::class, MediaLibrary::class);
         $this->app->bind(TemplateCatalogue::class, ProviderTemplateCatalogue::class);
         $this->app->bind(ConsentRecorder::class, MarketingConsentRecorder::class);
+        // ADR 0035: "a conversation changed" signals for open inbox pages, on the workspace's private inbox channel.
+        $this->app->bind(InboxSignals::class, BroadcastInboxSignals::class);
+        $this->app->tag(InboxChannel::class, RealtimeChannel::TAG);
         $this->app->tag(CommunicationContactMergeReference::class, ContactMergeReference::class);
         $this->app->tag(InteractionsSection::class, CustomerRecordProvider::TAG);
     }
@@ -137,7 +144,7 @@ final class CommunicationServiceProvider extends ModuleServiceProvider
         return new ModuleManifest(
             key: 'communication',
             name: 'Communication',
-            version: '1.1.0',
+            version: '1.5.0',
             dependencies: ['core'],
             permissions: [
                 new PermissionDefinition('communication.inbox.view', 'communication_inbox'),
@@ -198,9 +205,13 @@ final class CommunicationServiceProvider extends ModuleServiceProvider
                 'Interaction timeline for every customer',
             ],
             offers: [new AppOffer('included', 'Included', AppBillingType::Free)],
-            releaseNotes: 'Adds the unified inbox for WhatsApp conversations and support tickets.',
+            releaseNotes: 'Version 1.5 brings new messages into the inbox as they arrive, when the platform runs its realtime server; without it the inbox keeps refreshing on its own as before. Version 1.4 adds a real "Unread" filter to the inbox, applied by the server across every page, and "Suggest a reply": with the AI app, a draft for the open conversation that you check, edit and send yourself. Version 1.3 makes the inbox a full-height chat screen: avatars, day separators, delivery ticks, grouped messages, older messages as you scroll up, and a conversation list that refreshes by itself every 20 seconds. Version 1.2 turns the unified inbox into a chat workspace: open a WhatsApp conversation or a Facebook comment thread beside the list and reply from there, through the owning app and its channel rules. Version 1.1 adds the unified inbox for WhatsApp conversations and support tickets.',
             routes: [
                 'communication.inbox.index',
+                'communication.inbox.poll',
+                'communication.inbox.reply',
+                'communication.inbox.read',
+                'communication.inbox.suggest',
                 'communication.notifications.index',
                 'communication.notifications.summary',
                 'communication.notifications.read-all',

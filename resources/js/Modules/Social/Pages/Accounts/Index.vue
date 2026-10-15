@@ -14,6 +14,8 @@ import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
 import { route } from '@/Core/lib/route';
 import AccountAccessSection from '../../Components/insights/AccountAccessSection.vue';
 import type { AccessPanelProps } from '../../Components/insights/types';
+import PlatformIcon from '../../Components/PlatformIcon.vue';
+import { platformRequirements } from '../../Components/requirements';
 import SocialBadge from '../../Components/SocialBadge.vue';
 import { safeUrl } from '../../Components/socialFormat';
 import type { AccountRow, Capabilities, PlatformInfo } from '../../Components/types';
@@ -70,6 +72,13 @@ function abilities(capabilities: Capabilities): string[] {
     }
 
     return list;
+}
+
+/** What every post for this platform must carry, in words (empty when nothing). */
+function requirementsText(capabilities: Capabilities): string {
+    return platformRequirements(capabilities)
+        .map((item) => t(`social.requirements.${item.key}`, { value: format.number(item.value ?? 0) }))
+        .join(' · ');
 }
 
 function availabilityLabel(platform: PlatformInfo): string {
@@ -148,7 +157,7 @@ function avatar(account: AccountRow): string | null {
                     class="size-9 shrink-0 rounded-full bg-hover object-cover"
                 />
                 <span v-else class="flex size-9 shrink-0 items-center justify-center rounded-full bg-hover text-ink-subtle" aria-hidden="true">
-                    <Share2 class="size-4" />
+                    <PlatformIcon :platform="account.platform" class="size-4" />
                 </span>
 
                 <div class="min-w-0 flex-1">
@@ -187,6 +196,12 @@ function avatar(account: AccountRow): string | null {
 
     <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <Card v-for="platform in platforms" :key="platform.key" :title="platform.label" class="h-full" :data-testid="`platform-${platform.key}`">
+            <template #header>
+                <h2 class="flex min-w-0 items-center gap-2 text-[0.9375rem] font-semibold tracking-tight text-ink">
+                    <PlatformIcon :platform="platform.key" class="size-4 shrink-0 text-ink-subtle" />
+                    <span class="min-w-0 wrap-break-word">{{ platform.label }}</span>
+                </h2>
+            </template>
             <template #actions>
                 <Badge :tone="platform.available ? 'ok' : 'neutral'" dot>{{ availabilityLabel(platform) }}</Badge>
             </template>
@@ -198,6 +213,9 @@ function avatar(account: AccountRow): string | null {
                 <p class="mt-1 text-[0.8125rem] text-ink-muted">{{ abilities(platform.capabilities).join(', ') || t('social.common.none') }}</p>
                 <p v-if="!platform.capabilities.video" class="mt-2 text-xs text-ink-subtle">{{ t('social.accounts.noVideo') }}</p>
                 <p v-if="(platform.capabilities.maxMedia ?? 0) === 0" class="mt-1 text-xs text-ink-subtle">{{ t('social.accounts.textOnly') }}</p>
+                <p v-if="requirementsText(platform.capabilities) !== ''" class="mt-1 text-xs text-ink-subtle" data-testid="requirements">
+                    {{ requirementsText(platform.capabilities) }}
+                </p>
                 <p v-if="(platform.capabilities.maxText ?? 0) > 0" class="mt-1 text-xs text-ink-subtle">
                     {{ t('social.accounts.maxText', { count: format.number(platform.capabilities.maxText ?? 0) }) }}
                 </p>

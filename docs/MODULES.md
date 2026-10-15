@@ -59,7 +59,7 @@ vocabulary for tenant-authored bot flows, and a chunked, per-recipient-idempoten
 
 ## 0. Registered modules
 
-The registry (`config/modules.php`) holds **`core` plus 18 optional modules and 271 declared permissions**. `php artisan permissions:sync`
+The registry (`config/modules.php`) holds **`core` plus 18 optional modules and 273 declared permissions**. `php artisan permissions:sync`
 writes the permissions; `apps:sync` writes the catalogue. Only `ai` is a paid app; every other optional app has one
 free offer (`included` or `free`). Counts below come from the compiled manifests.
 

@@ -3,13 +3,14 @@
 `app/Modules/Support` (key `support`, category Customer Support, free offer `included`, depends only on `core`).
 Spec: `MASTER_PROMPT.md` section 20. Tickets, queues and assignment, a conversation thread with internal notes,
 canned responses, SLA policies on business-hours calendars, satisfaction surveys with single-use links, an
-internal knowledge base, merge and split, and reports.
+internal knowledge base, merge and split, reports, and a website live chat widget (section 15, ADR 0032).
 
 Customers are the workspace's shared contacts and companies (`contact_id` / `company_id`): the app has no customer
 table. `requester_name` / `requester_email` only describe someone who is not in the directory yet.
 
 > State: backend and Vue pages (`resources/js/Modules/Support`) are built. There is no mail ingestion: `Contracts\InboundTicketReceiver` is the documented entry
-> point a channel integration calls (section 11). The knowledge base is internal (agents); there is no public help
+> point a channel integration calls (section 11). The website live chat (section 15) is built and tested over HTTP but
+> has not been embedded on a real second origin in a browser. The knowledge base is internal (agents); there is no public help
 > centre and no customer portal.
 
 ## 1. Tickets
@@ -198,7 +199,8 @@ compares it with a per-ticket reference over a few hundred generated tickets in 
   transaction; replies, merges and status changes do not count, a split does) and `support.agents` (gauge).
 - Events (after commit, ids and scalars, never message text, names or emails): `support.ticket.created`,
   `.assigned`, `.replied`, `.customer_replied`, `.resolved`, `.closed`, `.reopened`, `.merged`, `.split`,
-  `.sla_breached`, and `support.csat.submitted`.
+  `.sla_breached`, `support.csat.submitted` and `support.live_chat.started` (conversation id only; not an automation
+  trigger yet).
 - Triggers: `support.ticket.created`, `.assigned`, `.customer_replied`, `.resolved`, `.sla_breached` and
   `support.csat.submitted`.
 - Actions (durable receipts in `support_automation_action_receipts`, `UNIQUE(tenant_id, action,
@@ -207,7 +209,8 @@ compares it with a per-ticket reference over a few hundred generated tickets in 
   deliberately **no action that replies to a customer**, resolves, merges or closes.
 - Scheduled jobs: `support.sla` (every minute) and `support.maintenance` (daily: closes tickets resolved more than
   `auto_close_days` ago when configured, expires unanswered surveys).
-- Contact merge: `SupportContactMergeReference` repoints `support_tickets.contact_id` during a core contact merge.
+- Contact merge: `SupportContactMergeReference` repoints `support_tickets.contact_id` and
+  `support_chat_conversations.contact_id` during a core contact merge.
 
 ## 11. Inbound contract
 
@@ -239,10 +242,13 @@ it inside `TenantContext::run()`.
 | `support.settings.manage` | no, sensitive | prefix, defaults, CSAT, auto-close |
 | `support.reports.view` | no, sensitive | workspace-wide |
 
+The website live chat (section 15) adds no permission: reading chats needs `support.tickets.view`, answering
+`support.tickets.reply`, closing `support.tickets.resolve` and the widget settings `support.settings.manage`.
+
 ## 13. Routes
 
 All under `/support` on the workspace host with `['auth:web', 'auth.session', 'member', 'subscribed']` and `can:`;
-the two survey routes are the only public ones (stateless, see section 6).
+the two survey routes and the five website chat routes are the only public ones (stateless, see sections 6 and 15).
 
 | Name | Verb and path | Permission |
 |---|---|---|
@@ -261,9 +267,187 @@ the two survey routes are the only public ones (stateless, see section 6).
 | `support.sla.index`, `support.sla.policies.store/update`, `support.sla.calendars.store/update` | `sla/...` | sla.manage |
 | `support.settings.index/update` | GET/PUT `settings` | settings.manage |
 | `support.csat.show` / `.store` | GET/POST `/support-survey/{token}` (stateless callback group, Blade page) | none (token) |
+| `support.live_chat.index` | GET `live-chat` (`?state`, `search`, `open`, `messages`, `cursor`) | tickets.view |
+| `support.live_chat.reply` | POST `live-chat/{conversation}/messages` (60/min) | tickets.reply |
+| `support.live_chat.close` | POST `live-chat/{conversation}/close` | tickets.resolve |
+| `support.live_chat.contact` | POST `live-chat/{conversation}/contact` (save the visitor as a contact) | `core.contacts.manage` + the chat's tickets.view reach |
+| `support.live_chat.ticket` | POST `live-chat/{conversation}/ticket` (`subject`, `priority`, `queue_id`, `close`; 30/min) | tickets.create + the chat's tickets.view reach (+ tickets.resolve reach with `close`) |
+| `support.live_chat.settings` / `.settings.update` | GET/PUT `live-chat/settings` | settings.manage |
+| `support.live_chat.widget` / `.frame` | GET `/support/chat/widget.js`, `/support/chat/frame` (stateless callback group) | none (public) |
+| `support.live_chat.api.start` / `.api.send` / `.api.poll` | POST `/support/chat/api/conversations`, POST/GET `/support/chat/api/messages` (stateless, JSON) | none (visitor token) |
 
 ## 14. Not built
 
-Email/chat ingestion (contract only), a customer portal, a public help centre, outbound replies by email (an
+Email ingestion (contract only), a customer portal, a public help centre, outbound replies by email (an
 agent's public reply is stored and shown; delivery to the customer needs the Communication app), business-hours
-queues per agent, custom ticket fields, ticket-to-task links with Projects, and AI suggestions.
+queues per agent, custom ticket fields, ticket-to-task links with Projects, and AI suggestions. For the website live
+chat, see section 15.8.
+
+## 15. Website live chat
+
+A workspace puts a small chat widget on its own website; visitors write, members answer from the Support **Live chat**
+page (`support.live_chat.index`, sidebar "Live chat") and from the unified inbox (source `support.live_chat`, channel
+`web`, label "Website chat"). Both go through `Actions\LiveChatManager`, the one code path for every change. Decision
+record: ADR 0032.
+
+### 15.1 Embedding
+
+1. **Support > Settings > Website chat settings** (`support.live_chat.settings`, `support.settings.manage`): switch the
+   chat on and list the websites allowed to show it.
+2. Paste the snippet shown there into every page that should show the chat, near the end of the body:
+   `<script src="https://{workspace}.APP_DOMAIN/support/chat/widget.js" defer></script>` (built with `route()`).
+3. The loader adds a launcher button (labelled with the widget title) only on an allowed origin. Opening it loads the
+   chat page in an iframe; nothing is requested before that, and the loader sets no cookie and stores nothing.
+
+### 15.2 Settings
+
+One row per workspace (`support_chat_settings`, `UNIQUE(tenant_id)`), created on the first save; every save is audited
+as `support.live_chat.settings_saved` with the changed values.
+
+| Setting | Rule |
+|---|---|
+| `enabled` | Default off. Off means the loader, the frame and the API answer 404. Switching on needs at least one origin |
+| `allowed_origins` | At most 10 canonical origins `https://host[:port]`: no path, query, credentials, wildcard or IP address; a single-label host only as `localhost`; the default port is dropped and duplicates removed. Plain `http` only for `localhost` / `*.localhost` while `APP_ENV=local`. They become the frame's `frame-ancestors` |
+| `widget_title` | One line, at most 60 characters; empty uses "Chat with us" |
+| `greeting`, `offline_note` | Plain text, at most 300 characters each, shown at the top of the chat. There is no agent presence: the note is static text such as "We usually answer within a day" |
+| `visitor_details` | `none` (not asked, ignored if sent), `optional` (default) or `required` (name and email needed to start) |
+
+### 15.3 Public side (stateless)
+
+Loaded with `loadTenantCallbackRoutes()`: tenant from the hostname, `entitled:support`, the group throttle (60 a minute
+per address), no session, cookie, CSRF token or Inertia. Everything answers 404 while the chat is off or never set
+up, the workspace is suspended, its subscription has ended, or it is not entitled to Support.
+
+| Route | What it is | Headers |
+|---|---|---|
+| `GET /support/chat/widget.js` (`support.live_chat.widget`) | The vanilla-JS loader (`resources/views/support/live-chat/widget.blade.php`). It checks `event.origin` against the workspace origin and the message source against its own iframe, and posts only to the workspace origin | `application/javascript; charset=utf-8`, `Cache-Control: public, max-age=300`, `nosniff`, `Cross-Origin-Resource-Policy: cross-origin` |
+| `GET /support/chat/frame` (`support.live_chat.frame`) | A standalone Blade page (`resources/views/support/live-chat/frame.blade.php`), not Inertia, with inline CSS and script under a per-response nonce. Every message is rendered with `textContent` | `Content-Security-Policy: default-src 'self'; script-src 'nonce-…'; style-src 'nonce-…'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors <origins>` (`'none'` plus `X-Frame-Options: DENY` without origins), `Cache-Control: no-store, private`, `nosniff`, `Referrer-Policy: no-referrer`, `Permissions-Policy` off for camera, microphone, geolocation, payment |
+| `POST /support/chat/api/conversations` (`.api.start`) | Starts a chat with its first message (`text`), optional or required `name` / `email`, a `website` honeypot and the `page_url`. Returns `201 {token, status, messages}`; the token is never shown again | JSON, `Cache-Control: no-store, private`, `nosniff` |
+| `POST /support/chat/api/messages` (`.api.send`) | `X-Chat-Visitor: <token>`, `text`. A closed chat opens again. `201 {status, message}` | as above |
+| `GET /support/chat/api/messages?after={id}` (`.api.poll`) | `X-Chat-Visitor: <token>`. Messages after that one, oldest first (at most 50, `more` when there are further ones); without `after` the newest 50. `200 {status, messages, more}` | as above |
+
+- **Same origin only.** The API is called by the frame, on the workspace origin. A request is refused with 403 unless
+  its `Origin` header equals the workspace origin or, without `Origin`, it carries `Sec-Fetch-Site: same-origin`. No
+  CORS headers are sent. `fetch` runs with `credentials: 'omit'`. Behind a TLS-terminating proxy `TRUSTED_PROXIES`
+  must be set, or the application sees `http` and refuses the frame's `https` requests. A script outside a browser can
+  send any `Origin`; the check stops other websites' pages, and the token and the limits bound everything else.
+- **The visitor token** is 32 random bytes, base64url (43 characters), returned once by the start call and stored only
+  as its SHA-256 (`UNIQUE(tenant_id, visitor_token_hash)`). The frame keeps it in its own `localStorage` inside
+  `try/catch`; without storage the chat lasts as long as the page. It reaches exactly one conversation of exactly one
+  workspace: a missing, malformed, unknown or another workspace's token is a 404, and the frame then starts over. A
+  token holder cannot start a second chat (409).
+- **Polling.** The frame polls every 5 seconds while the chat is open and the page visible; while hidden or after an
+  error it backs off (15 s, 30 s, ... up to 2 minutes) and stops while the chat is closed. `after` is translated to the
+  message's `seq` (its position in the conversation, assigned under the conversation's row lock), so a poll never
+  skips a message. After sending, the frame polls at once, so the visitor's message appears in its place after
+  anything the team wrote meanwhile.
+- **Members are not named to visitors**: replies carry the workspace name.
+
+### 15.4 Abuse limits
+
+All in `Support\LiveChatLimits`; counts are per workspace (the cache is tenant-prefixed) and keyed by an HMAC of the
+address (with the application key) and the SHA-256 of the token, never either in the clear.
+
+| Limit | Value |
+|---|---|
+| Any public chat route | 60 requests a minute per address (the `tenant.callback` group throttle) |
+| Start attempts (`support-chat-start`) | 10 a minute per address |
+| Started chats | 5 an hour per address and 300 an hour per workspace (successful starts only; then 429 with `Retry-After`) |
+| Messages (`support-chat-send`) | 20 a minute per token and 40 a minute per address |
+| Polls (`support-chat-poll`) | 30 a minute per token |
+| Conversations per token | 1 (unique hash; a second start from a token holder is 409) |
+| Messages per conversation | 1000, both directions |
+| Message text | 1 to 2000 characters of valid UTF-8; C0/C1 control characters (except line feeds), the byte-order mark and bidirectional embedding, override and isolate characters removed; tabs become spaces; at most one empty line in a row |
+| Name / email | One line of at most 100 characters / a valid address of at most 190, lower-cased |
+| Page address | `http`/`https` only, scheme + host + path, query and fragment dropped, at most 500 characters |
+| Honeypot | A filled `website` field is refused (422) and nothing is recorded |
+
+Several visitors behind one address (an office network) share the per-address limits; about five open chats polling at
+once fill the group throttle, and the frame then backs off.
+
+### 15.5 Members
+
+- **Reach.** Chats reuse the ticket permissions (`ChatAccess`): `all` scope reaches every chat; a narrower scope
+  (own, department or branch) reaches the member's own chats plus the unassigned ones when the member is an active
+  enrolled agent. A chat has no department or branch, so those scopes reach no further than own. A chat outside the
+  member's reach is a 404, on the page, the reply and the close route, and in the unified inbox.
+- **Replying** (`support.tickets.reply`): plain text, 1 to 2000 characters. The first reply to an unassigned chat
+  assigns it to the replier. Replying clears the unread count. A closed chat cannot be answered: the composer says
+  "Closed — the visitor can reopen it by writing again".
+- **Closing** (`support.tickets.resolve`): audited as `support.live_chat.closed` (conversation id and member id only).
+  A visitor message reopens the chat and keeps its assignee.
+- **Unread** is the number of visitor messages since a member last read the chat (opening or polling it on the Live
+  chat page, or `markRead` from the unified inbox) or answered it.
+- **The page** lists chats newest first (25 per page, cursor pagination), filtered by open, unassigned, mine, closed or
+  all and searched by name, email address or page. The open chat shows its newest 50 messages (up to 200 with "Show
+  older messages"). It reloads the list and the open chat every 10 seconds while the tab is visible. Text is rendered as
+  text (no `v-html`).
+- **Unified inbox mapping.** Open and unassigned is `unassigned`, open and assigned `active`, closed `closed`. The item
+  URL is the Live chat page (`?open={id}`), so a workspace without the Communication app can still answer. The thread's
+  `canReply` is false only for a closed chat, with the reason above.
+- Replies are not written to the audit trail one by one: each message records `sent_by_membership_id`.
+
+### 15.5a Saving the visitor and turning a chat into a ticket
+
+Two explicit member actions in the open chat (`Actions\LiveChatConversion`); nothing happens automatically. Each needs
+the chat's `support.tickets.view` reach (`ChatAccess`): a chat outside it is a 404, like another workspace's.
+
+- **Save as contact** (`support.live_chat.contact`, `core.contacts.manage`). Offered while the chat has no contact
+  and the visitor gave a name or an email address. With an email address, an existing shared contact with the same
+  address (anywhere in the workspace, case-insensitive, the oldest) is linked instead of creating a duplicate;
+  otherwise `ContactDirectory::createContact()` creates one from what the visitor typed (first word of the name as
+  first name, the rest as last name; without a name, the address's local part), owned by the member. The chat keeps
+  the link in `contact_id`; a chat already linked stays as it is. A visitor with neither name nor email cannot be
+  saved (422 on `contact`). Audited as `support.live_chat.contact_linked` with the conversation id, the contact id
+  and whether it was created, never the visitor's name or address. The page then shows "Contact:" with the name and
+  a link to the directory, or "a contact you cannot open" when the member's `core.contacts.view` does not reach it.
+  The unified inbox item and thread carry the linked `contactId`. A contact merge re-points chats too
+  (`SupportContactMergeReference`).
+- **Create ticket** (`support.live_chat.ticket`, `support.tickets.create`). A dialog asks for the subject (default:
+  the visitor's first message on one line, at most 200 characters), the priority (default: the workspace default)
+  and the queue (default: routing rules), and offers "Close the chat as well" (on by default, shown only with
+  `support.tickets.resolve` reach; the server checks it again). The ticket is created through
+  `TicketManager::create()` with channel **`chat`**, the visitor's name and email as requester and the linked contact,
+  if any. A chat with neither an email address nor a contact cannot become a ticket (422 on `ticket`; the page says
+  to save the visitor as a contact first).
+- **Transcript placement.** The ticket gets **no customer message**: the whole chat (both sides, with times in the
+  workspace timezone, member names and the page address) is written as **internal notes** of at most 18 000
+  characters each, split between messages. Internal notes never leave the workspace, fire no reply event and are
+  never emailed, so converting a chat sends nothing to the visitor, and the members' names (which the widget never
+  shows the visitor) stay inside. The SLA clocks start at conversion; replies already given in the chat do not count
+  as the ticket's first response.
+- **One ticket per chat.** The conversation row is locked; a chat that already has its ticket returns it unchanged,
+  and the ticket's `source_key` (`live_chat:{conversation id}`, `UNIQUE(tenant_id, source_key)`) returns the same
+  ticket on any repeat. The chat shows "Ticket: TKT-…" (a link when the member reaches the ticket); the ticket page
+  shows "Created from a website chat" with a link back when the member reaches the chat. Audited as
+  `support.live_chat.converted_to_ticket` (conversation id, ticket id, message count); the ticket's own
+  `support.ticket.created` and `support.ticket.internal_note` entries follow as usual, and the ticket counts toward the
+  monthly ticket limit.
+### 15.6 Storage
+
+Migrations `2026_11_09_000100_create_support_live_chat_tables.php` and `2026_11_10_000100_add_contact_and_ticket_to_support_chat_conversations.php` (both additive). Morph aliases `support_chat_setting`,
+`support_chat_conversation`, `support_chat_message`.
+
+| Table | Notes |
+|---|---|
+| `support_chat_settings` | One row per workspace, `UNIQUE(tenant_id)` |
+| `support_chat_conversations` | `visitor_token_hash` char(64) with `UNIQUE(tenant_id, visitor_token_hash)`, `name`, `email`, `page_url` (500), `contact_id` and `ticket_id` (nullable, null on delete, indexes `(tenant_id, contact_id)` and `(tenant_id, ticket_id)`; migration `2026_11_10_000100`), `status` (`open`/`closed`), `message_count`, `unread_count`, `assignee_membership_id`, `last_message_at`, `last_visitor_message_at`, `closed_at`; ordering index `(tenant_id, last_message_at, id)` and state index `(tenant_id, status, assignee_membership_id)` |
+| `support_chat_messages` | `conversation_id`, `seq` (`UNIQUE(tenant_id, conversation_id, seq)`), `direction` (`in` = visitor, `out` = member), `text`, `sent_by_membership_id` |
+
+### 15.7 Privacy
+
+- No table stores the visitor's IP address, and visitor actions write nothing to the audit trail (an audit entry
+  records the address of the request). Rate-limit keys hold only an HMAC of it.
+- What the visitor types (name, email) stays on the conversation. **No shared contact is created automatically**
+  from anonymous input; a member may save the visitor as a contact (section 15.5a). The audit entries of both
+  conversions hold ids only.
+- The page address is kept without query and fragment. The frame says that the workspace keeps what the visitor
+  writes. The event `support.live_chat.started` carries the conversation id only.
+
+### 15.8 Not built
+
+Realtime delivery to the visitor (the widget polls; on the member side the unified inbox gets realtime signals while a Reverb server runs, ADR 0035), file upload, typing and read indicators, linking a chat to
+an existing contact picked by hand (only the email match or a new contact), unlinking, handing a chat to another member,
+agent presence and business hours (the note is static text), retention or deletion of old chats, per-site widget
+styling, and an automation trigger for `support.live_chat.started` (it needs catalogue labels). The widget has not been
+embedded on a real second origin in a browser yet.

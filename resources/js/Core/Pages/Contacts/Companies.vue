@@ -264,7 +264,14 @@ function destroy(): void {
             <template #cell-name="{ row }">
                 <!-- Asks the column for 11rem and then fills whatever it gets, so long names truncate instead of widening the table. -->
                 <div class="w-44 min-w-full">
-                    <p class="truncate text-sm font-medium text-ink" :title="row.name">{{ row.name }}</p>
+                    <!-- The name opens the company's own page, with its people. -->
+                    <Link
+                        :href="route('core.contacts.companies.show', { company: row.id })"
+                        class="block truncate rounded-chip text-sm font-medium text-ink underline-offset-4 hover:text-brand-text hover:underline"
+                        :title="row.name"
+                    >
+                        {{ row.name }}
+                    </Link>
 
                     <!-- Small screens: the other columns start hidden, so the essentials sit here. -->
                     <ul class="mt-0.5 flex flex-col gap-0.5 text-[0.8125rem] text-ink-muted md:hidden">

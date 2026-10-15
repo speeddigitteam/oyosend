@@ -106,23 +106,23 @@ function testSummary(account: AiProviderAccount): string | null {
 </script>
 
 <template>
-    <div class="max-w-4xl">
+    <div>
         <PageHeader
             :eyebrow="t('shell.nav.sections.platform')"
             :title="t('shell.nav.platformAi')"
             :description="t('platformAi.description')"
         />
 
-        <p class="mb-3 text-[0.8125rem] text-ink-subtle">{{ t('platformAi.secretsNote') }}</p>
-
         <div class="flex flex-col gap-3">
-            <Card flush :title="t('platformAi.list.title')" :description="t('platformAi.list.description')">
+            <Card :title="t('platformAi.list.title')" :description="t('platformAi.list.description')">
                 <template #actions>
                     <Button size="sm" variant="secondary" @click="dialog = { account: null }">
                         <template #icon><Plus class="size-4" aria-hidden="true" /></template>
                         {{ t('platformAi.add') }}
                     </Button>
                 </template>
+
+                <p class="mb-4 text-[0.8125rem] text-ink-subtle">{{ t('platformAi.secretsNote') }}</p>
 
                 <EmptyState
                     v-if="accounts.length === 0"
@@ -133,56 +133,67 @@ function testSummary(account: AiProviderAccount): string | null {
                     <template #icon><Sparkles /></template>
                 </EmptyState>
 
-                <ul v-else>
-                    <li
-                        v-for="account in accounts"
-                        :key="account.id"
-                        class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-line px-5 py-3"
-                    >
-                        <div class="min-w-0">
-                            <p class="text-sm font-medium wrap-break-word text-ink">{{ account.name }}</p>
-                            <p class="text-[0.8125rem] wrap-break-word text-ink-subtle">
-                                {{ t(`platformAi.drivers.${account.driver}`) }} · {{ account.model }}
-                            </p>
-                            <p v-if="testSummary(account)" class="text-[0.8125rem] text-ink-subtle">{{ testSummary(account) }}</p>
+                <!-- Each provider account is a box of its own, like the payment gateways on Settings. -->
+                <ul v-else class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <li v-for="account in accounts" :key="account.id" class="glass-well grid gap-4 rounded-control p-4" data-testid="ai-account">
+                        <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-1.5">
+                            <div class="flex min-w-0 items-start gap-3">
+                                <span class="grid size-9 shrink-0 place-items-center rounded-control bg-brand-soft text-brand-text">
+                                    <Sparkles class="size-5" aria-hidden="true" />
+                                </span>
+                                <div class="min-w-0">
+                                    <p class="text-sm font-medium wrap-break-word text-ink">{{ account.name }}</p>
+                                    <p class="mt-0.5 text-[0.8125rem] wrap-break-word text-ink-subtle">
+                                        {{ t(`platformAi.drivers.${account.driver}`) }} · {{ account.model }}
+                                    </p>
+                                </div>
+                            </div>
+                            <Badge v-if="account.isDefault" class="shrink-0" tone="brand" dot>{{ t('platformAi.default') }}</Badge>
                         </div>
-                        <div class="flex flex-wrap items-center gap-2">
-                            <Badge v-if="account.isDefault" tone="brand" dot>{{ t('platformAi.default') }}</Badge>
-                            <Badge :tone="account.enabled ? 'ok' : 'neutral'" dot>
-                                {{ account.enabled ? t('platformAi.enabled') : t('platformAi.disabled') }}
-                            </Badge>
-                            <Badge :tone="account.hasKey ? 'ok' : 'neutral'">
-                                {{ account.hasKey ? t('platformAi.keySet') : t('platformAi.keyMissing') }}
-                            </Badge>
-                            <Button
-                                v-if="account.enabled && !account.isDefault"
-                                size="sm"
-                                variant="ghost"
-                                :loading="isBusy('platform.ai.default', account)"
-                                @click="post('platform.ai.default', account)"
-                            >
-                                {{ t('platformAi.makeDefault') }}
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="ghost"
-                                :loading="isBusy('platform.ai.test', account)"
-                                @click="post('platform.ai.test', account)"
-                            >
-                                {{ t('platformAi.test.action') }}
-                            </Button>
-                            <Button size="sm" variant="secondary" @click="dialog = { account }">
-                                {{ t('common.actions.edit') }}
-                            </Button>
-                            <Button size="sm" variant="ghost" @click="removing = account">
-                                {{ t('common.actions.delete') }}
-                            </Button>
+
+                        <div class="flex flex-col gap-3 border-t border-line pt-4">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <Badge :tone="account.enabled ? 'ok' : 'neutral'" dot>
+                                    {{ account.enabled ? t('platformAi.enabled') : t('platformAi.disabled') }}
+                                </Badge>
+                                <Badge :tone="account.hasKey ? 'ok' : 'neutral'">
+                                    {{ account.hasKey ? t('platformAi.keySet') : t('platformAi.keyMissing') }}
+                                </Badge>
+                            </div>
+
+                            <p v-if="testSummary(account)" class="text-[0.8125rem] text-ink-subtle">{{ testSummary(account) }}</p>
+
+                            <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+                                <Button
+                                    v-if="account.enabled && !account.isDefault"
+                                    size="sm"
+                                    variant="ghost"
+                                    :loading="isBusy('platform.ai.default', account)"
+                                    @click="post('platform.ai.default', account)"
+                                >
+                                    {{ t('platformAi.makeDefault') }}
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    :loading="isBusy('platform.ai.test', account)"
+                                    @click="post('platform.ai.test', account)"
+                                >
+                                    {{ t('platformAi.test.action') }}
+                                </Button>
+                                <Button size="sm" variant="secondary" @click="dialog = { account }">
+                                    {{ t('common.actions.edit') }}
+                                </Button>
+                                <Button size="sm" variant="ghost" @click="removing = account">
+                                    {{ t('common.actions.delete') }}
+                                </Button>
+                            </div>
                         </div>
                     </li>
                 </ul>
-            </Card>
 
-            <p v-if="usesEnvironment" class="text-[0.8125rem] text-ink-subtle">{{ t('platformAi.envNote') }}</p>
+                <p v-if="usesEnvironment" class="mt-4 text-[0.8125rem] text-ink-subtle">{{ t('platformAi.envNote') }}</p>
+            </Card>
         </div>
 
         <ProviderDialog v-if="dialog" v-model:open="dialogOpen" :drivers="drivers" :account="dialog.account" />

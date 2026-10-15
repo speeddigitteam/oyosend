@@ -314,8 +314,11 @@ const requesterLabel = computed(() => props.ticket.requester.name ?? props.ticke
                 </div>
             </Card>
 
-            <Card v-if="ticket.mergedTickets.length || ticket.splitTickets.length || ticket.splitFrom" :title="t('support.show.related')">
+            <Card v-if="ticket.mergedTickets.length || ticket.splitTickets.length || ticket.splitFrom || ticket.fromChat" :title="t('support.show.related')">
                 <ul class="grid gap-2 text-sm">
+                    <li v-if="ticket.fromChat">
+                        <Link :href="route('support.live_chat.index', { open: ticket.fromChat, state: 'all' })" class="font-medium text-brand-text underline">{{ t('support.show.fromChat') }}</Link>
+                    </li>
                     <li v-if="ticket.splitFrom">
                         <span class="text-ink-subtle">{{ t('support.show.splitFrom') }}</span>
                         <Link :href="route('support.tickets.show', { ticket: ticket.splitFrom.id })" class="ms-1 font-medium text-brand-text underline">{{ ticket.splitFrom.number }}</Link>

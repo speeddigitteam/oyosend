@@ -11,12 +11,16 @@ use App\Modules\Social\Enums\PostType;
  */
 final readonly class PublishPayload
 {
-    /** @param list<MediaFile> $media */
+    /**
+     * @param  list<MediaFile>  $media
+     * @param  array<string, mixed>|null  $targetOptions  The per-account settings the creator chose ({@see ProvidesPostOptions}); null when none were chosen (a target saved before they existed, or a platform without any)
+     */
     public function __construct(
         public string $text,
         public ?string $linkUrl = null,
         public array $media = [],
         public string $idempotencyKey = '',
         public PostType $postType = PostType::Post,
+        public ?array $targetOptions = null,
     ) {}
 }

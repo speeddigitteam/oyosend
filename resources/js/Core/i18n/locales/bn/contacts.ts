@@ -27,6 +27,20 @@ const contacts: MessageSchema['contacts'] = {
         viewAll: 'সব দেখুন',
     },
     // One label per field, shared by the columns, the forms and the details of both lists.
+    views: {
+        label: 'কন্টাক্ট দেখানোর ধরন',
+        list: 'তালিকা',
+        grid: 'কার্ড',
+    },
+    sort: {
+        label: 'কন্টাক্ট সাজান',
+        nameAsc: 'নাম, অ থেকে হ',
+        nameDesc: 'নাম, হ থেকে অ',
+        company: 'কোম্পানি',
+        city: 'শহর',
+        newest: 'নতুনগুলো আগে',
+        oldest: 'পুরোনোগুলো আগে',
+    },
     fields: {
         name: 'নাম',
         firstName: 'নামের প্রথম অংশ',
@@ -143,6 +157,20 @@ const contacts: MessageSchema['contacts'] = {
             destructiveBody: 'সংযুক্ত রেকর্ড সরানোর পর ডুপ্লিকেট কন্টাক্টটি সফট-ডিলিট হবে। এখান থেকে এটি আর ফেরানো যাবে না।',
             referencesMove: 'সংযুক্ত CRM রেকর্ড ও কার্যক্রম {name}-এ চলে যাবে।',
             confirm: 'মার্জ করে ডুপ্লিকেট সরান',
+        },
+    },
+    company: {
+        back: 'সব কোম্পানি',
+        edit: 'কোম্পানি সম্পাদনা করুন',
+        notRecorded: '{field}: লেখা নেই',
+        taxId: 'ট্যাক্স আইডি {id}',
+        people: 'কন্টাক্ট',
+        addPerson: 'কন্টাক্ট যোগ করুন',
+        showAll: 'কন্টাক্ট তালিকায় সব {count}টি দেখুন',
+        noPeople: {
+            title: 'এই কোম্পানিতে এখনো কেউ নেই',
+            body: 'যাদের সাথে কাজ করেন তাদের এখানে যোগ করুন; কোম্পানিটি আগে থেকেই বাছা থাকবে।',
+            bodyViewOnly: 'এই কোম্পানির যাদের দেখার অনুমতি আপনার আছে, তারা এখানে দেখাবে।',
         },
     },
     companies: {

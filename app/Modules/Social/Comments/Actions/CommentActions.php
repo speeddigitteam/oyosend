@@ -67,6 +67,7 @@ final class CommentActions
             ])->save();
             $this->audit->record('social.comment.replied', $comment, $this->context($by, $rule, ['reply_id' => $reply->id]));
         });
+        $this->ingestor->threadChanged($comment);
 
         return $reply;
     }
@@ -105,6 +106,7 @@ final class CommentActions
             $comment->forceFill(['remote_state' => $hidden ? RemoteState::Hidden : RemoteState::Visible, 'last_action_error' => null])->save();
             $this->audit->record($hidden ? 'social.comment.hidden' : 'social.comment.unhidden', $comment, $this->context($by, $rule));
         });
+        $this->ingestor->threadChanged($comment);
     }
 
     public function delete(AudienceComment $comment, ?TenantMembership $by): void
@@ -126,6 +128,7 @@ final class CommentActions
             $comment->forceFill(['remote_state' => RemoteState::Deleted, 'needs_attention' => false, 'handled_at' => $comment->handled_at ?? now(), 'last_action_error' => null])->save();
             $this->audit->record('social.comment.removed', $comment, $this->context($by, null));
         });
+        $this->ingestor->threadChanged($comment);
     }
 
     public function setLiked(AudienceComment $comment, bool $liked, ?TenantMembership $by): void
@@ -172,6 +175,7 @@ final class CommentActions
             ])->save();
             $this->audit->record($handled ? 'social.comment.handled' : 'social.comment.reopened', $comment, $this->context($by, null));
         });
+        $this->ingestor->threadChanged($comment);
     }
 
     /** Assign to a member (their department and branch come with it) or, with null, to nobody. */
@@ -181,6 +185,7 @@ final class CommentActions
             $comment->assignOwner($to)->save();
             $this->audit->record('social.comment.assigned', $comment, $this->context($by, $rule, ['assignee_id' => $to?->id]));
         });
+        $this->ingestor->threadChanged($comment);
     }
 
     public function addNote(AudienceComment $comment, ?TenantMembership $by, string $body): CommentNote

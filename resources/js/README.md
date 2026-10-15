@@ -12,7 +12,7 @@ Core/
     Widgets/                dashboard widgets
   Layouts/                  AuthLayout, TenantLayout, PlatformLayout
   Pages/                    core workspace pages (+ Central/, Errors/)
-  composables/              useFormat, useAccess, useTheme, useToasts
+  composables/              useFormat, useAccess, useTheme, useToasts, useFullHeightPage
   lib/                      route(), format helpers, label lookups
   i18n/locales/{en,bn}/     one file per area of the interface
   types/                    props shared by every page
@@ -30,7 +30,7 @@ Translucent, blurred panels floating over a warm backdrop that carries a few sol
 
 - Build screens from `Card` (the glass panel) on the page background. Never put a panel inside a panel just for decoration; inside a card use hairlines (`border-line`), `glass-well` recesses and spacing.
 - Use the type roles: page and card titles in the display face (any `h1`–`h3`, or `font-display`), body in the default face, and the `eyebrow` utility (small mono caps) for section labels, table headers and metadata. Big numbers use the `figure` utility; any column of numbers uses `tabular`.
-- Use only token colours: `text-ink`, `text-ink-muted`, `text-ink-subtle`, `bg-hover`, `border-line`, `border-line-strong`, `text-brand-text`, `bg-brand-soft`, `text-accent-text` (`text-accent` only for figures of 24px and up, and `bg-accent` for small marks), and the status pairs `text-ok`/`bg-ok-soft`, `warn`, `danger`, `info`. The stock Tailwind palette (`gray-500`, `blue-600`, …) is switched off and will not compile to anything.
+- Use only token colours: `text-ink`, `text-ink-muted`, `text-ink-subtle`, `bg-hover`, `border-line`, `border-line-strong`, `text-brand-text`, `bg-brand-soft`, `text-accent-text` (`text-accent` only for figures of 24px and up, and `bg-accent` for small marks, with `text-accent-ink` on it), and the status pairs `text-ok`/`bg-ok-soft`, `warn`, `danger`, `info`. Chat surfaces have their own: `chat-wallpaper` (utility), `bg-chat-in`, `bg-chat-out`. The stock Tailwind palette (`gray-500`, `blue-600`, …) is switched off and will not compile to anything.
 - Brand pine green is for primary actions and "current" states. Persimmon `accent` is rare: one thing per screen that deserves the eye (a count that needs attention, the active nav marker).
 - Radii: `rounded-panel` (shell slabs, dialogs), `rounded-card`, `rounded-control` (buttons, inputs), `rounded-chip` (badges).
 - Keep it dense and calm: 14px body, generous line-height, `gap-3` between cards, `px-5` inside them.
@@ -46,6 +46,8 @@ Translucent, blurred panels floating over a warm backdrop that carries a few sol
 
 Every text colour must keep WCAG AA contrast on glass. The tokens guarantee it and `tests/js/contrast.test.ts` recomputes it from `app.css`, so stay on them, and keep backdrop discs at or below 80% opacity. Everything must work with the keyboard and in both themes, and at 360px wide.
 
+The sidebar is always dark (workspace and Super Admin, desktop and the mobile drawer): `AppShell` puts `data-theme="dark"` on it, which re-scopes every token inside to the dark palette while the page keeps the person's theme, and draws it with `glass-solid` (92% opaque): the thinner `glass` turns muddy grey over a light page. This works because the tokens are `@theme inline` and no `:root` token is built from another. Keep both true. Anything the sidebar opens in a portal (menus, dialogs) renders outside it and follows the page theme.
+
 ## Components (`@/Core/Components`)
 
 Read the component file for the full prop list; each has a doc comment.
@@ -55,11 +57,12 @@ Read the component file for the full prop list; each has a doc comment.
 | `Button` | `variant` primary / secondary / ghost / danger; `size` sm / md / lg; `href` makes it an Inertia link; `loading`; `block`; `icon` for a square icon button (put the label in the slot, it becomes screen-reader text); `#icon` slot for a leading icon |
 | `Input`, `PasswordInput` | `v-model`, `label`, `hint`, `error`, `optional`, `mono`; `#leading` / `#trailing` / `#aside` slots; other attributes fall through to the `<input>` |
 | `Select` | native select; `options: {value,label}[]`, `placeholder`, `label`, `error` |
+| `Textarea` | `v-model`, `label`, `hint`, `error`, `optional`, `rows`; other attributes fall through to the `<textarea>` |
 | `Checkbox` | `v-model` boolean, `label`, `description`, `indeterminate` |
 | `Field` | label + hint + error around a custom control |
 | `SegmentedControl` | a few exclusive choices side by side |
 | `Card` | glass panel; `title`, `description`, `flush` (no body padding, for tables); `#actions`, `#footer` |
-| `PageHeader` | `title` (also sets the document title), `eyebrow`, `description`, `#actions` |
+| `PageHeader` | `title` (also sets the document title), `eyebrow`, `description`, `compact` (smaller, for a full-height working screen), `#actions` |
 | `DataTable` | `columns`, `rows`, `row-key`, `caption`; `#cell-{key}="{ row, value }"`; sortable and hideable columns; `#toolbar`, `#empty` |
 | `Pagination` | pass the paginator object (`meta`); works for length-aware and cursor paginators |
 | `Badge` | `tone` neutral / brand / accent / ok / warn / danger / info, `dot` |
@@ -72,6 +75,10 @@ Read the component file for the full prop list; each has a doc comment.
 | `Kbd`, `Spinner`, `Logo`, `Backdrop`, `Icon` | small pieces |
 | `TwoFactorEnrolment`, `RecoveryCodes` | the two-factor enrolment blocks |
 | `Toaster` | already mounted by every layout; do not mount it again |
+
+On `Input`, `PasswordInput`, `Select` and `Textarea`, `class` and `style` place the whole field (label, control
+and hint): a grid span (`sm:col-span-2`), a width (`sm:w-44`), flex growth (`min-w-48 flex-1`). Style the control
+itself (`text-right`, a taller box, a monospace code) with `control-class`.
 
 Icons: import from `lucide-vue-next`, `class="size-4"`, `aria-hidden="true"`. `Icon` (by name) is only for icon names that come from the server.
 
@@ -93,7 +100,8 @@ defineProps<{ members: Paginated<Member> }>();     // type every prop
 - URLs: always `route('name', params)` from `@/Core/lib/route`. Only the current area's routes are available in the browser.
 - Success and failure messages are flashed by the server and shown by `Toaster` automatically; do not duplicate them client-side.
 - Permissions: `const { can } = useAccess()` to hide controls. It is presentation only — the server authorises every request.
-- Formatting: `const format = useFormat()` → `format.number()`, `format.date(iso, 'date' | 'datetime' | 'time' | 'short')`, `format.relative(iso)`, `format.money(minorUnits)`. Never print a raw number or ISO string: digits follow the person's numeral setting (Latin or Bengali) and dates the workspace timezone.
+- Formatting: `const format = useFormat()` → `format.number()`, `format.date(iso, 'date' | 'datetime' | 'time' | 'short' | 'weekday')`, `format.relative(iso)`, `format.money(minorUnits)`. Never print a raw number or ISO string: digits follow the person's numeral setting (Latin or Bengali) and dates the workspace timezone.
+- Full height: a working screen whose panes scroll on their own (the unified inbox) calls `useFullHeightPage()` (or passes a getter) and lays its root out as `flex min-h-0 flex-1 flex-col`; the shell then fills the window below the top bar instead of growing with the page. Every other page scrolls as usual.
 - Every state is designed: loading (`Skeleton` / `loading`), empty (`EmptyState`), validation errors, and the "you may view but not change this" case.
 
 ## Text and translations

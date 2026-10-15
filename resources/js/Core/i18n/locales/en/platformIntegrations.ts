@@ -12,14 +12,23 @@ export default {
         panel: 'Credentials set in this panel',
         environment: 'Using the server environment',
         none: 'No credentials, so it is not available',
+        switch: 'Uses the Meta app above; only this switch is set here',
     },
     // Credential field labels.
     fields: {
         client_id: 'App ID / client ID',
+        client_key: 'Client key',
         client_secret: 'App secret / client secret',
         webhook_verify_token: 'Webhook verify token',
         app_id: 'App ID',
         app_secret: 'App secret',
+    },
+    // Non-secret on/off switches, keyed by field.
+    flags: {
+        publishing: {
+            label: 'Instagram publishing enabled',
+            hint: 'Turn on only after Meta has approved instagram_basic and instagram_content_publish for the Facebook app. Until then Instagram shows as not available.',
+        },
     },
     publicHint: 'Shown back to you so it can match the OAuth redirect URI. Not a secret.',
     secretStored: 'Stored — leave blank to keep',
@@ -42,6 +51,22 @@ export default {
             x: {
                 name: 'X',
                 description: 'The X app for posting.',
+            },
+            instagram: {
+                name: 'Instagram',
+                description: 'Publishing to Instagram professional accounts. It uses the Facebook app above, so it has no credentials of its own.',
+            },
+            tiktok: {
+                name: 'TikTok',
+                description: 'The TikTok app for the Content Posting API.',
+            },
+            youtube: {
+                name: 'YouTube',
+                description: 'The Google OAuth client for YouTube video uploads.',
+            },
+            pinterest: {
+                name: 'Pinterest',
+                description: 'The Pinterest app for creating Pins.',
             },
         },
         meta_ads: {

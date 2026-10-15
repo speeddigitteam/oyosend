@@ -69,12 +69,12 @@ function remove(): void {
 
 <template>
     <Card :title="t('projects.members.title')" flush>
-        <template v-if="canManage" #actions><Button size="sm" variant="ghost" @click="create"><Plus class="size-4" aria-hidden="true" />{{ t('projects.members.add') }}</Button></template>
+        <template v-if="canManage" #actions><Button size="sm" variant="ghost" @click="create"><template #icon><Plus class="size-4" aria-hidden="true" /></template>{{ t('projects.members.add') }}</Button></template>
         <EmptyState v-if="members.length === 0" :title="t('projects.members.empty')" compact><template #icon><UsersRound /></template></EmptyState>
         <ul v-else class="divide-y divide-line">
             <li v-for="member in members" :key="member.membershipId" class="flex items-center justify-between gap-3 px-5 py-3">
                 <div class="min-w-0"><p class="truncate text-sm font-medium text-ink">{{ member.name }}</p><p class="text-xs text-ink-subtle">{{ t(`projects.members.roles.${member.role}`) }} · {{ t('projects.members.allocation', { percent: member.allocationPercent }) }}</p></div>
-                <div v-if="canManage" class="flex gap-1"><Button icon size="sm" variant="ghost" :aria-label="t('projects.members.editFor', { name: member.name })" @click="edit(member)"><Pencil class="size-4" aria-hidden="true" /></Button><Button v-if="member.removable" icon size="sm" variant="ghost" :aria-label="t('projects.members.removeFor', { name: member.name })" @click="removeError = ''; removing = member"><Trash2 class="size-4" aria-hidden="true" /></Button></div>
+                <div v-if="canManage" class="flex gap-1"><Button icon size="sm" variant="ghost" :aria-label="t('projects.members.editFor', { name: member.name })" @click="edit(member)"><template #icon><Pencil class="size-4" aria-hidden="true" /></template></Button><Button v-if="member.removable" icon size="sm" variant="ghost" :aria-label="t('projects.members.removeFor', { name: member.name })" @click="removeError = ''; removing = member"><template #icon><Trash2 class="size-4" aria-hidden="true" /></template></Button></div>
             </li>
         </ul>
     </Card>

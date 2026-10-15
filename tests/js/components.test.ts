@@ -24,6 +24,7 @@ import DataTable from '@/Core/Components/DataTable.vue';
 import EmptyState from '@/Core/Components/EmptyState.vue';
 import Input from '@/Core/Components/Input.vue';
 import Select from '@/Core/Components/Select.vue';
+import Textarea from '@/Core/Components/Textarea.vue';
 
 describe('Button', () => {
     it('is a real button that does not submit by default', () => {
@@ -92,6 +93,30 @@ describe('Input', () => {
         expect(wrapper.props('modelValue')).toBe('owner@acme.test');
         expect(wrapper.get('input').attributes('autocomplete')).toBe('username');
         expect(wrapper.get('input').attributes('name')).toBe('email');
+    });
+});
+
+describe('form fields', () => {
+    // A class on a field places it in its layout (a grid span, a width, flex growth), so it lands on the wrapper that
+    // also holds the label and the hint. Only controlClass styles the control itself.
+    it.each([
+        ['Input', Input, 'input', {}],
+        ['Select', Select, 'select', { options: [{ value: 'a', label: 'A' }] }],
+        ['Textarea', Textarea, 'textarea', {}],
+    ] as [string, Component, string, Record<string, unknown>][])('%s puts class on its wrapper and controlClass on the control', (_name, field, tag, props) => {
+        const wrapper = mount(field, {
+            props: { ...props, label: 'Name', modelValue: '', controlClass: 'font-mono' },
+            attrs: { class: 'sm:col-span-2', style: 'order: 2', name: 'field' },
+        });
+        const control = wrapper.get(tag);
+
+        expect(wrapper.classes()).toContain('sm:col-span-2');
+        expect(wrapper.attributes('style')).toContain('order: 2');
+        expect(control.classes()).toContain('control');
+        expect(control.classes()).toContain('font-mono');
+        expect(control.classes()).not.toContain('sm:col-span-2');
+        expect(control.attributes('style')).toBeUndefined();
+        expect(control.attributes('name')).toBe('field');
     });
 });
 

@@ -155,15 +155,39 @@ const DECLARED_BY_REPORTS = [
     'reports.saved.manage_all',
 ];
 
+const DECLARED_BY_META_ADS = [
+    'meta_ads.accounts.manage',
+    'meta_ads.accounts.view',
+    'meta_ads.campaigns.manage',
+    'meta_ads.campaigns.view',
+    'meta_ads.insights.export',
+    'meta_ads.insights.view',
+    'meta_ads.settings.manage',
+];
+
+const DECLARED_BY_NOTES = [
+    'notes.notes.manage',
+    'notes.notes.view',
+];
+
 const DECLARED_BY_SOCIAL = [
     'social.accounts.manage',
     'social.accounts.view',
     'social.analytics.view',
+    'social.comments.manage_rules',
+    'social.comments.moderate',
+    'social.comments.reply',
+    'social.comments.view',
     'social.imports.create',
+    'social.leadads.manage',
+    'social.leadads.view',
     'social.library.manage',
     'social.library.view',
     'social.media.manage',
     'social.media.view',
+    'social.messages.reply',
+    'social.messages.view',
+    'social.posts.ai_assist',
     'social.posts.approve',
     'social.posts.comment',
     'social.posts.create',
@@ -321,10 +345,10 @@ it('creates the permissions the registered modules declare', function () {
 
     sort($result['created']);
 
-    expect($result['created'])->toBe([...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_EMAIL_MARKETING, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SMS_MARKETING, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT, ...DECLARED_BY_WHATSAPP_MARKETING])
+    expect($result['created'])->toBe([...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_EMAIL_MARKETING, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_META_ADS, ...DECLARED_BY_NOTES, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SMS_MARKETING, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT, ...DECLARED_BY_WHATSAPP_MARKETING])
         ->and($result['stale'])->toBe([])
         ->and($result['pruned'])->toBe([])
-        ->and(($this->names)())->toBe([...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_EMAIL_MARKETING, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SMS_MARKETING, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT, ...DECLARED_BY_WHATSAPP_MARKETING])
+        ->and(($this->names)())->toBe([...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_EMAIL_MARKETING, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_META_ADS, ...DECLARED_BY_NOTES, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SMS_MARKETING, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT, ...DECLARED_BY_WHATSAPP_MARKETING])
         ->and(Permission::query()->where('guard_name', 'web')->where('module', 'core')->count())->toBe(count(DECLARED_BY_CORE))
         ->and(Permission::query()->where('guard_name', 'web')->where('module', 'crm')->count())->toBe(count(DECLARED_BY_CRM))
         ->and(Permission::query()->where('guard_name', 'web')->where('module', 'hrm')->count())->toBe(count(DECLARED_BY_HRM))
@@ -401,7 +425,7 @@ describe('permissions no module declares any more', function () {
             ->and(Permission::query()->whereKey($this->legacy->id)->exists())->toBeFalse()
             ->and(DB::table('role_has_permissions')->where('permission_id', $this->legacy->id)->count())->toBe(0)
             // Everything still declared survives, grants included.
-            ->and(($this->names)())->toBe([...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_EMAIL_MARKETING, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SMS_MARKETING, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT, ...DECLARED_BY_WHATSAPP_MARKETING])
+            ->and(($this->names)())->toBe([...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_EMAIL_MARKETING, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_META_ADS, ...DECLARED_BY_NOTES, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SMS_MARKETING, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT, ...DECLARED_BY_WHATSAPP_MARKETING])
             ->and(app(RoleManager::class)->grantedNames($this->roleOf($this->acme, Role::MANAGER)))
             ->toBe(['core.apps.view', 'core.contacts.manage', 'core.contacts.view', 'core.members.invite', 'core.members.view', 'core.organization.view', 'core.roles.view']);
     });
@@ -418,7 +442,7 @@ describe('permissions no module declares any more', function () {
 
 describe('php artisan permissions:sync', function () {
     it('reports what it added', function () {
-        $declared = [...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_EMAIL_MARKETING, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SMS_MARKETING, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT, ...DECLARED_BY_WHATSAPP_MARKETING];
+        $declared = [...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_EMAIL_MARKETING, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_META_ADS, ...DECLARED_BY_NOTES, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SMS_MARKETING, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT, ...DECLARED_BY_WHATSAPP_MARKETING];
 
         $this->artisan('permissions:sync')
             ->expectsOutputToContain(count($declared).' permission(s) added.')
@@ -446,6 +470,6 @@ describe('php artisan permissions:sync', function () {
             ->doesntExpectOutputToContain('Re-run with --prune')
             ->assertSuccessful();
 
-        expect(($this->names)())->toBe([...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_EMAIL_MARKETING, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SMS_MARKETING, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT, ...DECLARED_BY_WHATSAPP_MARKETING]);
+        expect(($this->names)())->toBe([...DECLARED_BY_AI, ...DECLARED_BY_AUTOMATION, ...DECLARED_BY_COMMUNICATION, ...DECLARED_BY_CORE, ...DECLARED_BY_CRM, ...DECLARED_BY_EMAIL_MARKETING, ...DECLARED_BY_HRM, ...DECLARED_BY_INVOICING, ...DECLARED_BY_META_ADS, ...DECLARED_BY_NOTES, ...DECLARED_BY_PAYROLL, ...DECLARED_BY_PROJECTS, ...DECLARED_BY_REPORTS, ...DECLARED_BY_SMS_MARKETING, ...DECLARED_BY_SOCIAL, ...DECLARED_BY_SUPPORT, ...DECLARED_BY_TALENT, ...DECLARED_BY_WHATSAPP_MARKETING]);
     });
 });

@@ -42,7 +42,7 @@ There is still no integration *centre* (OAuth, API tokens, outgoing webhooks).
 | Payment gateway | `App\Core\Billing\Contracts\PaymentGateway` with two implementations, SSLCommerz and aamarPay, **neither yet run against its provider's sandbox**. Incoming notifications arrive at stateless routes on the workspace host and are verified by asking the provider (`docs/BILLING.md` section 5) |
 | Object storage | `TenantStorage` works on any Laravel disk (`TENANT_FILESYSTEM_DISK`). The S3 driver package (`league/flysystem-aws-s3-v3`) is not installed |
 | API | No API routes. `laravel/sanctum` is verified compatible but not installed |
-| Realtime | `laravel/reverb` is verified compatible but not installed; `BROADCAST_CONNECTION=log` |
+| Realtime | The inbox's realtime signals are built against the Pusher protocol (`pusher/pusher-php-server` 7.3.0, `laravel-echo` 2.5.0, `pusher-js` 8.6.0; ADR 0035). `laravel/reverb` 1.12.0 supports Laravel 13 but requires PSR-7 2, which would downgrade Guzzle 8 to 7: **not installed**, an owner decision. `BROADCAST_CONNECTION=log` keeps realtime off |
 | Search | `laravel/scout` installed with the `database` driver; no searchable model. Meilisearch is the intended later engine |
 | Queue | `webhooks` exists as a queue name (Horizon `interactive` supervisor); nothing dispatches to it |
 | `config/services.php` | Stock Laravel file, unused |

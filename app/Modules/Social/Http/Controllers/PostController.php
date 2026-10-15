@@ -294,12 +294,18 @@ final class PostController
         ];
     }
 
-    /** @return list<array{account_id: string, body_override: string|null}> */
+    /**
+     * The chosen accounts. `options` is passed on only when the composer sent the key (null clears them), so a
+     * request without it leaves a target's stored options as they are.
+     *
+     * @return list<array{account_id: string, body_override: string|null, options?: array<string, mixed>|null}>
+     */
     private function targets(PostRequest $request): array
     {
         return array_values(array_map(static fn (array $target): array => [
             'account_id' => (string) $target['account_id'],
             'body_override' => isset($target['body_override']) ? (string) $target['body_override'] : null,
+            ...(array_key_exists('options', $target) ? ['options' => is_array($target['options']) ? $target['options'] : null] : []),
         ], (array) ($request->validated('targets') ?? [])));
     }
 

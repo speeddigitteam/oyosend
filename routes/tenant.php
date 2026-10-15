@@ -25,6 +25,7 @@ use App\Core\Identity\Http\Controllers\Team\RoleController;
 use App\Core\Organization\Http\Controllers\BranchController;
 use App\Core\Organization\Http\Controllers\DepartmentController;
 use App\Core\Organization\Http\Controllers\OrganizationController;
+use App\Core\Realtime\Http\Controllers\ChannelAuthorizationController;
 use App\Core\Settings\Http\Controllers\OnboardingController;
 use App\Core\Settings\Http\Controllers\WorkspaceSettingsController;
 use App\Platform\Impersonation\Http\WorkspaceImpersonationController;
@@ -119,6 +120,12 @@ Route::middleware(['auth:web', 'auth.session', 'member'])->group(function () {
     Route::middleware('subscribed')->group(function () {
         Route::get('/', DashboardController::class)->name('core.dashboard');
 
+        // Realtime (ADR 0034): signs a subscription to a private channel of this workspace. 404 while realtime is
+        // off; each channel's own `join()` decides (the unified inbox: `communication.inbox.view`). Workspace host only.
+        Route::post('broadcasting/auth', ChannelAuthorizationController::class)
+            ->middleware('throttle:120,1,realtime-auth')
+            ->name('core.realtime.auth');
+
         // App Store: compiled first-party modules only. Paid checkout also
         // requires billing control; a verified invoice is what grants access.
         Route::middleware('can:core.apps.view')->group(function () {
@@ -206,6 +213,7 @@ Route::middleware(['auth:web', 'auth.session', 'member'])->group(function () {
             Route::get('contacts/{contact}/duplicates', [ContactMergeController::class, 'candidates'])->name('core.contacts.duplicates.show');
             Route::get('contacts/{contact}/records', [CustomerRecordsController::class, 'show'])->middleware('throttle:60,1')->name('core.contacts.records');
             Route::get('companies', [CompanyController::class, 'index'])->name('core.contacts.companies.index');
+            Route::get('companies/{company}', [CompanyController::class, 'show'])->name('core.contacts.companies.show');
         });
         Route::middleware('can:core.contacts.manage')->group(function () {
             Route::post('contacts', [ContactController::class, 'store'])->name('core.contacts.store');

@@ -87,7 +87,7 @@ function remove(): void {
     <Card flush class="min-w-0" data-testid="comment-thread">
         <div class="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
             <Button size="sm" variant="ghost" class="lg:hidden" @click="$emit('back')">
-                <ArrowLeft class="size-4 rtl:rotate-180" aria-hidden="true" />
+                <template #icon><ArrowLeft class="size-4 rtl:rotate-180" aria-hidden="true" /></template>
                 {{ t('socialComments.thread.back') }}
             </Button>
             <div class="min-w-0 flex-1">
@@ -138,19 +138,19 @@ function remove(): void {
         <div v-if="canAct" class="grid gap-4 border-t border-line px-4 py-4">
             <div class="flex flex-wrap gap-2">
                 <Button v-if="can.reply" size="sm" :disabled="busy" @click="put('social.comments.like', { liked: !focus.likedByPage })">
-                    <Heart class="size-4" aria-hidden="true" />
+                    <template #icon><Heart class="size-4" aria-hidden="true" /></template>
                     {{ focus.likedByPage ? t('socialComments.actions.unlike') : t('socialComments.actions.like') }}
                 </Button>
                 <Button v-if="can.moderate" size="sm" :disabled="busy" @click="put('social.comments.hidden', { hidden: !focus.hidden })">
-                    <component :is="focus.hidden ? Eye : EyeOff" class="size-4" aria-hidden="true" />
+                    <template #icon><component :is="focus.hidden ? Eye : EyeOff" class="size-4" aria-hidden="true" /></template>
                     {{ focus.hidden ? t('socialComments.actions.unhide') : t('socialComments.actions.hide') }}
                 </Button>
                 <Button v-if="can.reply" size="sm" :disabled="busy" @click="put('social.comments.handled', { handled: !focus.handled })">
-                    <component :is="focus.handled ? RotateCcw : Check" class="size-4" aria-hidden="true" />
+                    <template #icon><component :is="focus.handled ? RotateCcw : Check" class="size-4" aria-hidden="true" /></template>
                     {{ focus.handled ? t('socialComments.actions.reopen') : t('socialComments.actions.markHandled') }}
                 </Button>
                 <Button v-if="can.moderate" size="sm" variant="danger" :disabled="busy" @click="confirmDelete = true">
-                    <Trash2 class="size-4" aria-hidden="true" />
+                    <template #icon><Trash2 class="size-4" aria-hidden="true" /></template>
                     {{ t('socialComments.actions.delete') }}
                 </Button>
             </div>
