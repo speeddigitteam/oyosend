@@ -2,7 +2,7 @@
 import { router } from '@inertiajs/vue3';
 import { CornerDownLeft, Search } from 'lucide-vue-next';
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle, VisuallyHidden } from 'reka-ui';
-import { computed, nextTick, ref, watch, type Component } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Icon from '@/Core/Components/Icon.vue';
 import Kbd from '@/Core/Components/Kbd.vue';
@@ -31,6 +31,8 @@ interface Entry extends Command {
 const props = defineProps<{
     sections: ShellNavSection[];
     commands: Command[];
+    /** The control that opens the palette: the palette opens just under it, centred on it. */
+    anchor?: HTMLElement | null;
 }>();
 
 const open = defineModel<boolean>('open', { default: false });
@@ -86,8 +88,38 @@ watch(open, (isOpen) => {
     if (isOpen) {
         query.value = '';
         activeIndex.value = 0;
+        place();
     }
 });
+
+/*
+ * Where the palette opens: right under the search control, centred on it, kept inside the window (12px from each
+ * edge, at most 36rem wide). Without a control it sits in the middle, near the top.
+ */
+const MAX_WIDTH = 576;
+const EDGE = 12;
+const position = ref<Record<string, string>>({});
+
+function place(): void {
+    const box = props.anchor?.getBoundingClientRect();
+
+    if (!box || typeof window === 'undefined') {
+        position.value = { top: '14vh', left: '50%' };
+        return;
+    }
+
+    const half = Math.min(MAX_WIDTH, window.innerWidth - EDGE * 2) / 2;
+    const centre = Math.min(Math.max(box.left + box.width / 2, half + EDGE), window.innerWidth - half - EDGE);
+
+    position.value = { top: `${Math.round(box.bottom + 8)}px`, left: `${Math.round(centre)}px` };
+}
+
+function onResize(): void {
+    if (open.value) place();
+}
+
+onMounted(() => window.addEventListener('resize', onResize));
+onBeforeUnmount(() => window.removeEventListener('resize', onResize));
 
 function move(step: number): void {
     const count = results.value.length;
@@ -118,7 +150,8 @@ function run(entry: Entry | undefined): void {
         <DialogPortal>
             <DialogOverlay class="fixed inset-0 z-50 bg-[rgb(8_14_12/0.42)] backdrop-blur-[3px] data-[state=open]:animate-fade" />
             <DialogContent
-                class="glass-solid fixed top-[14vh] left-1/2 z-50 flex max-h-[min(30rem,70vh)] w-[calc(100vw-1.5rem)] max-w-xl -translate-x-1/2 flex-col overflow-hidden rounded-panel focus:outline-none data-[state=open]:animate-pop"
+                class="glass-solid fixed z-50 flex max-h-[min(30rem,70vh)] w-[calc(100vw-1.5rem)] max-w-xl -translate-x-1/2 flex-col overflow-hidden rounded-panel focus:outline-none data-[state=open]:animate-pop"
+                :style="position"
                 @keydown.down.prevent="move(1)"
                 @keydown.up.prevent="move(-1)"
                 @keydown.enter.prevent="run(results[activeIndex])"

@@ -7,6 +7,8 @@ import Button from '@/Core/Components/Button.vue';
 import Avatar from '@/Core/Components/Avatar.vue';
 import Card from '@/Core/Components/Card.vue';
 import ConfirmDialog from '@/Core/Components/ConfirmDialog.vue';
+import AddressManager from '@/Core/Components/Contacts/AddressManager.vue';
+import ContactAddresses from '@/Core/Components/Contacts/ContactAddresses.vue';
 import ContactCard from '@/Core/Components/Contacts/ContactCard.vue';
 import ContactMergeDialog from '@/Core/Components/Contacts/ContactMergeDialog.vue';
 import ContactFormDialog from '@/Core/Components/Contacts/ContactFormDialog.vue';
@@ -19,7 +21,7 @@ import { ADD_BUTTON, actionsSelector, mailHref, peopleOfCompanyUrl, telHref } fr
 import PeopleEmpty from '@/Core/Components/Contacts/PeopleEmpty.vue';
 import RowActions from '@/Core/Components/Contacts/RowActions.vue';
 import { screenAtLeast } from '@/Core/Components/Contacts/screen';
-import type { ContactRow, DetailItem, DirectoryOption } from '@/Core/Components/Contacts/types';
+import type { AddressParent, ContactRow, DetailItem, DirectoryOption } from '@/Core/Components/Contacts/types';
 import { type DirectoryView, initialsOf, SORT_COLUMNS, sortKeyOf, storedView, storeView } from '@/Core/Components/Contacts/view';
 import DataTable, { type Column, type SortState } from '@/Core/Components/DataTable.vue';
 import EmptyState from '@/Core/Components/EmptyState.vue';
@@ -111,7 +113,7 @@ const viewOptions = computed(() => [
 
 /*
  * Sorting happens on the server, so it holds across pages. The list sorts from its column headers, the grid from
- * a select with the same choices.
+ * a select with every choice the headers can make, so switching views never leaves the select blank.
  */
 const sortState = computed<SortState>(() => ({ key: SORT_COLUMNS[props.filters.sort] ?? 'name', direction: props.filters.direction }));
 
@@ -125,7 +127,11 @@ const sortOptions = computed(() => [
     { value: 'name:asc', label: t('contacts.sort.nameAsc') },
     { value: 'name:desc', label: t('contacts.sort.nameDesc') },
     { value: 'company:asc', label: t('contacts.sort.company') },
+    { value: 'company:desc', label: t('contacts.sort.companyDesc') },
+    { value: 'email:asc', label: t('contacts.sort.email') },
+    { value: 'email:desc', label: t('contacts.sort.emailDesc') },
     { value: 'city:asc', label: t('contacts.sort.city') },
+    { value: 'city:desc', label: t('contacts.sort.cityDesc') },
     { value: 'created:desc', label: t('contacts.sort.newest') },
     { value: 'created:asc', label: t('contacts.sort.oldest') },
 ]);
@@ -189,6 +195,21 @@ useFocusReturn(detailsOpen, () => actionsSelector(detailsTarget.value?.id));
 const details = computed<DetailItem[]>(() =>
     detailsTarget.value ? contactDetails(detailsTarget.value, t, page.props.app.locale, (value) => format.date(value)) : [],
 );
+
+/*
+ * A contact's typed addresses (ADR 0039) are read and changed from its details: those close first, one dialog at a time.
+ */
+const addressManager = ref<InstanceType<typeof AddressManager> | null>(null);
+
+function fromDetails(action: (manager: InstanceType<typeof AddressManager>, parent: AddressParent) => void): void {
+    const contact = detailsTarget.value;
+    const manager = addressManager.value;
+
+    if (!contact || !manager) return;
+
+    detailsOpen.value = false;
+    void nextTick(() => action(manager, { kind: 'contact', id: contact.id, name: contact.name }));
+}
 
 /*
  * Adding and changing share one form.
@@ -310,7 +331,6 @@ function destroy(): void {
             storage-key="contacts"
             sort-mode="server"
             :sort="sortState"
-            class="pt-4"
             @update:sort="sortBy"
         >
             <template #toolbar>
@@ -481,7 +501,19 @@ function destroy(): void {
         :items="details"
         :editable="detailsTarget?.editable"
         @edit="detailsTarget && openEdit(detailsTarget)"
-    />
+    >
+        <ContactAddresses
+            v-if="detailsTarget?.addresses"
+            :addresses="detailsTarget.addresses"
+            :editable="detailsTarget.editable"
+            @add="fromDetails((manager, parent) => manager.add(parent))"
+            @edit="(address) => fromDetails((manager, parent) => manager.edit(parent, address))"
+            @make-default="(address) => fromDetails((manager) => manager.makeDefault(address))"
+            @delete="(address) => fromDetails((manager, parent) => manager.remove(parent, address))"
+        />
+    </DetailsDialog>
+
+    <AddressManager ref="addressManager" />
 
     <ContactFormDialog
         v-if="canCreate"

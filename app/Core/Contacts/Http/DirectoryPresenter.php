@@ -10,9 +10,11 @@ use App\Core\Access\RecordAccess;
 use App\Core\Contacts\Http\Controllers\ContactController;
 use App\Core\Contacts\Models\Company;
 use App\Core\Contacts\Models\Contact;
+use App\Core\Contacts\Models\ContactAddress;
 use App\Core\Identity\Enums\MembershipStatus;
 use App\Core\Identity\Models\TenantMembership;
 use App\Core\Identity\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 
 /**
  * How the contact directory's pages show a contact or a company, and the choices their forms offer. One place, so the
@@ -26,12 +28,15 @@ final class DirectoryPresenter
     ) {}
 
     /**
-     * A contact as a row or card. Expects `company:id,name` and `owner.user:id,name` loaded.
+     * A contact as a row or card. Expects `company:id,name` and `owner.user:id,name` loaded; carries `addresses` only
+     * when they were loaded too.
      *
      * @return array<string, mixed>
      */
     public function contact(Contact $contact, User $viewer): array
     {
+        $editable = $this->records->allows($viewer, ContactController::MANAGE, $contact);
+
         return [
             'id' => $contact->id,
             'name' => $contact->fullName(),
@@ -50,20 +55,23 @@ final class DirectoryPresenter
                 'name' => $contact->owner->user->name,
             ],
             // Hide what the viewer's scope does not reach; the server checks again on every change.
-            'editable' => $this->records->allows($viewer, ContactController::MANAGE, $contact),
+            'editable' => $editable,
             'deletable' => $this->records->allows($viewer, ContactController::DELETE, $contact),
             'createdAt' => $contact->created_at->toIso8601String(),
+            ...($contact->relationLoaded('addresses') ? ['addresses' => $this->addresses($contact->addresses, $editable)] : []),
         ];
     }
 
     /**
      * A company as a row or page. Expects `owner.user:id,name` loaded; `$people` is how many of its contacts the viewer
-     * can see.
+     * can see. Carries `addresses` only when they were loaded (its own page).
      *
      * @return array<string, mixed>
      */
     public function company(Company $company, User $viewer, int $people): array
     {
+        $editable = $this->records->allows($viewer, ContactController::MANAGE, $company);
+
         return [
             'id' => $company->id,
             'name' => $company->name,
@@ -81,10 +89,44 @@ final class DirectoryPresenter
                 'id' => $company->owner->id,
                 'name' => $company->owner->user->name,
             ],
-            'editable' => $this->records->allows($viewer, ContactController::MANAGE, $company),
+            'editable' => $editable,
             'deletable' => $this->records->allows($viewer, ContactController::DELETE, $company),
             'createdAt' => $company->created_at->toIso8601String(),
+            ...($company->relationLoaded('addresses') ? ['addresses' => $this->addresses($company->addresses, $editable)] : []),
         ];
+    }
+
+    /**
+     * A parent's typed addresses: invoice, then delivery, then other; the default of each type first, then the oldest.
+     * `$editable` is whether the viewer may change the parent, which decides the addresses too.
+     *
+     * @param  Collection<int, ContactAddress>  $addresses
+     * @return list<array<string, mixed>>
+     */
+    public function addresses(Collection $addresses, bool $editable): array
+    {
+        return $addresses
+            ->sortBy([
+                static fn (ContactAddress $a, ContactAddress $b): int => $a->type->rank() <=> $b->type->rank(),
+                static fn (ContactAddress $a, ContactAddress $b): int => $b->is_default <=> $a->is_default,
+                static fn (ContactAddress $a, ContactAddress $b): int => [$a->created_at->getTimestamp(), $a->id] <=> [$b->created_at->getTimestamp(), $b->id],
+            ])
+            ->map(static fn (ContactAddress $address): array => [
+                'id' => $address->id,
+                'type' => $address->type->value,
+                'label' => $address->label,
+                'name' => $address->name,
+                'email' => $address->email,
+                'phone' => $address->phone,
+                'address' => $address->address,
+                'city' => $address->city,
+                'postalCode' => $address->postal_code,
+                'country' => $address->country,
+                'isDefault' => $address->is_default,
+                'editable' => $editable,
+            ])
+            ->values()
+            ->all();
     }
 
     /**

@@ -255,7 +255,7 @@ function destroy(): void {
     </Card>
 
     <Card v-else flush :aria-busy="loading || undefined">
-        <DataTable :columns="columns" :rows="companies.data" row-key="id" :caption="t('contacts.companies.caption')" storage-key="companies" class="pt-4">
+        <DataTable :columns="columns" :rows="companies.data" row-key="id" :caption="t('contacts.companies.caption')" storage-key="companies">
             <template #toolbar>
                 <DirectorySearch ref="searchBox" v-model="search" :label="t('contacts.companies.search')" :loading="loading" @submit="apply()" @clear="apply()" />
                 <p class="eyebrow tabular px-1" role="status">{{ count }}</p>

@@ -25,6 +25,9 @@ export default defineConfig({
     server: {
         // Pages are served from {tenant}.localhost, the dev server from localhost.
         cors: true,
+        // IPv4 on purpose: Node resolves `localhost` to [::1], and a Content-Security-Policy source cannot name an
+        // IPv6 address, so SecurityHeaders could not allow the dev server's scripts and hot-reload socket.
+        host: '127.0.0.1',
         watch: {
             ignored: ['**/storage/framework/views/**', '**/vendor/**'],
         },

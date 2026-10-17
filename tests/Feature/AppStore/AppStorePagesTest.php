@@ -33,8 +33,10 @@ it('shows the compiled catalogue and app detail to a workspace member', function
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->component('Core/Pages/AppStore/Show')
-            ->where('app.key', 'test_crm')
-            ->has('app.offers', 4));
+            ->where('storeApp.key', 'test_crm')
+            ->has('storeApp.offers', 4)
+            // The page's own prop must not shadow the shared one that number and date formatting read.
+            ->where('app.numerals', 'latn'));
 });
 
 it('installs a free offer over the authorised tenant route', function () {

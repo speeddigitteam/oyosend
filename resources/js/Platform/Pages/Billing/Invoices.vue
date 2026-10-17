@@ -240,7 +240,6 @@ const columns = computed<Column[]>(() => [
                 row-key="id"
                 :caption="t('platformBilling.invoices.caption')"
                 storage-key="platform-invoices"
-                class="pt-4"
             >
                 <template #toolbar>
                     <form role="search" class="flex w-full flex-wrap items-center gap-2" @submit.prevent="apply">

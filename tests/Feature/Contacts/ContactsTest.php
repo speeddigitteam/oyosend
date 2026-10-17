@@ -113,6 +113,8 @@ describe('the people list', function () {
                     'editable' => true,
                     'deletable' => true,
                     'createdAt' => $contact->created_at->toIso8601String(),
+                    // Its typed addresses (ADR 0039), for the details dialog.
+                    'addresses' => [],
                 ])
                     // The owner is named by membership, never by account id; nothing of another workspace leaks.
                     ->and(json_encode($props['contacts']))->not->toContain($this->manager->id, $foreign->id, 'Elsewhere', 'tenant_id')

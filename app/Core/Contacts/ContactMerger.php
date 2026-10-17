@@ -81,6 +81,13 @@ final class ContactMerger
                 }
             }
 
+            // The duplicate's typed addresses are the core directory's own reference (ADR 0039).
+            $movedAddresses = $this->directory->moveAddresses($lockedDuplicate, $lockedCanonical);
+
+            if ($movedAddresses > 0) {
+                $referenceCounts['contact_addresses'] = $movedAddresses;
+            }
+
             $duplicateId = $lockedDuplicate->id;
             $duplicateName = $lockedDuplicate->fullName();
 

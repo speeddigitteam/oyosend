@@ -579,7 +579,13 @@ channel is read and answered from one screen.
   people as cards under "Contacts" (at most 60; the rest via the filtered people list) with "Add a contact" that opens
   the contact form with the company already chosen. The name on the companies list links to it; deleting from the page
   returns to the list. Contact and company rows, and the form choices, now come from one `Contacts\Http\DirectoryPresenter`
-  shared by the three pages. Not built: Odoo's typed child addresses (invoice/delivery), which need a schema change.
+  shared by the three pages.
+- **Typed addresses (Odoo's invoice/delivery/other, ADR 0039).** `contact_addresses` (tenant-owned, one parent: a
+  company or a contact; migration `2026_11_22_000300_create_contact_addresses_table`, applied to dev) written only
+  through `ContactDirectory` (one default per type per parent under a lock, audited on the parent without address
+  text), five routes under `core.contacts.manage` authorized on the parent; merging contacts moves the duplicate's
+  addresses. "Addresses" section on the company page, and in a contact's details dialog. Not built yet: choosing an
+  invoice or delivery address on Invoicing/CRM documents.
 - **Incident (2026-10-15):** another session's script emptied `app/Core/CoreServiceProvider.php` (13:37); it was
   restored from this session's Claude Code file-history snapshot of 14 Oct 20:48, checked against every later change
   by that session (none after a Pint run), and the app and the core-dependent tests came back green.
@@ -936,6 +942,51 @@ through `AiGateway`. Side finding recorded in the ADR: `SecurityHeaders` sends `
 which also blocks the Telephony softphone's `getUserMedia`. The owner then decided that voice is part of the paid AI app (new permission
 `ai.voice.use`, switch on `ai_settings`) and that the member preference needs no workspace override. Still waiting
 for the stage 1 engine decision before building.
+
+## Whole-app check and fixes (2026-10-15)
+
+A review of this session's contacts, inbox, bell and palette work found three defects, now fixed:
+
+- `ContactDirectory::updateAddress` / `deleteAddress` decided from the address as bound to the request, read before the
+  parent lock, so two requests at once (delete the default while deleting the address that inherits it) could leave a
+  type with no default. Both now re-read the row under the lock (`reread()`, a 404 if it was deleted meanwhile);
+  `makeDefaultAddress` no longer short-circuits on the stale copy. Test in `ContactAddressesTest`.
+- The contacts grid's sort select lacked choices the list headers can make (email, company and city descending), so
+  it showed blank after switching views. It now offers all ten (`contacts.sort.*` in en and bn).
+- The notification bell let a summary already on its way overwrite "mark read"/"mark all read" with the old items;
+  those actions now abort it. Test in `tests/js/notification-bell.test.ts`.
+
+A crawl of every page reachable by links (Playwright, signed in as the Globex owner, the Acme owner, a Globex employee
+and the Super Admin) found three more, fixed on 2026-10-17:
+
+- The App Store detail page passed its app as the page prop `app`, which replaced the shared `app` prop (locale,
+  numerals, timezone, currency) on `/apps/{key}`: every number, date and amount there was formatted without them, and
+  an app with a trial offer (`/apps/ai`) threw `Invalid language tag: en-bd-u-nu-undefined`. The prop is now
+  `storeApp`; `AppStorePagesTest` asserts the shared `app.numerals` survives.
+- Super Admin > Website > Messages called `route('central.home')`, which is not in the panel's route list, so the page
+  threw on load. The controller now passes the website address as `website` (as the Company page already did).
+- Development only: Vite bound `localhost` to `[::1]`, which a Content-Security-Policy source cannot name, so every
+  page logged five CSP warnings and enforcing the policy would block the dev server. `vite.config.ts` pins
+  `server.host` to `127.0.0.1`.
+- `ReportsPlatformTest` entitled a fixed list of modules, so the reports Links, Telephony and Calendar register asked
+  for permissions the test workspace lacked; it now entitles every optional module of the build.
+
+Gates on 2026-10-17: Pint, Larastan (0), vue-tsc (0), Vitest 999 passed, build OK; full Pest (4 processes)
+4,852 tests, 4,849 passed. The three failures came from apps added by concurrent sessions: the Reports one above
+(fixed), and two counts that the new Links/Telephony/Calendar apps changed (`PlatformPagesTest` `stats.modules`,
+`AppCatalogTest` app totals) plus `WebsiteTest` wanting a site page for every module (Calendar has none yet). Those
+are left to the session building Calendar, which was editing the same files at the time.
+
+**Local MySQL incident (2026-10-15 to 2026-10-17).** A Pest run with `--parallel` was migrating its worker databases
+when the session that had started `mysqld` ended and took the server down mid-DDL. InnoDB then refused to start
+(tablespace ids of those test databases no longer matched the data dictionary), and after a force-recovery start its
+undo tablespace proved corrupt (the server crashed again under load). With the owner's approval the server was
+rebuilt: the old data directory is kept at `D:/laragon/data/mysql-8-corrupt-20261015` (and a byte-for-byte copy from
+before any recovery at `D:/laragon/data/mysql-8-backup-20261015`), every non-test database was dumped to
+`D:/laragon/data/dumps-20261015` while the server ran with `--innodb-force-recovery=1`, a fresh data directory was
+initialised and the 37 dumps imported; table and row counts match the dumps. The `*_testing` databases were not
+carried over (tests recreate them); MySQL accounts other than `root` would need recreating. Lesson: never start
+`mysqld` from an agent session; let Laragon own it.
 
 ## Links app (2026-10-15)
 

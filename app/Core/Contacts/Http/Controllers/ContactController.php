@@ -70,7 +70,8 @@ final class ContactController
             : null;
 
         $contacts = $this->records->constrain(Contact::query(), $actor, self::VIEW)
-            ->with(['company:id,name', 'owner.user:id,name'])
+            // The addresses are read in the details dialog: one query for the page, never one per row.
+            ->with(['company:id,name', 'owner.user:id,name', 'addresses'])
             ->when($search !== '', fn ($query) => $query->where(fn ($match) => $match
                 ->where('first_name', 'like', Like::contains($search))
                 ->orWhere('last_name', 'like', Like::contains($search))

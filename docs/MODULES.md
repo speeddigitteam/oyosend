@@ -364,6 +364,9 @@ own records and reads the shared ones.
 - Write through `App\Core\Contacts\ContactDirectory` (`createContact`, `updateContact`, `deleteContact` and the
   same for companies), so the audit entry and the domain event always follow.
 - React to `core.contact.created|updated|deleted` and `core.company.created|updated|deleted`.
+- A company or a contact can have typed invoice, delivery and other addresses (`ContactAddress`, ADR 0039), one
+  default per type. They are written through `ContactDirectory::addAddress()` / `updateAddress()` /
+  `makeDefaultAddress()` / `deleteAddress()` too, and follow a contact merge to the kept contact.
 - Contacts are soft-deleted: keep rows that point at one, and expect `contact` relations to be null.
 - Access is governed by `core.contacts.view` / `.manage` / `.delete`, each scopable. A module that shows a
   customer picker must narrow it with `RecordAccess` for the person looking.

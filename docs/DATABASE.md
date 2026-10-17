@@ -19,7 +19,7 @@ One MySQL 8 database, `utf8mb4` / `utf8mb4_unicode_ci`, strict mode. The applica
 | Money | Integer minor units (paisa/cents) in an unsigned `BIGINT` named `amount` or `{what}_amount`, next to a 3-letter `currency` on the same row. Never floats or decimals. `App\Core\Billing\Support\Money` turns it into a decimal string or text where the server needs one |
 | Enums | Short `VARCHAR` cast to a PHP enum (`status`, `role`, `scope`). No MySQL `ENUM` |
 | Polymorphic columns | Store the morph alias (`user`, `role`), never a class name. `Relation::requireMorphMap()` is on; aliases come from module manifests |
-| Soft deletes | Only where a record must be recoverable. Today: `tenants`, `contacts`, `companies` |
+| Soft deletes | Only where a record must be recoverable. Today: `tenants`, `contacts`, `companies`, `contact_addresses` |
 | Secrets | Encrypted casts (`two_factor_secret`, recovery codes, `app_installations.settings`, `social_accounts` tokens, `automation_workflows.webhook_secret`, `automation_webhook_endpoints.secret`, `ai_proposals.payload`, `communication_provider_accounts.secrets`, `ai_provider_accounts.secrets`, `payment_gateway_accounts.secrets`, `integration_credentials.secrets`) or a one-way hash (`invitations.token_hash`, registration token/password, `impersonations.token_hash`, unsubscribe and survey tokens). Never plain |
 | Migrations | Reversible (`down()` on every one). `DB::prohibitDestructiveCommands()` is on in production. **A migration that has been committed is never edited**: databases that already ran it would never get the change. A schema change is a new, additive migration with a later timestamp, guarded with `Schema::hasColumn()` / `hasTable()` so a fresh install and an already-migrated database both end in the same shape (examples: `support_tickets.resolution_first_breached_at`, `email_marketing_deliveries.send_epoch`) |
 | Raw queries | `DB::table()` bypasses both the tenant scope and the connection resolver. It must filter by `tenant_id` itself and is acceptable only for central tables |
@@ -50,6 +50,7 @@ enforces it among the rows that are not deleted.
 | `roles`, `model_has_roles`, `model_has_permissions`, `role_has_permissions` | Tenant-owned rows, default connection | `Role` | Scoped by hand (ADR 0002) |
 | `invitations` | Tenant-owned | `Invitation` | `BelongsToTenant` (follows the tenant connection) |
 | `contacts`, `companies` | Tenant-owned | `Contact`, `Company` | `BelongsToTenant` (follow the tenant connection); record scopes through `HasRecordOwner` |
+| `contact_addresses` | Tenant-owned | `ContactAddress` | `BelongsToTenant`; no owner of its own: access follows its company or contact (ADR 0039) |
 | `branches`, `departments` | Tenant-scoped rows, pinned to the central connection | `Branch`, `Department` | `BelongsToTenant` + `UsesCentralConnection`: memberships reference them and authorization reads them on every request |
 | `plans` | Central catalogue | `Plan` | Same for every tenant; managed in the panel |
 | `apps`, `app_versions` | Central catalogue | `CatalogApp`, `AppVersion` | Synced from compiled manifests by `apps:sync`; a row alone cannot load code |
@@ -259,6 +260,21 @@ Several rows may have no `code`: MySQL does not compare NULLs in a unique index.
   `App\Core\Contacts\ContactDirectory`.
 - Deleting is a soft delete. A soft-deleted company's contacts stay and lose their `company_id` (done by
   `ContactDirectory`, because the foreign key only acts on a hard delete).
+
+### contact_addresses — `2026_11_22_000300` (ADR 0039)
+
+| Table | Columns | Keys and indexes |
+|---|---|---|
+| `contact_addresses` | `id` ULID, `tenant_id` FK (cascade), `company_id` ULID null FK → `companies` (cascade), `contact_id` ULID null FK → `contacts` (cascade), `type` varchar(20) (`invoice` / `delivery` / `other`, cast to `AddressType`), `label` varchar(120), `name` varchar(200), `email`, `phone` varchar(40), `address` text, `city` varchar(120), `postal_code` varchar(20), `country` char(2) (all nullable), `is_default` bool, timestamps, `deleted_at` | Indexes `(tenant_id, company_id)`, `(tenant_id, contact_id)`. No unique index |
+
+- Typed invoice, delivery and other addresses of a company or a contact, each with its own person, phone and email.
+  Written only through `ContactDirectory` (`addAddress`, `updateAddress`, `makeDefaultAddress`, `deleteAddress`,
+  `moveAddresses` for a merge), audited on the parent with ids and the type only.
+- Exactly one of `company_id` / `contact_id` is set, and every type a parent has addresses of has exactly one
+  `is_default` row. Both rules are kept by `ContactDirectory` under a lock on the parent: MySQL has no partial unique
+  index and refuses a CHECK constraint on a column whose foreign key has a referential action.
+- The parent foreign keys cascade only on a hard delete (a workspace purge). A soft-deleted parent keeps its
+  addresses, hidden with it; a contact merge moves the duplicate's addresses to the kept contact.
 
 ### plans — `000030`
 

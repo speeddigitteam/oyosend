@@ -7,14 +7,17 @@ import Avatar from '@/Core/Components/Avatar.vue';
 import Button from '@/Core/Components/Button.vue';
 import Card from '@/Core/Components/Card.vue';
 import ConfirmDialog from '@/Core/Components/ConfirmDialog.vue';
+import AddressList from '@/Core/Components/Contacts/AddressList.vue';
+import AddressManager from '@/Core/Components/Contacts/AddressManager.vue';
 import CompanyFormDialog from '@/Core/Components/Contacts/CompanyFormDialog.vue';
+import ContactAddresses from '@/Core/Components/Contacts/ContactAddresses.vue';
 import ContactCard from '@/Core/Components/Contacts/ContactCard.vue';
 import ContactFormDialog from '@/Core/Components/Contacts/ContactFormDialog.vue';
 import ContactMergeDialog from '@/Core/Components/Contacts/ContactMergeDialog.vue';
 import { contactDetails } from '@/Core/Components/Contacts/details';
 import DetailsDialog from '@/Core/Components/Contacts/DetailsDialog.vue';
 import { actionsSelector, mailHref, peopleOfCompanyUrl, telHref } from '@/Core/Components/Contacts/links';
-import type { CompanyRow, ContactRow, DirectoryOption } from '@/Core/Components/Contacts/types';
+import type { AddressParent, CompanyRow, ContactRow, DirectoryOption } from '@/Core/Components/Contacts/types';
 import { initialsOf } from '@/Core/Components/Contacts/view';
 import EmptyState from '@/Core/Components/EmptyState.vue';
 import PageHeader from '@/Core/Components/PageHeader.vue';
@@ -27,8 +30,8 @@ import { route } from '@/Core/lib/route';
 defineOptions({ layout: TenantLayout });
 
 /**
- * A company's own page, like Odoo's company form: what is recorded about it, and its people as cards under
- * "Contacts", where another person is added with the company already chosen.
+ * A company's own page, like Odoo's company form: what is recorded about it, its invoice, delivery and other addresses
+ * (ADR 0039), and its people as cards under "Contacts", where another person is added with the company already chosen.
  */
 const props = defineProps<{
     company: CompanyRow;
@@ -74,6 +77,23 @@ function destroyCompany(): void {
             companyDeleting.value = false;
         },
     });
+}
+
+/* ---- its addresses, and those of its people ------------------------------------------------------------------- */
+
+const addressManager = ref<InstanceType<typeof AddressManager> | null>(null);
+const companyParent = computed<AddressParent>(() => ({ kind: 'company', id: props.company.id, name: props.company.name }));
+const companyAddresses = computed(() => props.company.addresses ?? []);
+
+/** A person's address dialogs open from their details: those close first, one dialog at a time. */
+function fromDetails(action: (manager: InstanceType<typeof AddressManager>, parent: AddressParent) => void): void {
+    const contact = detailsTarget.value;
+    const manager = addressManager.value;
+
+    if (!contact || !manager) return;
+
+    detailsOpen.value = false;
+    void nextTick(() => action(manager, { kind: 'contact', id: contact.id, name: contact.name }));
 }
 
 /* ---- its people ------------------------------------------------------------------------------------------------- */
@@ -235,6 +255,37 @@ function destroyPerson(): void {
         </div>
     </Card>
 
+    <!-- Its addresses, Odoo's "Contacts & Addresses": invoice, delivery and other, each with its own person. -->
+    <Card flush class="mb-4" data-company-addresses>
+        <div class="flex flex-wrap items-center justify-between gap-3 px-5 pt-4 pb-3">
+            <div class="min-w-0">
+                <h2 class="text-[0.9375rem] font-semibold text-ink">{{ t('contacts.addresses.title') }}</h2>
+                <p class="mt-0.5 text-[0.8125rem] text-ink-subtle">{{ t('contacts.addresses.description') }}</p>
+            </div>
+            <Button v-if="company.editable" size="sm" data-company-add-address @click="addressManager?.add(companyParent)">
+                <template #icon><Plus class="size-4" aria-hidden="true" /></template>
+                {{ t('contacts.addresses.add') }}
+            </Button>
+        </div>
+
+        <div v-if="companyAddresses.length" class="border-t border-line p-3 sm:p-4">
+            <AddressList
+                :addresses="companyAddresses"
+                @edit="(address) => addressManager?.edit(companyParent, address)"
+                @make-default="(address) => addressManager?.makeDefault(address)"
+                @delete="(address) => addressManager?.remove(companyParent, address)"
+            />
+        </div>
+        <div v-else class="border-t border-line">
+            <EmptyState
+                :title="t('contacts.addresses.empty.title')"
+                :description="company.editable ? t('contacts.addresses.empty.body') : t('contacts.addresses.empty.bodyViewOnly')"
+            >
+                <template #icon><MapPin /></template>
+            </EmptyState>
+        </div>
+    </Card>
+
     <!-- Its people, Odoo's "Contacts & Addresses" tab: cards, and the way to add one more. -->
     <Card flush>
         <div class="flex flex-wrap items-center justify-between gap-3 px-5 pt-4 pb-3">
@@ -298,7 +349,19 @@ function destroyPerson(): void {
         :items="details"
         :editable="detailsTarget?.editable"
         @edit="detailsTarget && openEdit(detailsTarget)"
-    />
+    >
+        <ContactAddresses
+            v-if="detailsTarget?.addresses"
+            :addresses="detailsTarget.addresses"
+            :editable="detailsTarget.editable"
+            @add="fromDetails((manager, parent) => manager.add(parent))"
+            @edit="(address) => fromDetails((manager, parent) => manager.edit(parent, address))"
+            @make-default="(address) => fromDetails((manager) => manager.makeDefault(address))"
+            @delete="(address) => fromDetails((manager, parent) => manager.remove(parent, address))"
+        />
+    </DetailsDialog>
+
+    <AddressManager ref="addressManager" />
 
     <ContactFormDialog v-if="canCreate" v-model:open="formOpen" :contact="formTarget" :companies="companies" :owners="owners" :start-company="self" />
 

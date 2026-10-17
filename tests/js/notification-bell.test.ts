@@ -104,6 +104,29 @@ describe('the notification bell', () => {
         expect(bell.get('[data-testid="notification-bell-count"]').text()).toBe('1');
     });
 
+    it('drops a summary still on its way when everything is marked read, so the old items do not come back', async () => {
+        answer(2, [item('a'), item('b')]);
+        const bell = await mountBell();
+        await openMenu(bell);
+
+        // A slow refresh, started before the click, that answers with the old unread items only after it.
+        let release: () => void = () => undefined;
+        vi.stubGlobal('fetch', vi.fn((_url: string, init: RequestInit) => new Promise<Response>((resolve, reject) => {
+            init.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+            release = () => resolve(new Response(JSON.stringify({ unread: 2, items: [item('a'), item('b')] }), { status: 200 }));
+        })));
+        document.dispatchEvent(new Event('visibilitychange'));
+        await flushPromises();
+        expect(fetch).toHaveBeenCalledTimes(1);
+
+        const markAll = [...document.querySelectorAll('[role="menuitem"]')].find((row) => row.textContent?.includes('Mark all as read'));
+        (markAll as HTMLElement).click();
+        release();
+        await flushPromises();
+
+        expect(inertia.router.post).toHaveBeenCalledWith('/communication.notifications.read-all', {}, expect.any(Object));
+        expect(bell.find('[data-testid="notification-bell-count"]').exists()).toBe(false);
+    });
     it('says so when everything has been read', async () => {
         answer(0, []);
         const bell = await mountBell();

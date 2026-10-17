@@ -67,6 +67,8 @@ final class EnquiryController
                 'handled' => WebsiteEnquiry::query()->where('status', EnquiryStatus::Handled)->count(),
             ],
             'filters' => ['status' => $status, 'search' => $search],
+            // The panel's route list holds only platform routes, so the website's address comes from here.
+            'website' => route('central.home'),
         ]);
     }
 

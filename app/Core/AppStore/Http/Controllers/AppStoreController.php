@@ -83,7 +83,8 @@ final class AppStoreController
         [$installations, $items, $entitlements] = $this->stateFor(collect([$catalogApp]));
 
         return Inertia::render('Core/Pages/AppStore/Show', [
-            'app' => AppStorePresenter::app(
+            // Not `app`: that name is the shared prop with the locale, numerals, timezone and currency.
+            'storeApp' => AppStorePresenter::app(
                 $catalogApp,
                 $installations->get($catalogApp->id),
                 $items->get($catalogApp->id),

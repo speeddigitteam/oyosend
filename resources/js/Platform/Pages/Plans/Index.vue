@@ -90,7 +90,7 @@ function trial(days: number): string {
     </Card>
 
     <Card v-else flush>
-        <DataTable :columns="columns" :rows="plans" row-key="id" :caption="t('platformPlans.index.caption')" class="pt-4">
+        <DataTable :columns="columns" :rows="plans" row-key="id" :caption="t('platformPlans.index.caption')">
             <template #toolbar>
                 <p class="eyebrow tabular px-1" role="status">{{ count }}</p>
             </template>

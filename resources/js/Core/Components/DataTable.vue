@@ -154,7 +154,8 @@ function ariaSort(column: Column): 'ascending' | 'descending' | 'none' | undefin
 
 <template>
     <div>
-        <div v-if="$slots.toolbar || hideable.length" class="flex flex-wrap items-center justify-between gap-3 px-5 pb-3">
+        <!-- Room above the search and filters, so their labels never touch the edge of the card. -->
+        <div v-if="$slots.toolbar || hideable.length" class="flex flex-wrap items-center justify-between gap-3 px-5 pt-4 pb-3">
             <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                 <slot name="toolbar" />
             </div>

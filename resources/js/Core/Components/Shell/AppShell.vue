@@ -31,6 +31,8 @@ const { fullHeight } = useShellHeight();
 
 const mobileNavOpen = ref(false);
 const paletteOpen = ref(false);
+// The search control in the top bar: the palette opens attached under it.
+const paletteAnchor = ref<HTMLElement | null>(null);
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
 function onKeydown(event: KeyboardEvent): void {
@@ -107,21 +109,26 @@ onBeforeUnmount(() => {
 
     <div :class="['flex flex-col lg:pl-[17rem]', fullHeight ? 'h-dvh' : 'min-h-dvh']" :data-full-height="fullHeight || undefined">
         <header class="sticky top-0 z-20 px-2 pt-2 sm:px-3 sm:pt-3 lg:pl-0">
+            <!-- Three parts: the place on the left, the palette in the middle, the person's controls on the right. The
+                 two sides grow alike, so the palette stays centred. -->
             <div class="glass flex h-14 items-center gap-2 rounded-card px-2.5 sm:px-3">
-                <button
-                    type="button"
-                    class="flex size-9 shrink-0 items-center justify-center rounded-control text-ink-muted hover:bg-hover hover:text-ink lg:hidden"
-                    :aria-label="t('shell.nav.openMenu')"
-                    @click="mobileNavOpen = true"
-                >
-                    <Menu class="size-[1.125rem]" aria-hidden="true" />
-                </button>
+                <div class="flex min-w-0 flex-1 items-center gap-2">
+                    <button
+                        type="button"
+                        class="flex size-9 shrink-0 items-center justify-center rounded-control text-ink-muted hover:bg-hover hover:text-ink lg:hidden"
+                        :aria-label="t('shell.nav.openMenu')"
+                        @click="mobileNavOpen = true"
+                    >
+                        <Menu class="size-[1.125rem]" aria-hidden="true" />
+                    </button>
 
-                <div class="min-w-0 flex-1"><slot name="topbar-start" /></div>
+                    <div class="min-w-0 flex-1"><slot name="topbar-start" /></div>
+                </div>
 
                 <button
+                    ref="paletteAnchor"
                     type="button"
-                    class="glass-well flex h-9 items-center gap-2 rounded-control pr-1.5 pl-2.5 text-[0.8125rem] text-ink-subtle transition-colors hover:text-ink sm:w-60"
+                    class="glass-well flex h-9 shrink-0 items-center gap-2 rounded-control pr-1.5 pl-2.5 text-[0.8125rem] text-ink-subtle transition-colors hover:text-ink sm:w-60 lg:w-80"
                     :aria-label="t('shell.palette.hint')"
                     @click="paletteOpen = true"
                 >
@@ -133,7 +140,9 @@ onBeforeUnmount(() => {
                     </span>
                 </button>
 
-                <slot name="topbar-end" />
+                <div class="flex flex-1 items-center justify-end gap-2">
+                    <slot name="topbar-end" />
+                </div>
             </div>
         </header>
 
@@ -151,6 +160,6 @@ onBeforeUnmount(() => {
         </main>
     </div>
 
-    <CommandPalette v-model:open="paletteOpen" :sections="sections" :commands="commands ?? []" />
+    <CommandPalette v-model:open="paletteOpen" :sections="sections" :commands="commands ?? []" :anchor="paletteAnchor" />
     <Toaster />
 </template>

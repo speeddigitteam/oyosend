@@ -34,6 +34,8 @@ export interface ContactRow extends DirectoryRecord {
     lastName: string | null;
     jobTitle: string | null;
     company: DirectoryOption | null;
+    /** Its typed addresses, where the page loaded them (the people list and a company's page). */
+    addresses?: AddressRow[];
 }
 
 /** Why the server considers another contact a possible duplicate. */
@@ -87,6 +89,42 @@ export interface CompanyRow extends DirectoryRecord {
     taxId: string | null;
     /** How many of its people the viewer can see. */
     contacts: number;
+    /** Its typed addresses; only on the company's own page. */
+    addresses?: AddressRow[];
+}
+
+/** What an address is for, as Odoo's "Contacts & Addresses" tells them apart (ADR 0039). */
+export type AddressType = 'invoice' | 'delivery' | 'other';
+
+/**
+ * An invoice, delivery or other address of a company or a contact, with its own person, phone and email. Listed by
+ * type, then the default of each type first, then the oldest.
+ */
+export interface AddressRow {
+    id: string;
+    type: AddressType;
+    /** A name for the place, such as "Head office". */
+    label: string | null;
+    /** The person to address it to. */
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+    address: string | null;
+    city: string | null;
+    postalCode: string | null;
+    /** ISO 3166-1 alpha-2, upper case. */
+    country: string | null;
+    /** The one address of its type that is used when nothing else is chosen. */
+    isDefault: boolean;
+    /** The viewer may change the company or contact it belongs to (decided by the server). */
+    editable: boolean;
+}
+
+/** The company or contact an address is added to. */
+export interface AddressParent {
+    kind: 'company' | 'contact';
+    id: string;
+    name: string;
 }
 
 /** One line of a record's details. */

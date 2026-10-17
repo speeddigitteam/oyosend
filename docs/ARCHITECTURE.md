@@ -103,7 +103,8 @@ app/
     Access/         Role, Permission, AccessChecker, PermissionResolver, RoleManager, RecordAccess (scopes),
                     HasRecordOwner, permissions:sync
     Organization/   Branch, Department and their page
-    Contacts/       Contact, Company (the shared customer identity), ContactDirectory, events, triggers
+    Contacts/       Contact, Company (the shared customer identity), ContactAddress (typed addresses, ADR 0039),
+                    ContactDirectory, events, triggers
     Settings/       workspace profile and logo, first-run setup, PlatformSettings (operator settings)
     Registration/   sign-up on the central site: WorkspaceRegistration, StartRegistration, CompleteRegistration
     Billing/        plans, subscriptions, invoices, payments, gateways, limits, metering, billing:run
@@ -304,7 +305,7 @@ Field-by-field rules and a worked example are in `docs/MODULES.md`.
 | Search filters | `Core\Support\Like` | static | `Like::contains($text)` / `Like::escape($text)` for any user text in a `LIKE` |
 | Member changes | `Core\Identity\Actions\MemberManager` | per call | Change role, suspend, remove, place in a branch and department; `canManage()` |
 | Record scopes | `Core\Access\RecordAccess` | per call | Narrow a query or one record to the scope a permission was granted with |
-| Contact directory | `Core\Contacts\ContactDirectory` | per call | The single write path for contacts and companies (audit + event) |
+| Contact directory | `Core\Contacts\ContactDirectory` | per call | The single write path for contacts, companies and their typed addresses (audit + event; addresses are audited on their parent, ADR 0039) |
 | Workspace profile | `Core\Settings\UpdateWorkspaceProfile`, `WorkspaceLogo` | per call | Company profile, regional settings, logo |
 | Operator settings | `Core\Settings\PlatformSettings` | scoped | Registration mode, grace days, invoice lead days, offline payment instructions |
 | Subscriptions | `Core\Billing\SubscriptionManager` | per call | Every change to a workspace's subscription; `settle()` is the only place a paid plan starts |

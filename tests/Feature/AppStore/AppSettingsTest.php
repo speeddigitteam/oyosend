@@ -54,11 +54,11 @@ it('validates and encrypts tenant app settings without returning secret values',
     $page = $this->get($this->tenantUrl($this->acme, '/apps/test_crm'));
     $page->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
-            ->where('app.settings.0.value', 'list')
-            ->where('app.settings.1.value', false)
-            ->where('app.settings.2.hasValue', true)
-            ->missing('app.settings.2.value')
-            ->missing('app.settings.2.default'));
+            ->where('storeApp.settings.0.value', 'list')
+            ->where('storeApp.settings.1.value', false)
+            ->where('storeApp.settings.2.hasValue', true)
+            ->missing('storeApp.settings.2.value')
+            ->missing('storeApp.settings.2.default'));
     expect($page->getContent())->not->toContain('crm-signing-secret');
 
     $audit = $this->auditTrail($this->acme, 'app_store.settings_updated')->sole();

@@ -79,7 +79,8 @@ describe('the messages', function () {
                 ->has('enquiries.data', 1)
                 ->where('enquiries.data.0.name', 'Karim Ahmed')
                 ->where('enquiries.data.0.locale', 'en')
-                ->where('counts', ['new' => 1, 'handled' => 1]));
+                ->where('counts', ['new' => 1, 'handled' => 1])
+                ->where('website', route('central.home')));
 
         $this->get('http://admin.localhost/website/messages?status=all&search=karim')
             ->assertInertia(fn (AssertableInertia $page) => $page->has('enquiries.data', 1)->where('filters.status', 'all'));

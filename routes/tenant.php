@@ -5,6 +5,7 @@ use App\Core\Audit\Http\Controllers\AuditLogController;
 use App\Core\Billing\Http\Controllers\BillingController;
 use App\Core\Billing\Http\Controllers\InvoiceController;
 use App\Core\Contacts\Http\Controllers\CompanyController;
+use App\Core\Contacts\Http\Controllers\ContactAddressController;
 use App\Core\Contacts\Http\Controllers\ContactController;
 use App\Core\Contacts\Http\Controllers\ContactMergeController;
 use App\Core\Contacts\Http\Controllers\CustomerRecordsController;
@@ -223,6 +224,12 @@ Route::middleware(['auth:web', 'auth.session', 'member'])->group(function () {
                 ->name('core.contacts.merge');
             Route::post('companies', [CompanyController::class, 'store'])->name('core.contacts.companies.store');
             Route::put('companies/{company}', [CompanyController::class, 'update'])->name('core.contacts.companies.update');
+            // Typed addresses (ADR 0039), authorized against their company or contact.
+            Route::post('companies/{company}/addresses', [ContactAddressController::class, 'storeForCompany'])->name('core.contacts.addresses.company.store');
+            Route::post('contacts/{contact}/addresses', [ContactAddressController::class, 'storeForContact'])->name('core.contacts.addresses.contact.store');
+            Route::put('addresses/{address}', [ContactAddressController::class, 'update'])->name('core.contacts.addresses.update');
+            Route::post('addresses/{address}/default', [ContactAddressController::class, 'makeDefault'])->name('core.contacts.addresses.default');
+            Route::delete('addresses/{address}', [ContactAddressController::class, 'destroy'])->name('core.contacts.addresses.destroy');
         });
         Route::middleware('can:core.contacts.delete')->group(function () {
             Route::delete('contacts/{contact}', [ContactController::class, 'destroy'])->name('core.contacts.destroy');

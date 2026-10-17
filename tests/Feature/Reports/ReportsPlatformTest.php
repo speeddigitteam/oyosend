@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Core\Audit\Models\AuditLog;
+use App\Core\Modules\ModuleRegistry;
 use App\Core\Reporting\Contracts\ReportProvider;
 use App\Core\Reporting\ReportRegistry;
 use App\Core\Reporting\Support\CsvWriter;
@@ -164,7 +165,8 @@ it('hides providers of apps the workspace is not entitled to, even from the owne
 });
 
 it('lists a provider only for members holding its permission, once the workspace is entitled', function () {
-    $this->entitle($this->tenant, 'crm', 'projects', 'invoicing', 'hrm', 'payroll', 'talent', 'support', 'social', 'meta_ads', 'automation', 'communication', 'email_marketing', 'sms_marketing', 'whatsapp_marketing', 'notes');
+    // Every optional module of this build: a new app's report would otherwise ask for a permission the workspace lacks.
+    $this->entitle($this->tenant, ...collect(app(ModuleRegistry::class)->all())->reject(fn ($manifest) => $manifest->core)->pluck('key')->all());
     $registry = fn ($user) => $this->inTenant($this->tenant, fn () => app(ReportRegistry::class)->availableFor($user));
     $all = $this->inTenant($this->tenant, fn () => app(ReportRegistry::class)->all());
 

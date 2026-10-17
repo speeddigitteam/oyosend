@@ -483,7 +483,7 @@ describe('App Store catalogue translations', () => {
         setLocale('bn');
         const wrapper = track(
             mount(AppStoreShow, {
-                props: { app: app({ ...crmEn }), dependencyNames: {} },
+                props: { storeApp: app({ ...crmEn }), dependencyNames: {} },
                 global: { stubs: { AppActionPanel: true, AppSettingsPanel: true } },
             }),
         );
@@ -506,7 +506,7 @@ describe('App Store catalogue translations', () => {
         const index = track(mount(AppStoreIndex, { props: indexProps([unknown]) }));
         const show = track(
             mount(AppStoreShow, {
-                props: { app: unknown, dependencyNames: {} },
+                props: { storeApp: unknown, dependencyNames: {} },
                 global: { stubs: { AppActionPanel: true, AppSettingsPanel: true } },
             }),
         );

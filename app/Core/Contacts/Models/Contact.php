@@ -10,10 +10,12 @@ use App\Core\Communication\Support\PhoneNumber;
 use App\Core\Tenancy\Concerns\BelongsToTenant;
 use Database\Factories\ContactFactory;
 use Illuminate\Database\Eloquent\Attributes\UseFactory;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
@@ -36,6 +38,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $notes
  * @property Carbon $created_at
  * @property-read Company|null $company
+ * @property-read Collection<int, ContactAddress> $addresses
  */
 #[UseFactory(ContactFactory::class)]
 class Contact extends Model
@@ -77,6 +80,16 @@ class Contact extends Model
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);
+    }
+
+    /**
+     * Its invoice, delivery and other addresses (ADR 0039).
+     *
+     * @return HasMany<ContactAddress, $this>
+     */
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(ContactAddress::class);
     }
 
     public function fullName(): string

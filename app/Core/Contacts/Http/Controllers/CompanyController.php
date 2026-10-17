@@ -77,7 +77,8 @@ final class CompanyController
 
     /**
      * A company's own page (Odoo's company form): what is recorded about it and, under "Contacts", the people of it
-     * the viewer can see, where more can be added with the company already chosen.
+     * the viewer can see, where more can be added with the company already chosen. Its typed addresses (ADR 0039) and
+     * those of its people come with it, each in one query.
      */
     public function show(Request $request, Company $company): Response
     {
@@ -88,14 +89,14 @@ final class CompanyController
 
         $people = $this->records->constrain(Contact::query(), $actor, ContactController::VIEW)
             ->where('company_id', $company->id)
-            ->with(['company:id,name', 'owner.user:id,name'])
+            ->with(['company:id,name', 'owner.user:id,name', 'addresses'])
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->orderBy('id')
             ->limit(self::PEOPLE_SHOWN + 1)
             ->get();
 
-        $company->load('owner.user:id,name');
+        $company->load(['owner.user:id,name', 'addresses']);
         $total = $people->count() > self::PEOPLE_SHOWN
             ? $this->records->constrain(Contact::query(), $actor, ContactController::VIEW)->where('company_id', $company->id)->count()
             : $people->count();

@@ -9,6 +9,7 @@ use App\Core\Audit\Concerns\Auditable;
 use App\Core\Tenancy\Concerns\BelongsToTenant;
 use Database\Factories\CompanyFactory;
 use Illuminate\Database\Eloquent\Attributes\UseFactory;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -36,6 +37,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $country
  * @property string|null $notes
  * @property Carbon $created_at
+ * @property-read Collection<int, ContactAddress> $addresses
  */
 #[UseFactory(CompanyFactory::class)]
 class Company extends Model
@@ -63,5 +65,15 @@ class Company extends Model
     public function contacts(): HasMany
     {
         return $this->hasMany(Contact::class);
+    }
+
+    /**
+     * Its invoice, delivery and other addresses (ADR 0039).
+     *
+     * @return HasMany<ContactAddress, $this>
+     */
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(ContactAddress::class);
     }
 }

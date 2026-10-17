@@ -230,7 +230,6 @@ function host(url: string): string {
             row-key="id"
             :caption="t('platform.tenants.caption')"
             storage-key="platform-tenants"
-            class="pt-4"
         >
             <template #toolbar>
                 <form role="search" class="flex w-full flex-wrap items-center gap-2" @submit.prevent="apply">

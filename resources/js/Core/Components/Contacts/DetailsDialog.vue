@@ -57,6 +57,9 @@ const LINK = 'rounded-chip text-ink underline decoration-line-strong underline-o
             </div>
         </dl>
 
+        <!-- More about the record below its fields, such as a contact's addresses. -->
+        <slot />
+
         <template #footer>
             <Button variant="ghost" @click="open = false">{{ t('common.actions.close') }}</Button>
             <Button v-if="editable" @click="$emit('edit')">

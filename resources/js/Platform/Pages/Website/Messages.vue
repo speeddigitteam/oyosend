@@ -42,6 +42,7 @@ const props = defineProps<{
     enquiries: Paginated<Enquiry>;
     counts: { new: number; handled: number };
     filters: { status: Status; search: string };
+    website: string;
 }>();
 
 const { t, te } = useI18n();
@@ -114,7 +115,7 @@ function remove(): void {
     <PageHeader :eyebrow="t('platformWebsite.eyebrow')" :title="t('platformWebsite.messages.title')" :description="t('platformWebsite.messages.description')">
         <template #actions>
             <!-- The website is not part of this app: a full page load, in a new tab. -->
-            <Button :href="route('central.home')" native target="_blank" rel="noopener">{{ t('platformWebsite.open') }}</Button>
+            <Button :href="website" native target="_blank" rel="noopener">{{ t('platformWebsite.open') }}</Button>
         </template>
     </PageHeader>
 

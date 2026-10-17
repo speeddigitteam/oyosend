@@ -88,6 +88,7 @@ function mountMessages() {
             enquiries: { data: [enquiry], current_page: 1, last_page: 1, per_page: 25, total: 1, from: 1, to: 1, prev_page_url: null, next_page_url: null },
             counts: { new: 1, handled: 0 },
             filters: { status: 'new', search: '' },
+            website: 'http://localhost',
         },
     });
 }

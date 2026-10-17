@@ -361,7 +361,6 @@ useFocusReturn(inviteOpen);
                 row-key="id"
                 :caption="t('team.members.caption')"
                 storage-key="members"
-                class="pt-4"
             >
                 <template #toolbar>
                     <div class="w-full sm:w-72">

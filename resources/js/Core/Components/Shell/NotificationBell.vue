@@ -43,13 +43,14 @@ const label = computed(() =>
 async function refresh(): Promise<void> {
     if (request !== null || document.hidden) return;
 
-    request = new AbortController();
+    const controller = new AbortController();
+    request = controller;
 
     try {
         const response = await fetch(route('communication.notifications.summary'), {
             credentials: 'same-origin',
             headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-            signal: request.signal,
+            signal: controller.signal,
         });
 
         if (!response.ok) return;
@@ -64,12 +65,20 @@ async function refresh(): Promise<void> {
     } catch {
         // Offline, or the request was stopped: the next refresh tries again.
     } finally {
-        request = null;
+        // A newer request may have replaced this one; only clear our own.
+        if (request === controller) request = null;
     }
+}
+
+/** Drops a summary still on its way: it was read before a local change and would bring the old unread items back. */
+function cancelRefresh(): void {
+    request?.abort();
+    request = null;
 }
 
 /** Marks one read, then follows its link (or stays, refreshing the count). */
 function openItem(item: BellItem): void {
+    cancelRefresh();
     unread.value = Math.max(0, unread.value - 1);
     items.value = items.value.filter((candidate) => candidate.id !== item.id);
 
@@ -83,6 +92,7 @@ function openItem(item: BellItem): void {
 }
 
 function markAllRead(): void {
+    cancelRefresh();
     unread.value = 0;
     items.value = [];
     router.post(route('communication.notifications.read-all'), {}, { preserveScroll: true, preserveState: true });
