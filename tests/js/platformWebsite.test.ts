@@ -128,6 +128,8 @@ describe('the messages page', () => {
 describe('the company page', () => {
     const company = {
         name: 'Oyosend',
+        legal_name: null,
+        founded: null,
         email: 'info@oyosend.com',
         phone_1: '+88 0179 22 88 555',
         phone_2: null,
@@ -147,11 +149,14 @@ describe('the company page', () => {
         expect((wrapper.get('input[name="phone_1"]').element as HTMLInputElement).value).toBe('+88 0179 22 88 555');
 
         await wrapper.get('input[name="social.linkedin"]').setValue('https://www.linkedin.com/company/oyosend');
+        await wrapper.get('input[name="founded"]').setValue('2024');
         await wrapper.get('form').trigger('submit');
 
         expect(inertia.sent).toHaveLength(1);
         expect(inertia.sent[0]!.url).toBe('/platform.website.company.update');
         expect(inertia.sent[0]!.data).toMatchObject({
+            legal_name: '',
+            founded: '2024',
             phone_1: '+88 0179 22 88 555',
             phone_2: '',
             social: { facebook: 'https://www.facebook.com/oyosend', linkedin: 'https://www.linkedin.com/company/oyosend' },

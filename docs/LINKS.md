@@ -54,12 +54,19 @@ The controller is thin; writes go through `Actions\LinkManager`, which audits ea
 
 ## 5. Frontend
 
-One page, `resources/js/Modules/Links/Pages/Index.vue` (`Inertia::render('Modules/Links/Pages/Index')`): search, a
-row of kind filters with counts, a folder filter, a pinned section above the others, a card grid (icon by kind, the
+One page, `resources/js/Modules/Links/Pages/Index.vue` (`Inertia::render('Modules/Links/Pages/Index')`): search (runs
+300 ms after typing stops, or at once on Enter), a row of kind filters with counts, a folder filter, a pinned section above the others, a card grid (icon by kind, the
 host or email address, description, folder chip that filters, copy / pin / edit / delete), and one modal for adding
 and editing. Strings live in the `links` namespace (`resources/js/Core/i18n/locales/{en,bn}/links.ts`); catalogue
 labels (module, group, permissions, audit events) are in `catalogue.ts`, the trigger in `automation.ts`, the App Store
-text in `appStore.ts`, and the sidebar label is `shell.nav.links` (icon `link`).
+text in `appStore.ts`, and the sidebar label is `shell.nav.links` (icon `link`). The workspace top bar
+(`Core/Layouts/TenantLayout.vue`) also carries a link icon to this page for anyone holding `links.links.view`, from
+the `sm` breakpoint up (below it the sidebar has the entry). The example address in the email field's placeholder is a
+constant in the page, not a catalogue string: vue-i18n reads `@` as message syntax.
+
+Demo data: `DemoSeeder` gives each demo workspace 17 starter links (government portals, payments, office tools, team
+email addresses) in the workspace's language, owned by the owner, once (a workspace that already has links is left
+alone).
 
 ## 6. Tests
 

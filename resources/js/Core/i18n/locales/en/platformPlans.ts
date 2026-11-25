@@ -75,6 +75,22 @@ export default {
         amountInvalidWhole: 'Enter a whole amount, such as 1500. This currency has no smaller unit.',
         amountTooLarge: 'This amount is too large.',
         needsPrice: 'Give the plan a price for at least one interval. 0 makes it free.',
+        offer: {
+            title: 'Limited-time offer',
+            description:
+                'A lower price until the end of a day you choose. A workspace that takes the plan meanwhile keeps the offer price when it renews. Leave both prices empty for no offer.',
+            monthly: 'Offer price per month',
+            yearly: 'Offer price per year',
+            endsOn: 'Last day of the offer',
+            endsOnHint: 'The offer ends at midnight at the end of this day, Dhaka time.',
+            // Under an offer field: what it comes to against the plan's own price.
+            saves: '{amount}, {percent} off',
+            notBelow: 'Must be lower than the plan\'s own price for this period, above.',
+            none: 'No offer for this interval',
+            running: 'Running until {date}.',
+            ended: 'Ended on {date}. Change the last day to run it again, or clear it.',
+            clear: 'Clear offer',
+        },
         trialDays: 'Free trial',
         trialDaysHint: 'In days, up to 365. 0 means no trial.',
         modules: {

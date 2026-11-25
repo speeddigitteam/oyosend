@@ -19,9 +19,11 @@ use Illuminate\Support\Carbon;
  * @property AiDriver $driver
  * @property string $name
  * @property string $model
+ * @property string|null $transcription_model
  * @property string|null $base_url
  * @property bool $is_enabled
  * @property bool $is_default
+ * @property bool $is_transcription_default
  * @property array<string, string>|null $secrets
  * @property string|null $last_test_status
  * @property string|null $last_test_reason
@@ -35,7 +37,7 @@ class AiProviderAccount extends Model
     protected $table = 'ai_provider_accounts';
 
     /** @var list<string> */
-    protected $fillable = ['driver', 'name', 'model', 'base_url', 'is_enabled', 'is_default', 'secrets'];
+    protected $fillable = ['driver', 'name', 'model', 'transcription_model', 'base_url', 'is_enabled', 'is_default', 'is_transcription_default', 'secrets'];
 
     /** @var list<string> */
     protected $hidden = ['secrets'];
@@ -47,6 +49,7 @@ class AiProviderAccount extends Model
             'driver' => AiDriver::class,
             'is_enabled' => 'boolean',
             'is_default' => 'boolean',
+            'is_transcription_default' => 'boolean',
             'secrets' => 'encrypted:array',
             'last_tested_at' => 'datetime',
         ];

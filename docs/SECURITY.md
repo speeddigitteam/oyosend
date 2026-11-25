@@ -645,7 +645,7 @@ Decision record: ADR 0019. Procedures: `docs/DEPLOYMENT.md` section 8, `docs/BAC
 | `X-Content-Type-Options` | `nosniff` |
 | `X-Frame-Options` | `DENY` (and `frame-ancestors 'none'` in the policy) |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` - a referrer never carries the path, where invitation and confirmation tokens are |
-| `Permissions-Policy` | camera, microphone, geolocation and payment off |
+| `Permissions-Policy` | camera, geolocation and payment off; microphone `(self)` on workspace hosts (softphone, voice input; ADR 0038) and off on the central site and the Super Admin host |
 | `Strict-Transport-Security` | `max-age=31536000; includeSubDomains`, when the request arrived over HTTPS |
 | `Content-Security-Policy` | Scripts from this origin or carrying this response's nonce only; no objects; forms post to this origin, which may redirect to a workspace host (`form-action 'self' {scheme}://*.APP_DOMAIN`: the website's "find my workspace" form, ADR 0034) |
 | `X-Robots-Tag` | `noindex, nofollow` on every workspace and Super Admin response (`NoIndex`): only the website on the root domain is meant for search results |

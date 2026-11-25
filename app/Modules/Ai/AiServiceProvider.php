@@ -6,6 +6,7 @@ namespace App\Modules\Ai;
 
 use App\Core\Ai\Contracts\AiTool;
 use App\Core\Ai\Contracts\TextAssistant;
+use App\Core\Ai\Contracts\VoiceInput;
 use App\Core\AppStore\Enums\AppBillingType;
 use App\Core\AppStore\Enums\AppCategory;
 use App\Core\AppStore\Enums\ScheduledJobFrequency;
@@ -19,6 +20,7 @@ use App\Core\Modules\PermissionDefinition;
 use App\Core\Modules\WidgetDefinition;
 use App\Modules\Ai\Actions\AiGateway;
 use App\Modules\Ai\Actions\GatewayTextAssistant;
+use App\Modules\Ai\Actions\GatewayVoiceInput;
 use App\Modules\Ai\Actions\ToolRegistry;
 use App\Modules\Ai\Automation\Actions\GenerateTextAction;
 use App\Modules\Ai\Automation\Triggers\ProposalConfirmedTrigger;
@@ -29,6 +31,7 @@ use App\Modules\Ai\Models\Message;
 use App\Modules\Ai\Models\Proposal;
 use App\Modules\Ai\Models\Setting;
 use App\Modules\Ai\Providers\FakeAiProvider;
+use App\Modules\Ai\Providers\FakeTranscriber;
 use App\Modules\Ai\Tools\CompaniesSearchTool;
 use App\Modules\Ai\Tools\CompanyGetTool;
 use App\Modules\Ai\Tools\ContactGetTool;
@@ -54,10 +57,13 @@ final class AiServiceProvider extends ModuleServiceProvider
 
         // What other modules call for captions, hashtags, reply suggestions and sentiment (ADR 0024).
         $this->app->bind(TextAssistant::class, GatewayTextAssistant::class);
+        // Whether the workspace shell offers the microphone (ADR 0038).
+        $this->app->bind(VoiceInput::class, GatewayVoiceInput::class);
 
-        // The scripted provider exists only in local development and tests.
+        // The scripted providers exist only in local development and tests.
         if ($this->app->environment(['local', 'testing'])) {
             $this->app->singleton(FakeAiProvider::class);
+            $this->app->singleton(FakeTranscriber::class);
         }
 
         $this->app->tag([
@@ -75,7 +81,7 @@ final class AiServiceProvider extends ModuleServiceProvider
         return new ModuleManifest(
             key: 'ai',
             name: 'AI Assistant',
-            version: '1.0.0',
+            version: '1.1.0',
             dependencies: ['core'],
             permissions: [
                 new PermissionDefinition('ai.assistant.use', 'ai_assistant'),
@@ -83,6 +89,7 @@ final class AiServiceProvider extends ModuleServiceProvider
                 new PermissionDefinition('ai.proposals.confirm', 'ai_assistant', sensitive: true),
                 new PermissionDefinition('ai.usage.view', 'ai_usage'),
                 new PermissionDefinition('ai.settings.manage', 'ai_settings', sensitive: true),
+                new PermissionDefinition('ai.voice.use', 'ai_assistant'),
             ],
             navigation: [
                 new NavigationItem('aiAssistant', 'ai.assistant.index', 'sparkles', 'ai.assistant.use', 'apps', 60, 'ai.assistant.*'),
@@ -101,7 +108,7 @@ final class AiServiceProvider extends ModuleServiceProvider
                 'ai_proposal' => Proposal::class,
                 'ai_automation_receipt' => AutomationActionReceipt::class,
             ],
-            limits: [new LimitDefinition(AiGateway::TOKENS)],
+            limits: [new LimitDefinition(AiGateway::TOKENS), new LimitDefinition(AiGateway::VOICE_CLIPS)],
             description: 'A private assistant that answers from the records you may see, drafts and summarises text, and proposes changes for you to confirm.',
             category: AppCategory::AiTools,
             icon: 'sparkles',
@@ -112,6 +119,7 @@ final class AiServiceProvider extends ModuleServiceProvider
                 'Changes are proposals: nothing is applied until you confirm',
                 'Monthly token allowance with usage reporting and cost guardrails',
                 'Per-workspace switches, data scopes, retention and PII redaction',
+                'Voice commands: speak to the command palette and the assistant, in Bengali or English',
             ],
             // Owner decision: placeholder BDT prices (minor units), to be replaced by the product owner.
             offers: [
@@ -119,7 +127,7 @@ final class AiServiceProvider extends ModuleServiceProvider
                 new AppOffer('yearly', 'Yearly', AppBillingType::Yearly, 'BDT', 1990000),
                 new AppOffer('trial', '14-day trial', AppBillingType::Monthly, 'BDT', 199000, trialDays: 14),
             ],
-            releaseNotes: 'Initial AI Assistant release.',
+            releaseNotes: 'Voice input for the command palette and the assistant, transcribed by the platform provider.',
             routes: [
                 'ai.assistant.index',
                 'ai.assistant.conversations.store',
@@ -134,6 +142,7 @@ final class AiServiceProvider extends ModuleServiceProvider
                 'ai.usage.index',
                 'ai.settings.index',
                 'ai.settings.update',
+                'ai.voice.transcribe',
             ],
             scheduledJobs: [
                 new ScheduledJobDefinition('ai.retention', EnforceRetention::class, ScheduledJobFrequency::Daily),

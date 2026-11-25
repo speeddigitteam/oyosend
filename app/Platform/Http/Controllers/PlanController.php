@@ -12,6 +12,8 @@ use App\Core\Modules\ModuleRegistry;
 use App\Core\Support\Toast;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -65,6 +67,13 @@ final class PlanController
         return Inertia::render('Platform/Pages/Plans/Edit', [
             'plan' => [
                 ...BillingPresenter::plan($plan),
+                // The form edits the plan's own prices, never what a running offer makes of them.
+                'monthlyAmount' => $plan->monthly_amount,
+                'yearlyAmount' => $plan->yearly_amount,
+                // The offer as stored, ended or not, so it can be changed or cleared; its last day in the platform's zone.
+                'offerMonthlyAmount' => $plan->offer_monthly_amount,
+                'offerYearlyAmount' => $plan->offer_yearly_amount,
+                'offerEndsOn' => $plan->offer_ends_at?->timezone(self::timezone())->toDateString(),
                 // The Bengali name and description, for the Bengali website (docs/WEBSITE.md).
                 'nameBn' => $plan->name_bn,
                 'descriptionBn' => $plan->description_bn,
@@ -133,6 +142,13 @@ final class PlanController
             // Minor units. Empty = not sold for that interval; 0 = free.
             'monthly_amount' => ['nullable', 'integer', 'min:0', 'max:99999999999', 'required_without:yearly_amount'],
             'yearly_amount' => ['nullable', 'integer', 'min:0', 'max:99999999999', 'required_without:monthly_amount'],
+            // A limited-time offer: a lower price for an interval the plan is sold for, until the end of a day.
+            'offer_monthly_amount' => ['nullable', 'integer', 'min:1', 'max:99999999999'],
+            'offer_yearly_amount' => ['nullable', 'integer', 'min:1', 'max:99999999999'],
+            'offer_ends_on' => [
+                'nullable', 'date_format:Y-m-d', 'required_with:offer_monthly_amount,offer_yearly_amount',
+                'after_or_equal:'.Carbon::now(self::timezone())->toDateString(),
+            ],
             'trial_days' => ['required', 'integer', 'min:0', 'max:365'],
             'modules' => ['array'],
             'modules.*' => ['string', Rule::in($optionalModules)],
@@ -162,9 +178,60 @@ final class PlanController
         }
 
         return [
-            ...$input,
+            ...Arr::except($input, 'offer_ends_on'),
+            ...$this->offer($input),
             'modules' => array_values(array_unique($input['modules'] ?? [])),
             'limits' => $limits,
         ];
+    }
+
+    /**
+     * The offer's columns from the form: each price below the plan's own for that interval, the end at the close of the
+     * chosen day in the platform's time zone. No price means no offer.
+     *
+     * @param  array<string, mixed>  $input
+     * @return array{offer_monthly_amount: int|null, offer_yearly_amount: int|null, offer_ends_at: Carbon|null}
+     */
+    private function offer(array $input): array
+    {
+        $errors = [];
+        $amounts = [];
+
+        foreach (['monthly', 'yearly'] as $interval) {
+            $offer = isset($input["offer_{$interval}_amount"]) ? (int) $input["offer_{$interval}_amount"] : null;
+            $list = isset($input["{$interval}_amount"]) ? (int) $input["{$interval}_amount"] : null;
+
+            if ($offer !== null && ($list === null || $offer >= $list)) {
+                $errors["offer_{$interval}_amount"] = __('An offer price must be lower than the plan\'s own price for that period.');
+            }
+
+            $amounts[$interval] = $offer;
+        }
+
+        $endsOn = $input['offer_ends_on'] ?? null;
+
+        if (is_string($endsOn) && $amounts['monthly'] === null && $amounts['yearly'] === null) {
+            $errors['offer_monthly_amount'] = __('Give an offer price for at least one period, or clear the last day.');
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        $none = $amounts['monthly'] === null && $amounts['yearly'] === null;
+
+        return [
+            'offer_monthly_amount' => $amounts['monthly'],
+            'offer_yearly_amount' => $amounts['yearly'],
+            'offer_ends_at' => $none || ! is_string($endsOn)
+                ? null
+                : Carbon::createFromFormat('Y-m-d', $endsOn, self::timezone())->endOfDay()->utc(),
+        ];
+    }
+
+    /** The operator's time zone, in which an offer's last day ends. */
+    private static function timezone(): string
+    {
+        return (string) config('platform.defaults.timezone', 'Asia/Dhaka');
     }
 }

@@ -9,7 +9,9 @@ use App\Core\Access\Console\SyncPermissionsCommand;
 use App\Core\Access\Models\Role;
 use App\Core\Access\PermissionResolver;
 use App\Core\Ai\Contracts\TextAssistant;
+use App\Core\Ai\Contracts\VoiceInput;
 use App\Core\Ai\NullTextAssistant;
+use App\Core\Ai\NullVoiceInput;
 use App\Core\AppStore\Console\RunModuleSchedulesCommand;
 use App\Core\AppStore\Console\SyncAppsCommand;
 use App\Core\AppStore\Models\AppEntitlement;
@@ -252,6 +254,8 @@ final class CoreServiceProvider extends ModuleServiceProvider
         $this->app->bindIf(ConnectedPages::class, NullConnectedPages::class);
         // The `ai` module rebinds this with the gateway-backed assistant (ADR 0024).
         $this->app->bindIf(TextAssistant::class, NullTextAssistant::class);
+        // Voice input for the palette and the assistant (ADR 0038); `ai` rebinds it.
+        $this->app->bindIf(VoiceInput::class, NullVoiceInput::class);
 
         // Schedule idempotency is platform-wide. It must not be affected by
         // the cache prefix of whichever tenant is being dispatched.

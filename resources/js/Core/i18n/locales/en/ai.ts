@@ -33,6 +33,7 @@ export default {
         chat: 'Assistant chat',
         drafting: 'Drafting',
         automation: 'Workflow text',
+        voice: 'Voice input',
         unknown: 'Other',
     },
     assistant: {
@@ -151,6 +152,10 @@ export default {
         draftingHint: 'Summaries and reply drafts on contacts and companies.',
         automation: 'Workflow text generation',
         automationHint: 'Lets workflows generate text. Off by default.',
+        voice: 'Voice input',
+        voiceHint:
+            'Members with the voice permission can speak to the command palette and the assistant. Each recording is sent to the transcription provider the platform operator chose, turned into text and not kept. Off by default.',
+        transcription: 'Speech to text',
         scopes: 'What the assistant may read',
         scopesHint: 'The assistant still only sees what each member is allowed to see. A new area stays off until you turn it on.',
         scopesEmpty: 'No readable areas are registered.',

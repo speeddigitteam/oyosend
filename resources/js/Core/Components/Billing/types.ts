@@ -17,9 +17,14 @@ export interface PlanSummary {
     name: string;
     description: string | null;
     currency: string;
-    /** Price of one period, or null when the plan is not sold for that interval. */
+    /** Price of one period today, a running offer included, or null when the plan is not sold for that interval. */
     monthlyAmount: number | null;
     yearlyAmount: number | null;
+    /** The plan's own price, to strike through beside an offer. Absent or equal to the above when there is none. */
+    listMonthlyAmount?: number | null;
+    listYearlyAmount?: number | null;
+    /** When a running limited-time offer ends; null or absent when none runs. */
+    offerEndsAt?: string | null;
     trialDays: number;
     /** Keys of the optional modules the plan includes. */
     modules: string[];

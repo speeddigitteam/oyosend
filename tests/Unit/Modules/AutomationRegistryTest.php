@@ -15,6 +15,7 @@ use App\Modules\Ai\Automation\Triggers\ProposalConfirmedTrigger;
 use App\Modules\Automation\Automation\Triggers\ManualTrigger;
 use App\Modules\Automation\Automation\Triggers\ScheduleTrigger;
 use App\Modules\Automation\Automation\Triggers\WebhookTrigger;
+use App\Modules\Calendar\Automation\Triggers\CalendarEventCreatedTrigger;
 use App\Modules\Communication\Automation\Actions\LogInteractionAction;
 use App\Modules\Communication\Automation\Actions\SendTemplateMessageAction;
 use App\Modules\Communication\Automation\Triggers\ContactUnsubscribedTrigger;
@@ -382,6 +383,7 @@ describe('the application\'s own registry', function () {
             'notes.note.created' => NoteCreatedTrigger::class,
             'telephony.call.ended' => CallEndedTrigger::class,
             'links.link.created' => LinkCreatedTrigger::class,
+            'calendar.event.created' => CalendarEventCreatedTrigger::class,
         ])
             ->and($registry->actions())->toBe([
                 'crm.lead.assign' => CrmAssignLeadAction::class,

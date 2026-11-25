@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { router, useForm } from '@inertiajs/vue3';
+import { router, useForm, usePage } from '@inertiajs/vue3';
 import { ArrowLeft, Sparkles, Trash2 } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -10,6 +10,7 @@ import ConfirmDialog from '@/Core/Components/ConfirmDialog.vue';
 import EmptyState from '@/Core/Components/EmptyState.vue';
 import PageHeader from '@/Core/Components/PageHeader.vue';
 import Textarea from '@/Core/Components/Textarea.vue';
+import VoiceButton from '@/Core/Components/VoiceButton.vue';
 import { useFormat } from '@/Core/composables/useFormat';
 import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
 import { route } from '@/Core/lib/route';
@@ -32,6 +33,7 @@ const props = defineProps<{
 
 const { t, te } = useI18n();
 const format = useFormat();
+const page = usePage();
 
 const form = useForm({ content: '' });
 const confirmDelete = ref(false);
@@ -48,6 +50,15 @@ function send(): void {
         preserveScroll: true,
         onSuccess: () => form.reset('content'),
     });
+}
+
+/** Spoken text joins what is already typed; with the member's preference it is sent at once (ADR 0038). */
+function heard(text: string): void {
+    form.content = form.content.trim() === '' ? text : `${form.content.trimEnd()} ${text}`;
+
+    if (page.props.voice?.autoRun === true) {
+        send();
+    }
 }
 
 function destroy(): void {
@@ -191,7 +202,8 @@ function usedTools(message: ChatMessage): string[] {
                         @keydown.ctrl.enter.prevent="send"
                         @keydown.meta.enter.prevent="send"
                     />
-                    <div class="flex justify-end">
+                    <div class="flex items-center justify-end gap-2">
+                        <VoiceButton v-if="canCompose(availability.state)" class="mr-auto" @transcript="heard" />
                         <Button
                             type="submit"
                             variant="primary"

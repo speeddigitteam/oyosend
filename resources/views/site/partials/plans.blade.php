@@ -31,14 +31,43 @@
                 @elseif ($plan['monthly'] !== null)
                     <span class="figure text-[2.5rem] text-ink">{{ $plan['monthly'] }}</span>
                     <span class="text-[0.875rem] text-ink-muted">{{ __('site.pricing.monthly') }}</span>
+                    @if ($plan['monthlyList'])
+                        {{-- A running offer: the plan's own price it takes off from. --}}
+                        <span class="text-[0.875rem] text-ink-subtle"><span class="sr-only">{{ __('site.pricing.usual_price') }}</span><del>{{ $plan['monthlyList'] }}</del></span>
+                    @endif
                 @else
                     {{-- Sold by the year only. --}}
                     <span class="figure text-[2.5rem] text-ink">{{ $plan['yearly'] }}</span>
                     <span class="text-[0.875rem] text-ink-muted">{{ __('site.pricing.yearly') }}</span>
+                    @if ($plan['yearlyList'])
+                        <span class="text-[0.875rem] text-ink-subtle"><span class="sr-only">{{ __('site.pricing.usual_price') }}</span><del>{{ $plan['yearlyList'] }}</del></span>
+                    @endif
                 @endif
             </p>
             @if (! $plan['free'] && $plan['monthly'] !== null && $plan['yearly'] !== null)
-                <p class="mt-1 text-[0.8125rem] text-ink-muted">{{ __('site.common.per_year', ['price' => $plan['yearly']]) }}</p>
+                <p class="mt-1 text-[0.8125rem] text-ink-muted">
+                    {{ __('site.common.per_year', ['price' => $plan['yearly']]) }}
+                    @if ($plan['yearlyList'])
+                        <span class="text-ink-subtle"><span class="sr-only">{{ __('site.pricing.usual_price') }}</span><del>{{ $plan['yearlyList'] }}</del></span>
+                    @endif
+                </p>
+            @endif
+            @if (! $plan['free'] && ($plan['offerEnds'] || $plan['yearlySaving']))
+                <p class="mt-3 flex flex-wrap gap-1.5">
+                    @if ($plan['offerEnds'])
+                        <span class="inline-flex items-center gap-1.5 rounded-chip bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent-text">
+                            <x-site.icon name="clock" class="size-3.5" />{{ __('site.pricing.offer_until', ['date' => $plan['offerEnds']]) }}
+                        </span>
+                    @endif
+                    @if ($plan['yearlySaving'])
+                        <span class="inline-flex items-center rounded-chip bg-ok-soft px-2 py-0.5 text-xs font-medium text-ok">
+                            {{ __('site.pricing.yearly_saving', ['percent' => $plan['yearlySaving']]) }}
+                        </span>
+                    @endif
+                </p>
+                @if ($plan['offerEnds'])
+                    <p class="mt-1.5 text-[0.8125rem] text-ink-subtle">{{ __('site.pricing.offer_keeps') }}</p>
+                @endif
             @endif
             @if ($plan['trialDays'] > 0)
                 <p class="mt-3">

@@ -32,6 +32,8 @@ final class PlatformSettings
         'billing.issuer_tax_id' => 'platform.billing.issuer.tax_id',
         // The public website's company details (App\Core\Website\SiteCompany, docs/WEBSITE.md).
         'website.name' => 'site.company.name',
+        'website.legal_name' => 'site.company.legal_name',
+        'website.founded' => 'site.company.founded',
         'website.email' => 'site.company.email',
         'website.phone_1' => 'site.company.phone_1',
         'website.phone_2' => 'site.company.phone_2',

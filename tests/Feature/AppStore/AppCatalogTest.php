@@ -20,19 +20,19 @@ it('syncs compiled optional manifests into an immutable catalogue', function () 
     $second = app(AppCatalogSynchronizer::class)->sync();
     $app = CatalogApp::query()->with('currentVersion')->where('module_key', 'test_crm')->sole();
 
-    expect($first)->toBe(['apps' => 20, 'versions' => 20, 'unpublished' => 0])
-        ->and($second)->toBe(['apps' => 20, 'versions' => 0, 'unpublished' => 0])
+    expect($first)->toBe(['apps' => 21, 'versions' => 21, 'unpublished' => 0])
+        ->and($second)->toBe(['apps' => 21, 'versions' => 0, 'unpublished' => 0])
         ->and($app->module_key)->toBe('test_crm')
         ->and($app->currentVersion->version)->toBe('0.1.0')
         ->and($app->currentVersion->offers)->toHaveCount(4)
-        ->and(AppVersion::query()->count())->toBe(20);
+        ->and(AppVersion::query()->count())->toBe(21);
 });
 
 it('exposes the sync as an idempotent deployment command', function () {
     expect(Artisan::call('apps:sync'))->toBe(0)
-        ->and(Artisan::output())->toContain('Synced 20 app(s), published 20 new version(s), unpublished 0')
+        ->and(Artisan::output())->toContain('Synced 21 app(s), published 21 new version(s), unpublished 0')
         ->and(Artisan::call('apps:sync', ['--prune' => true]))->toBe(0)
-        ->and(CatalogApp::query()->where('is_published', true)->count())->toBe(20);
+        ->and(CatalogApp::query()->where('is_published', true)->count())->toBe(21);
 });
 
 it('refuses to prune an app that still has a live installation or licence', function () {

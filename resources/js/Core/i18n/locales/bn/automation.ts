@@ -229,6 +229,7 @@ const automation: MessageSchema['automation'] = {
         'notes.note.created': 'একটি নোট তৈরি হয়',
         'telephony.call.ended': 'একটি কল শেষ হয়',
         'links.link.created': 'একটি লিংক সেভ হয়',
+        'calendar.event.created': 'ওয়ার্কস্পেস ক্যালেন্ডারে একটি ইভেন্ট যোগ হয়',
     },
     actions: {
         'ai.text.generate': 'এআই দিয়ে লেখা তৈরি করুন',

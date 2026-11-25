@@ -106,6 +106,7 @@ import reports from './reports';
 import notes from './notes';
 import telephony from './telephony';
 import links from './links';
+import calendar from './calendar';
 import organization from './organization';
 import platformAudit from './platformAudit';
 import platformBilling from './platformBilling';
@@ -168,6 +169,7 @@ const bn: MessageSchema = {
     notes,
     telephony,
     links,
+    calendar,
     workspace,
     billing,
     appStore,

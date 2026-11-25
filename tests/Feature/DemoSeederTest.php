@@ -7,6 +7,8 @@ use App\Core\Identity\Models\TenantMembership;
 use App\Core\Identity\Models\User;
 use App\Core\Tenancy\Models\Tenant;
 use App\Core\Tenancy\TenantContext;
+use App\Modules\Links\Enums\LinkKind;
+use App\Modules\Links\Models\Link;
 use App\Platform\Enums\PlatformRole;
 use App\Platform\Models\PlatformUser;
 use Database\Seeders\DatabaseSeeder;
@@ -101,12 +103,25 @@ describe('in local development', function () {
         $this->assertGuest('web');
     });
 
+    it('gives each workspace starter links in its own language, owned by the owner', function () {
+        $globex = Tenant::query()->where('slug', 'globex')->sole();
+
+        $links = $this->inTenant($globex, fn () => Link::query()->with('owner')->get());
+
+        expect($links)->toHaveCount(17)
+            ->and($links->pluck('owner.is_owner')->unique()->all())->toBe([true])
+            ->and($links->pluck('title'))->toContain('জাতীয় রাজস্ব বোর্ড (এনবিআর)')
+            ->and($links->firstWhere('kind', LinkKind::Email)?->address)->toEndWith('@globex.test')
+            ->and($links->where('kind', '!=', LinkKind::Email)->every(fn (Link $link): bool => str_starts_with($link->address, 'https://')))->toBeTrue();
+    });
+
     it('can be run again without duplicating anything', function () {
         ($this->seedLocally)();
 
         expect(Tenant::query()->count())->toBe(2)
             ->and(User::query()->count())->toBe(8)
             ->and(PlatformUser::query()->count())->toBe(1)
-            ->and(TenantMembership::withoutTenancy()->count())->toBe(9);
+            ->and(TenantMembership::withoutTenancy()->count())->toBe(9)
+            ->and(Link::withoutTenancy()->count())->toBe(34);
     });
 });

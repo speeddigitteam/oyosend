@@ -17,10 +17,15 @@ export interface PlanOffer {
     description: string | null;
     /** ISO 4217. */
     currency: string;
-    /** Minor units for one month; null when the plan is not sold monthly. */
+    /** Minor units for one month today, a running offer included; null when the plan is not sold monthly. */
     monthlyAmount: number | null;
-    /** Minor units for one year; null when the plan is not sold yearly. */
+    /** Minor units for one year today, a running offer included; null when the plan is not sold yearly. */
     yearlyAmount: number | null;
+    /** The plan's own prices, to strike through beside a running offer. */
+    listMonthlyAmount?: number | null;
+    listYearlyAmount?: number | null;
+    /** When a running limited-time offer ends. */
+    offerEndsAt?: string | null;
     trialDays: number;
     isFree: boolean;
 }

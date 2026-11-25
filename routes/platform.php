@@ -175,6 +175,7 @@ Route::middleware('auth:platform')->group(function () {
             Route::delete('ai/providers/{account}', [AiProviderAccountController::class, 'destroy'])->name('ai.destroy');
             Route::post('ai/providers/{account}/test', [AiProviderAccountController::class, 'test'])->name('ai.test');
             Route::post('ai/providers/{account}/default', [AiProviderAccountController::class, 'makeDefault'])->name('ai.default');
+            Route::post('ai/providers/{account}/transcription-default', [AiProviderAccountController::class, 'makeTranscriptionDefault'])->name('ai.transcription-default');
         });
     });
 });

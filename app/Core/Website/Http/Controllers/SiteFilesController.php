@@ -29,8 +29,8 @@ final class SiteFilesController
     /** Addresses with nothing to index: one-time sign-up links and form endpoints. */
     private const array PRIVATE_PATHS = ['/register/confirm/', '/register/sent', '/workspace', '/locale'];
 
-    /** Pages with no parameter, in sitemap order. */
-    private const array PAGES = ['home', 'apps', 'pricing', 'security', 'about', 'faq', 'contact', 'signin', 'privacy', 'terms', 'refund'];
+    /** Pages with no parameter, in sitemap order. The sign-in page is left out: it is `noindex`. */
+    private const array PAGES = ['home', 'apps', 'pricing', 'security', 'about', 'faq', 'contact', 'privacy', 'terms', 'refund'];
 
     public function __construct(
         private readonly SiteApps $apps,

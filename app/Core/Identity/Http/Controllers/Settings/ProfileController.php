@@ -26,6 +26,8 @@ final class ProfileController
                 'email' => $user->email,
                 'locale' => $user->locale ?? app()->getLocale(),
                 'numerals' => $user->preference('numerals', 'latn'),
+                // Shown only when the workspace offers voice input (ADR 0038); kept across workspaces.
+                'voiceAutoRun' => $user->preference('voice_auto_run') === true,
             ],
         ]);
     }
@@ -39,6 +41,7 @@ final class ProfileController
             'name' => ['required', 'string', 'max:120'],
             'locale' => ['required', Rule::in(array_keys($locales))],
             'numerals' => ['required', Rule::in(['latn', 'beng'])],
+            'voice_auto_run' => ['sometimes', 'boolean'],
         ]);
 
         /** @var User $user */
@@ -47,7 +50,11 @@ final class ProfileController
         $user->update([
             'name' => $input['name'],
             'locale' => $input['locale'],
-            'preferences' => [...($user->preferences ?? []), 'numerals' => $input['numerals']],
+            'preferences' => [
+                ...($user->preferences ?? []),
+                'numerals' => $input['numerals'],
+                'voice_auto_run' => (bool) ($input['voice_auto_run'] ?? $user->preference('voice_auto_run', false)),
+            ],
         ]);
 
         app()->setLocale($input['locale']);

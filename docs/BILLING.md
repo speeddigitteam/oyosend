@@ -25,7 +25,7 @@ invoice is verified as paid. Late recurring items enter grace and then expire; d
 
 | Piece | Class | Notes |
 |---|---|---|
-| Plans | `Core\Billing\Models\Plan` | Price per interval (`monthly_amount`, `yearly_amount`; null = not sold, 0 = free), `trial_days`, `modules` (optional module keys), `limits` (limit key → maximum), `is_public`, `is_active`. Managed in the panel; never deleted, only archived |
+| Plans | `Core\Billing\Models\Plan` | Price per interval (`monthly_amount`, `yearly_amount`; null = not sold, 0 = free), an optional limited-time offer (`offer_monthly_amount`, `offer_yearly_amount`, `offer_ends_at`; ADR 0040: `amountFor()` is the offer's price while it runs and is below the list price, `listAmountFor()` the plan's own), `trial_days`, `modules` (optional module keys), `limits` (limit key → maximum), `is_public`, `is_active`. Managed in the panel; never deleted, only archived |
 | Subscription | `Core\Billing\Models\Subscription` | One per tenant. `status`, `interval`, `amount` (the price it was taken at), trial / period / grace dates, `cancel_at_period_end`, `pending_plan_id` |
 | Everything a person asks for | `Core\Billing\SubscriptionManager` | `start`, `changePlan`, `cancel`, `resume`, `settle`; `grant` and `extendTrial` for operators |
 | Everything time does | `Core\Billing\BillingCycle` | Run per tenant by `php artisan billing:run [--tenant=slug]`, scheduled hourly in `routes/console.php`. Safe to run twice |
@@ -74,6 +74,7 @@ people who can see billing to it and shows everyone else a "workspace locked" pa
 | Trial or period ends unpaid | `past_due`, grace until boundary + `grace_days` |
 | Grace ends unpaid | `expired`. The invoice stays open; paying it brings the workspace back |
 | Renewal | Invoice `invoice_lead_days` before `current_period_end`, at the price the subscription was taken at |
+| A plan taken, or changed to, while its offer runs | Billed and kept at the offer price, renewals included, after the offer has ended too (ADR 0040). A scheduled move to a cheaper plan is priced when it takes effect |
 | Change plan while trialing | Immediate; the trial's end does not move |
 | More expensive plan inside a paid period | Invoice for the new price minus the unused value of the old period; applied, with a new period, when paid. Withdrawn after 3 days |
 | Cheaper plan inside a paid period | Scheduled (`pending_plan_id`); the next period is billed for it |
@@ -148,7 +149,7 @@ app with a trial and a monthly/yearly offer. Usage is not yet charged on an invo
 
 ## 7. Not built
 
-Coupons and discounts; refund records and credit notes; tax; charging for usage or extra seats on an invoice;
+Coupons and per-workspace discounts (plan offers exist, ADR 0040); refund records and credit notes; tax; charging for usage or extra seats on an invoice;
 calculation for usage-based app offers; a revenue dashboard beyond the totals on the panel's invoice list; mail
 for past due and expiry (the invoice and the receipt are the only billing mail); PDF invoices (the invoice page
 prints); automatic charging of a stored payment method.

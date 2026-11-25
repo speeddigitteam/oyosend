@@ -233,6 +233,7 @@ export default {
         'notes.note.created': 'A note is created',
         'telephony.call.ended': 'A call ends',
         'links.link.created': 'A link is saved',
+        'calendar.event.created': 'An event is added to a workspace calendar',
     },
     actions: {
         'ai.text.generate': 'Generate text with AI',

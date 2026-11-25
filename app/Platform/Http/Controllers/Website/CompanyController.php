@@ -25,6 +25,8 @@ final class CompanyController
     /** Form field => platform setting. */
     private const array FIELDS = [
         'name' => 'website.name',
+        'legal_name' => 'website.legal_name',
+        'founded' => 'website.founded',
         'email' => 'website.email',
         'phone_1' => 'website.phone_1',
         'phone_2' => 'website.phone_2',
@@ -64,6 +66,8 @@ final class CompanyController
 
         $input = $request->validate([
             'name' => ['required', 'string', 'max:80'],
+            'legal_name' => ['nullable', 'string', 'max:150'],
+            'founded' => ['nullable', 'digits:4', 'integer', 'min:1900', 'max:'.now()->year],
             'email' => ['required', 'email:rfc', 'max:150'],
             'phone_1' => ['required', 'string', 'max:40', ...$phone],
             'phone_2' => ['nullable', 'string', 'max:40', ...$phone],

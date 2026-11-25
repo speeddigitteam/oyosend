@@ -27,7 +27,7 @@ beforeEach(function () {
  */
 function articleInput(array $overrides = []): array
 {
-    return array_replace_recursive([
+    $input = array_replace_recursive([
         'slug' => '',
         'kind' => 'guide',
         'status' => 'published',
@@ -47,6 +47,21 @@ function articleInput(array $overrides = []): array
             'bn' => ['title' => '', 'summary' => '', 'body' => '', 'cover_alt' => '', 'meta_title' => '', 'meta_description' => '', 'faq' => []],
         ],
     ], $overrides);
+
+    // A list given replaces the default one outright; merging it would keep the default's items.
+    foreach (['apps'] as $key) {
+        if (array_key_exists($key, $overrides)) {
+            $input[$key] = $overrides[$key];
+        }
+    }
+
+    foreach (['en', 'bn'] as $locale) {
+        if (isset($overrides['translations'][$locale]['faq'])) {
+            $input['translations'][$locale]['faq'] = $overrides['translations'][$locale]['faq'];
+        }
+    }
+
+    return $input;
 }
 
 describe('who may write', function () {
@@ -135,8 +150,13 @@ describe('writing', function () {
 
     it('refuses an app this build does not have and an incomplete question', function () {
         $this->actingAsPlatformUser($this->admin)
-            ->post('http://admin.localhost/website/blog', articleInput(['apps' => ['crypto'], 'translations' => ['en' => ['faq' => [['q' => 'Half a question?', 'a' => '']]]]]))
-            ->assertSessionHasErrors(['apps.0', 'translations.en.faq.0']);
+            ->post('http://admin.localhost/website/blog', articleInput(['apps' => ['crypto']]))
+            ->assertSessionHasErrors('apps.0');
+
+        $this->post('http://admin.localhost/website/blog', articleInput(['translations' => ['en' => ['faq' => [['q' => 'Half a question?', 'a' => '']]]]]))
+            ->assertSessionHasErrors('translations.en.faq.0');
+
+        expect(BlogPost::query()->count())->toBe(0);
     });
 
     it('schedules an article for a time in the company\'s own time zone', function () {

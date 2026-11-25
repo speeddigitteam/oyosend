@@ -35,6 +35,7 @@ const catalogue: MessageSchema['catalogue'] = {
         notes: 'নোট',
         telephony: 'টেলিফোনি',
         links: 'লিংক',
+        calendar: 'ক্যালেন্ডার',
     },
     permissionGroups: {
         members: 'সদস্য',
@@ -146,6 +147,7 @@ const catalogue: MessageSchema['catalogue'] = {
         telephony_calls: 'কল',
         telephony_settings: 'টেলিফোনি সেটিংস',
         links: 'লিংক',
+        calendar: 'ক্যালেন্ডার',
     },
     permissions: {
         'core.members.view': {
@@ -473,6 +475,9 @@ const catalogue: MessageSchema['catalogue'] = {
         'telephony.settings.manage': { label: 'টেলিফোনি পরিচালনা', description: 'ফোন সিস্টেম যুক্ত করা, আর সদস্যদের এক্সটেনশন ও SIP পাসওয়ার্ড দেওয়া।' },
         'links.links.view': { label: 'লিংক দেখা', description: 'অনুমোদিত রেকর্ড-পরিসরের মধ্যে সেভ করা লিংক দেখা।' },
         'links.links.manage': { label: 'লিংক যোগ ও সম্পাদনা', description: 'লিংক সেভ, সম্পাদনা, পিন ও মুছে ফেলা।' },
+        'calendar.events.view': { label: 'ক্যালেন্ডার ব্যবহার', description: 'নিজের ক্যালেন্ডার, ওয়ার্কস্পেসের ক্যালেন্ডার, আর সহকর্মীরা যা শেয়ার করেন তা দেখা।' },
+        'calendar.events.manage': { label: 'ইভেন্ট যোগ ও সম্পাদনা', description: 'নিজের ইভেন্ট ও ক্যালেন্ডার তৈরি, পরিবর্তন ও মুছে ফেলা, আর অতিথি আমন্ত্রণ।' },
+        'calendar.shared.manage': { label: 'ওয়ার্কস্পেস ক্যালেন্ডার পরিচালনা', description: 'সবাই দেখেন এমন ওয়ার্কস্পেস ক্যালেন্ডার তৈরি, আর তার ইভেন্ট যোগ ও পরিবর্তন।' },
     },
     // How far a grant reaches, for permissions that can be narrowed.
     scopes: {
@@ -542,6 +547,9 @@ const catalogue: MessageSchema['catalogue'] = {
         'company.created': 'একটি প্রতিষ্ঠান যোগ করেছেন',
         'company.updated': 'একটি প্রতিষ্ঠান আপডেট করেছেন',
         'company.deleted': 'একটি প্রতিষ্ঠান মুছে ফেলেছেন',
+        'contact_address.created': 'একটি ঠিকানা যোগ করেছেন',
+        'contact_address.updated': 'একটি ঠিকানা আপডেট করেছেন',
+        'contact_address.deleted': 'একটি ঠিকানা মুছে ফেলেছেন',
         'workspace.registered': 'ওয়ার্কস্পেসের জন্য সাইন আপ করেছেন',
         'workspace.created': 'সাপোর্ট টিম ওয়ার্কস্পেসটি তৈরি করেছে',
         'workspace.approved': 'ওয়ার্কস্পেস অনুমোদন করা হয়েছে',
@@ -940,6 +948,13 @@ const catalogue: MessageSchema['catalogue'] = {
         'links.link.created': 'একটি লিংক সেভ করেছেন',
         'links.link.updated': 'একটি লিংক আপডেট করেছেন',
         'links.link.deleted': 'একটি লিংক মুছেছেন',
+        'calendar.event.created': 'একটি ক্যালেন্ডার ইভেন্ট যোগ করেছেন',
+        'calendar.event.updated': 'একটি ক্যালেন্ডার ইভেন্ট পরিবর্তন করেছেন',
+        'calendar.event.deleted': 'একটি ক্যালেন্ডার ইভেন্ট মুছেছেন',
+        'calendar.event.responded': 'একটি আমন্ত্রণের উত্তর দিয়েছেন',
+        'calendar.calendar.created': 'একটি ক্যালেন্ডার তৈরি করেছেন',
+        'calendar.calendar.updated': 'একটি ক্যালেন্ডার পরিবর্তন করেছেন',
+        'calendar.calendar.deleted': 'একটি ক্যালেন্ডার মুছেছেন',
     },
     // Automation triggers and actions registered by modules, by definition key.
     automation: {

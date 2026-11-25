@@ -594,12 +594,13 @@ All tenant-owned (`tenant_id` first in every unique index). No credential or pro
 
 | Group | Tables | Notes |
 |---|---|---|
-| Configuration | `ai_settings` | `UNIQUE(tenant_id)`: enabled flags, `data_scopes` (JSON list), `retention_days`, `redact_pii` |
+| Configuration | `ai_settings` | `UNIQUE(tenant_id)`: enabled flags (`voice_enabled` added by `2026_11_22_000100`, default off), `data_scopes` (JSON list), `retention_days`, `redact_pii` |
 | Conversations | `ai_conversations`, `ai_messages` | A conversation belongs to one `membership_id` (cascade); messages hold text, a tool trace of names/ids, token counts and the prompt version. Deleted by retention |
 | Proposals | `ai_proposals` | Encrypted `payload`, `status` (pending, confirmed, rejected, failed, expired), `expires_at`; cascade with the conversation |
 | Operations | `ai_automation_action_receipts` | `UNIQUE(tenant_id, action, idempotency_key)` |
 
-Token usage is kept in the shared `usage_records` (`meter = ai.tokens`, idempotency key per provider call). See `docs/AI.md`.
+Token usage is kept in the shared `usage_records` (`meter = ai.tokens`, idempotency key per provider call); voice clips
+under `meter = ai.voice_clips`, one per clip. No audio or transcript is stored anywhere (ADR 0038). See `docs/AI.md`.
 
 `ai_provider_accounts` (`2026_10_25_000200`) is **platform-owned**: central connection, no `tenant_id`, model
 `AiProviderAccount`, written only from the Super Admin panel (`platform.ai.*`).
@@ -609,8 +610,10 @@ Token usage is kept in the shared `usage_records` (`meter = ai.tokens`, idempote
 | `id` | ULID |
 | `driver` | `anthropic` or `openai_compatible` (`AiDriver`) |
 | `name` | `UNIQUE`; shown only in the panel |
-| `model`, `base_url` | The model id; the endpoint (required for `openai_compatible`, optional for `anthropic`) |
+| `model`, `base_url` | The chat model id (empty for a transcription-only `openai_compatible` account); the endpoint (required for `openai_compatible`, optional for `anthropic`) |
+| `transcription_model` | Nullable, `openai_compatible` only: the speech-to-text model for voice input (`2026_11_22_000100`, ADR 0038) |
 | `is_enabled`, `is_default` | One enabled account is the platform default; index `(is_default, is_enabled)` |
+| `is_transcription_default` | At most one enabled account transcribes voice input, independent of the chat default |
 | `secrets` | `longText`, `encrypted:array`, hidden: key `api_key`. Write-only |
 | `last_test_status`, `last_test_reason`, `last_tested_at` | Outcome of "test connection": `ok` or `failed` with a safe reason code, never provider text |
 
@@ -797,6 +800,20 @@ Migration `app/Modules/Links/Database/Migrations/2026_11_23_000100_create_links_
 | `links` | One saved link. `tenant_id` FK; `kind` varchar(20) (`website`/`tool`/`email`/`document`/`other`), `title` varchar(150), `address` varchar(2048) (an http(s) URL, or an email address for `email`; validated in the controller), nullable `description` varchar(500) and `folder` varchar(60), `is_pinned`; record-owner columns `owner_id` -> `tenant_memberships`, `department_id` -> `departments`, `branch_id` -> `branches` (all `nullOnDelete`). Indexes lead with `tenant_id` (`is_pinned`+`title`, `kind`, `folder` and each owner column). No unique index. No secret column |
 
 See `docs/LINKS.md`.
+
+## 3k6. Calendar tables
+
+Migration `app/Modules/Calendar/Database/Migrations/2026_11_24_000100_create_calendar_tables.php`, loaded by
+`CalendarServiceProvider`. All four are tenant-owned (`tenant_id` FK, ULID keys).
+
+| Table | Notes |
+|---|---|
+| `calendar_calendars` | A calendar. `owner_id` -> `tenant_memberships` (`cascadeOnDelete`; null for a workspace calendar), `name` varchar(100), nullable `description` varchar(500), `color` varchar(20) (`Enums\EventColor`), `visibility` varchar(10) (`private`/`busy`/`team`, personal calendars only), `is_primary`. Index `tenant_id`+`owner_id`+`is_primary`. No unique index: one primary per member is kept by `CalendarManager::primaryFor()` under a lock on the membership row |
+| `calendar_events` | An event, a series root (`recurrence` JSON, `recurrence_until` = UTC start of its last occurrence or null) or an exception (`recurring_event_id` -> `calendar_events` `cascadeOnDelete`, `original_start` UTC). `calendar_id` -> `calendar_calendars` (`cascadeOnDelete`), `status` (`confirmed`/`cancelled`), `title` varchar(200), nullable `description` text and `location` varchar(255), `is_all_day`, `starts_at`/`ends_at` (UTC instants, or floating dates at 00:00 with an exclusive end for all-day), `timezone` varchar(64), nullable `color`, `show_as` (`busy`/`free`), `visibility` (`default`/`private`), `reminders` JSON (minutes), `created_by` -> `tenant_memberships` (`nullOnDelete`). Indexes `tenant_id`+`calendar_id`+`starts_at`, `tenant_id`+`calendar_id`+`recurrence_until`, `tenant_id`+`starts_at`; unique `tenant_id`+`recurring_event_id`+`original_start` (one exception per occurrence) |
+| `calendar_event_attendees` | A guest of a series root or single event: `event_id` -> `calendar_events`, `membership_id` -> `tenant_memberships` (both `cascadeOnDelete`), `response` (`needs_action`/`accepted`/`tentative`/`declined`), `responded_at`. Unique `tenant_id`+`event_id`+`membership_id`; index `tenant_id`+`membership_id` |
+| `calendar_preferences` | One member's settings: `membership_id` -> `tenant_memberships` (`cascadeOnDelete`), nullable `timezone`, `week_starts_on` tinyint (0, 1 or 6), `time_format` (`12h`/`24h`), `default_view`, `default_duration` and nullable `default_reminder` (minutes), `show_declined`, `hidden_calendar_ids` and `followed_member_ids` JSON. Unique `tenant_id`+`membership_id` |
+
+See `docs/CALENDAR.md`.
 
 ## 4. Later tables (outline only)
 

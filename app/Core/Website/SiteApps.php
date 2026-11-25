@@ -36,11 +36,14 @@ final readonly class SiteApps
         'meta-ads' => ['module' => 'meta_ads', 'category' => 'marketing', 'icon' => 'megaphone'],
         'customer-support' => ['module' => 'support', 'category' => 'service', 'icon' => 'life-buoy'],
         'communication' => ['module' => 'communication', 'category' => 'service', 'icon' => 'mail'],
+        'telephony' => ['module' => 'telephony', 'category' => 'service', 'icon' => 'phone'],
         'project-management' => ['module' => 'projects', 'category' => 'operations', 'icon' => 'folder-kanban'],
         'workflow-automation' => ['module' => 'automation', 'category' => 'operations', 'icon' => 'workflow'],
         'ai-assistant' => ['module' => 'ai', 'category' => 'operations', 'icon' => 'sparkles'],
         'reports-and-analytics' => ['module' => 'reports', 'category' => 'operations', 'icon' => 'chart-no-axes-combined'],
         'notes' => ['module' => 'notes', 'category' => 'operations', 'icon' => 'file-text'],
+        'links' => ['module' => 'links', 'category' => 'operations', 'icon' => 'link'],
+        'calendar' => ['module' => 'calendar', 'category' => 'operations', 'icon' => 'calendar'],
     ];
 
     /** @var list<string> */

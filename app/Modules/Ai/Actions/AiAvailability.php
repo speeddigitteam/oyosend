@@ -7,6 +7,7 @@ namespace App\Modules\Ai\Actions;
 use App\Modules\Ai\Enums\AiState;
 use App\Modules\Ai\Enums\Feature;
 use App\Modules\Ai\Providers\ProviderManager;
+use App\Modules\Ai\Providers\TranscriberManager;
 
 /**
  * What the UI and API callers are told about AI right now: honest, never a secret. The platform credential
@@ -17,14 +18,16 @@ final class AiAvailability
     public function __construct(
         private readonly AiGateway $gateway,
         private readonly ProviderManager $providers,
+        private readonly TranscriberManager $transcribers,
     ) {}
 
     /**
-     * @return array{state: string, message: string, configured: bool, provider: string, model: string, features: array<string, array{state: string, message: string}>}
+     * @return array{state: string, message: string, configured: bool, provider: string, model: string, features: array<string, array{state: string, message: string}>, transcription: array{configured: bool, model: string}}
      */
     public function describe(): array
     {
         $provider = $this->providers->provider();
+        $transcriber = $this->transcribers->transcriber();
         $features = [];
 
         foreach (Feature::cases() as $feature) {
@@ -46,6 +49,11 @@ final class AiAvailability
             'provider' => $provider->name(),
             'model' => $provider->model(),
             'features' => $features,
+            // Speech to text may be a different service from the chat provider (ADR 0038).
+            'transcription' => [
+                'configured' => $transcriber->isConfigured(),
+                'model' => $transcriber->model(),
+            ],
         ];
     }
 }

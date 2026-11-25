@@ -35,10 +35,11 @@
                     {{ __('site.home.eyebrow') }}
                 </p>
 
-                <h1 id="hero-title" class="mt-6 max-w-[16ch] text-[clamp(2.75rem,6.8vw,5.5rem)] leading-[0.96] tracking-[-0.045em] text-ink [&:lang(bn)]:max-w-[18ch] [&:lang(bn)]:leading-[1.28] [&:lang(bn)]:tracking-normal">
-                    {{-- The highlight takes turns with the other endings (resources/js/site.ts). Screen readers get the
-                         first one only, so the heading does not keep changing under them. --}}
-                    {{ $titleBefore }}<span class="site-rotate text-brand-text underline decoration-accent decoration-[0.09em] underline-offset-[0.14em] sm:whitespace-nowrap [&:lang(bn)]:underline-offset-[0.22em]" data-rotate="{{ json_encode(array_values((array) __('site.home.title_rotate'))) }}" aria-hidden="true">{{ __('site.home.title_highlight') }}</span><span class="sr-only">{{ __('site.home.title_highlight') }}</span>{{ $titleAfter }}
+                {{-- The highlight takes turns with the other endings (resources/js/site.ts). Screen readers get the
+                     heading as written, from its label, so it does not keep changing under them; the text itself says
+                     it once, for search engines and for anyone without the script. --}}
+                <h1 id="hero-title" aria-label="{{ trim($titleBefore.__('site.home.title_highlight').$titleAfter) }}" class="mt-6 max-w-[16ch] text-[clamp(2.75rem,6.8vw,5.5rem)] leading-[0.96] tracking-[-0.045em] text-ink [&:lang(bn)]:max-w-[18ch] [&:lang(bn)]:leading-[1.28] [&:lang(bn)]:tracking-normal">
+                    {{ $titleBefore }}<span class="site-rotate text-brand-text underline decoration-accent decoration-[0.09em] underline-offset-[0.14em] sm:whitespace-nowrap [&:lang(bn)]:underline-offset-[0.22em]" data-rotate="{{ json_encode(array_values((array) __('site.home.title_rotate'))) }}">{{ __('site.home.title_highlight') }}</span>{{ $titleAfter }}
                 </h1>
 
                 <p class="mt-6 max-w-xl text-[1.0625rem] leading-relaxed text-ink-muted sm:text-[1.1875rem]">{{ __('site.home.lede') }}</p>
@@ -373,7 +374,7 @@
         @endif
 
         <div class="pt-24 sm:pt-32" data-reveal>
-            <x-site.cta :title="__('site.home.cta_title')" :body="__('site.home.cta_body')" :registration-open="$registrationOpen" />
+            <x-site.app-orbit :title="__('site.home.cta_title')" :body="__('site.home.cta_body')" :apps="collect($groups)->flatten(1)->all()" :registration-open="$registrationOpen" />
         </div>
     </div>
 @endsection

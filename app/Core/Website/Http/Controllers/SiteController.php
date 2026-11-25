@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Core\Website\Http\Controllers;
 
+use App\Core\Billing\Enums\BillingInterval;
 use App\Core\Billing\Models\Plan;
 use App\Core\Website\Blog\BlogPosts;
 use App\Core\Website\Enums\EnquiryStatus;
@@ -235,7 +236,9 @@ final class SiteController
 
     public function signin(): View
     {
-        $meta = $this->meta('signin', __('site.signin.meta_title'), __('site.signin.meta_description'), trail: [[__('site.nav.signin'), SiteUrls::to('signin')]]);
+        // A form and two links, nothing to answer a search with: kept out of the index and the sitemap.
+        $meta = $this->meta('signin', __('site.signin.meta_title'), __('site.signin.meta_description'), trail: [[__('site.nav.signin'), SiteUrls::to('signin')]])
+            ->with(['index' => false]);
 
         return $this->render('site.pages.signin', $meta);
     }
@@ -280,7 +283,8 @@ final class SiteController
         bool $fullTitle = false,
         string $pageType = 'WebPage',
     ): PageMeta {
-        return $this->pages->meta($page, $title, $description, $parameters, $trail, $schema, $fullTitle, $pageType);
+        // The same date the sitemap gives these pages.
+        return $this->pages->meta($page, $title, $description, $parameters, $trail, $schema, $fullTitle, $pageType, modified: (string) config('site.content_updated'));
     }
 
     /**
@@ -320,21 +324,46 @@ final class SiteController
             // No entry means no limit (LimitDefinition).
             $members = $plan->limit('core.members');
 
+            // What one period costs today, a running offer included: what sign-up bills.
+            $monthly = $plan->amountFor(BillingInterval::Monthly);
+            $yearly = $plan->amountFor(BillingInterval::Yearly);
+            $locale = app()->getLocale();
+
             return [
                 'key' => $plan->key,
-                'name' => $plan->nameIn(app()->getLocale()),
-                'description' => $plan->descriptionIn(app()->getLocale()),
+                'name' => $plan->nameIn($locale),
+                'description' => $plan->descriptionIn($locale),
                 'free' => $plan->isFree(),
                 'currency' => $plan->currency,
-                'monthlyAmount' => $plan->monthly_amount,
-                'monthly' => $plan->monthly_amount === null ? null : SitePrice::format($plan->monthly_amount, $plan->currency),
-                'yearly' => $plan->yearly_amount === null ? null : SitePrice::format($plan->yearly_amount, $plan->currency),
+                'monthlyAmount' => $monthly,
+                'monthly' => $monthly === null ? null : SitePrice::format($monthly, $plan->currency),
+                'yearly' => $yearly === null ? null : SitePrice::format($yearly, $plan->currency),
+                // Beside a running offer, the plan's own price struck through, and the offer's last day.
+                'monthlyList' => $this->listPrice($plan, BillingInterval::Monthly),
+                'yearlyList' => $this->listPrice($plan, BillingInterval::Yearly),
+                'offerEnds' => $plan->hasLiveOffer() && $plan->offer_ends_at !== null
+                    ? SitePrice::digits($plan->offer_ends_at->copy()->timezone((string) config('platform.defaults.timezone', 'Asia/Dhaka'))->locale($locale)->translatedFormat('j F Y'), $locale)
+                    : null,
+                // What paying yearly saves against twelve months, in whole percent (rounded down: never more than it gives).
+                'yearlySaving' => $monthly !== null && $yearly !== null && $monthly > 0 && $yearly < $monthly * 12
+                    ? SitePrice::number(intdiv(($monthly * 12 - $yearly) * 100, $monthly * 12), $locale)
+                    : null,
                 'trialDays' => $plan->trial_days,
                 'members' => $members === null ? __('site.pricing.members_unlimited') : trans_choice('site.pricing.members', $members, ['count' => SitePrice::number($members)]),
                 'apps' => $apps,
                 'url' => route('central.register', ['plan' => $plan->key]),
             ];
         })->all();
+    }
+
+    /**
+     * The plan's own price for an interval, formatted, while a running offer takes it lower; else null.
+     */
+    private function listPrice(Plan $plan, BillingInterval $interval): ?string
+    {
+        $list = $plan->listAmountFor($interval);
+
+        return $plan->offerAmountFor($interval) === null || $list === null ? null : SitePrice::format($list, $plan->currency);
     }
 
     /**

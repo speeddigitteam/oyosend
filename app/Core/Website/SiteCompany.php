@@ -23,6 +23,20 @@ final readonly class SiteCompany
         return $this->text('website.name') ?? 'Oyosend';
     }
 
+    /** The registered name, when the operator gave one. */
+    public function legalName(): ?string
+    {
+        return $this->text('website.legal_name');
+    }
+
+    /** The year the company was founded, when the operator gave it. */
+    public function founded(): ?string
+    {
+        $year = $this->text('website.founded');
+
+        return $year !== null && preg_match('/^\d{4}$/', $year) === 1 ? $year : null;
+    }
+
     public function email(): string
     {
         return (string) $this->text('website.email');

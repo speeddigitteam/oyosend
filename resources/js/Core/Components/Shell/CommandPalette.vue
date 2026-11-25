@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { router } from '@inertiajs/vue3';
+import { router, usePage } from '@inertiajs/vue3';
 import { CornerDownLeft, Search } from 'lucide-vue-next';
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle, VisuallyHidden } from 'reka-ui';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Icon from '@/Core/Components/Icon.vue';
 import Kbd from '@/Core/Components/Kbd.vue';
+import VoiceButton from '@/Core/Components/VoiceButton.vue';
+import { matchSpoken } from '@/Core/lib/voice';
 import type { ShellNavSection } from './SidebarNav.vue';
 
 export interface Command {
@@ -27,6 +29,11 @@ interface Entry extends Command {
  * Ctrl/Cmd+K: jump to any page the sidebar offers, or run a quick action.
  * It searches navigation and actions only - searching business records
  * arrives with the modules that own them.
+ *
+ * Voice (ADR 0038): what the member says becomes the search text, matched by
+ * the page names it contains. With the member's "run without Enter"
+ * preference a single matching page opens; an action (signing out,
+ * switching workspace, ...) always waits for Enter.
  */
 const props = defineProps<{
     sections: ShellNavSection[];
@@ -38,8 +45,12 @@ const props = defineProps<{
 const open = defineModel<boolean>('open', { default: false });
 
 const { t } = useI18n();
+const page = usePage();
 
 const query = ref('');
+/** The last transcript put in the box; while the box still holds it, results are matched as speech. */
+const voiceHint = computed(() => (page.props.voice?.autoRun ? t('shell.palette.voiceAutoRunHint') : t('shell.palette.voiceHint')));
+const spoken = ref<string | null>(null);
 const activeIndex = ref(0);
 const list = ref<HTMLElement | null>(null);
 
@@ -58,6 +69,10 @@ const entries = computed<Entry[]>(() => [
 ]);
 
 const results = computed(() => {
+    if (spoken.value !== null && spoken.value === query.value) {
+        return matchSpoken(entries.value, spoken.value);
+    }
+
     const needle = query.value.trim().toLocaleLowerCase();
 
     if (needle === '') {
@@ -87,6 +102,7 @@ watch(query, () => {
 watch(open, (isOpen) => {
     if (isOpen) {
         query.value = '';
+        spoken.value = null;
         activeIndex.value = 0;
         place();
     }
@@ -135,6 +151,17 @@ function move(step: number): void {
     });
 }
 
+function heard(text: string): void {
+    spoken.value = text;
+    query.value = text;
+
+    const matches = results.value;
+
+    if (page.props.voice?.autoRun === true && matches.length === 1 && matches[0].id.startsWith('nav:')) {
+        run(matches[0]);
+    }
+}
+
 function run(entry: Entry | undefined): void {
     if (!entry) {
         return;
@@ -174,7 +201,13 @@ function run(entry: Entry | undefined): void {
                         :placeholder="t('shell.palette.placeholder')"
                         autocomplete="off"
                         spellcheck="false"
-                        class="h-14 w-full bg-transparent text-[0.9375rem] text-ink placeholder:text-ink-subtle focus:outline-none"
+                        class="h-14 w-full min-w-0 bg-transparent text-[0.9375rem] text-ink placeholder:text-ink-subtle focus:outline-none"
+                    />
+                    <VoiceButton
+                        size="sm"
+                        class="max-w-[60%] shrink-0"
+                        :hint="voiceHint"
+                        @transcript="heard"
                     />
                 </div>
 

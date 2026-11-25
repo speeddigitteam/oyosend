@@ -1,128 +1,135 @@
 # ADR 0038 — Voice commands: speech becomes text the member sees, never an action on its own
 
-- **Status:** Proposed, **not built**. The owner decided on 2026-10-15 that voice belongs to the paid AI app and
-  that the member's own "run without Enter" preference is enough (no workspace override). Open: question 1 at the end.
+- **Status:** Accepted and built (2026-10-15). The owner decided: transcription only through the operator's own
+  provider (no browser speech service); voice is part of the paid AI app; "run without Enter" is the member's own
+  preference with no workspace override. Not reviewed; never run against a live transcription server or in a real
+  browser with a microphone.
 - **Date:** 2026-10-15
-- **Changes (when built):** relaxes `Permissions-Policy` to `microphone=(self)` on the workspace host; adds one AI
-  setting, one AI permission and one member preference; stage 2 adds a transcription capability to the AI provider contract
-  and a metered limit. Changes no locked decision. Builds on ADR 0018 (AI never changes data on its own).
+- **Changes:** `Permissions-Policy` sends `microphone=(self)` on workspace hosts; a new migration adds
+  `ai_settings.voice_enabled` and `ai_provider_accounts.transcription_model` / `is_transcription_default`; a new
+  permission `ai.voice.use`, a new limit `ai.voice_clips`, a new route `ai.voice.transcribe`, a new core contract
+  `VoiceInput`, a user preference `voice_auto_run`; the `ai` module version is now 1.1.0. Changes no locked decision.
+  Builds on ADR 0018 (AI never changes data on its own) and ADR 0013/0028 (operator-managed credentials).
 
 ## Context
 
-The owner wants to work in the workspace by speaking: "open invoices", "নতুন কন্ট্যাক্ট", "find Rahim's last invoice".
-Nothing voice-related exists today. Two existing pieces already do the work once speech is text:
+The owner wants to work in the workspace by speaking: "open invoices", "কন্টাক্ট খোলো", "find Rahim's last invoice".
+Two existing pieces already do the work once speech is text:
 
-- The **command palette** (Ctrl/Cmd+K, `Core/Components/Shell/CommandPalette.vue`) lists only the pages and quick
-  actions the member's sidebar offers, so it is already filtered by permission and entitlement, in the member's
-  language.
-- The **AI assistant** (ADR 0018) answers from records the member may see and changes data only through a proposal
-  the member confirms.
+- The **command palette** (Ctrl/Cmd+K) lists only the pages and quick actions the member's sidebar offers, so it is
+  already filtered by permission and entitlement, in the member's language.
+- The **AI assistant** answers from records the member may see and changes data only through a proposal the member
+  confirms (ADR 0018).
 
-So the new part is speech recognition and where its text goes. The risks: a misheard sentence doing something; audio
-of the member leaving the platform without anyone deciding that; the microphone being reachable from pages that
-have no business using it; a control shown in a browser where it cannot work.
+So the new part is speech recognition and where its text goes. The risks: a misheard sentence doing something; the
+member's voice going to a company nobody chose; the microphone reachable from pages that have no use for it; a
+control shown where it cannot work.
 
-## Decision (proposed)
+Browser speech recognition (the Web Speech API) was considered and **rejected by the owner**: Chrome, Edge and Safari
+send the audio to Google, Microsoft or Apple, outside the operator's control, and Firefox has none.
+
+## Decision
 
 ### 1. Voice is an input method, not an actor
 
-Speech produces a **transcript**, shown to the member before and while it is used. The transcript goes to exactly
-one of two places:
+Speech produces a **transcript** that goes to one of two places, where the member sees it:
 
 | Where | What happens |
 |---|---|
-| Command palette (mic button inside it, or a shortcut) | The transcript becomes the palette's search text. The member picks the result, or (see 2) the single exact match opens. Navigation and the palette's existing quick actions only: nothing that writes data runs from the palette without its own form or confirmation, exactly as today |
-| AI assistant message box (mic button next to Send) | The transcript fills the box. Sending follows the member's preference (see 2). Whatever the assistant proposes still needs the confirmation card (ADR 0018); voice adds no path around it |
+| Command palette (microphone in the search row) | The transcript becomes the search text and is matched by the page names it contains ("open contacts" finds Contacts; the longest name wins, so "AI settings" beats "Settings"). The member picks the result with Enter or a click |
+| AI assistant message box (microphone beside Send, on the assistant pages) | The transcript is added to the box. Whatever the assistant proposes still needs the confirmation card |
 
-There is no always-on listening and no wake word: **push to talk**, a visible "listening" state with a stop button,
-an automatic stop after silence or 15 seconds, and an `aria-live` region that reads the transcript. Voice is not
-offered in the Super Admin panel, on the central site or in the live-chat frame.
+**Push to talk only.** No wake word, no listening in the background. While recording the control shows a stop button,
+a cancel button and the seconds left (read out through `aria-live`); recording ends on the stop button, after
+1.5 seconds of quiet following speech, or at the length limit (30 seconds). Voice is not offered in the Super Admin
+panel, on the central site, in the live-chat frame, or to a support session (the operator is not the member).
 
-### 2. "Press Enter" is a member preference (owner's request, 2026-10-15)
+### 2. "Press Enter" is a member preference
 
-A member preference **"Run voice commands without pressing Enter"**, **off by default**:
+The profile page has **"Run voice commands without pressing Enter"**, **off by default**, stored in
+`users.preferences.voice_auto_run` beside the numerals preference, so it follows the person into every workspace. The
+workspace cannot override it.
 
-- Off: the transcript waits in the palette or the message box; the member presses Enter (or clicks) to go on, and
-  can correct the text first.
-- On: in the palette, if exactly one entry matches, it opens; with zero or several matches the list is shown and
-  nothing runs. In the assistant, the message is sent when speech ends.
+- Off: the transcript waits in the palette or the box; the member presses Enter and can correct it first.
+- On: in the palette, if exactly one **page** matches, it opens. An **action** (sign out, switch workspace, theme)
+  never runs without Enter, whatever the preference. In the assistant, the message is sent when the transcript
+  arrives; a change the assistant proposes still needs a click.
 
-This is safe to leave to the member because neither target can change data from one sentence: the palette only
-navigates or opens a form, and an assistant change is still a proposal that needs a click. The workspace can switch
-voice off entirely (section 4) but does not decide this preference for its members.
+Neither target can change data from one sentence, so this is safe to leave to the member.
 
-### 3. Recognition engine, in two stages
+### 3. Transcription through the operator's provider
 
-**Stage 1: the browser's own recognition (Web Speech API).** No dependency, no server cost, no audio reaches our
-servers. Language follows the member's locale (`bn-BD` or `en-US`/`en-GB`). The button exists only when the browser
-has the API (Chrome, Edge, Safari; **not Firefox**) and the workspace switched voice on: no dead control.
-The privacy cost must be said plainly: **in most browsers the audio is processed by the browser vendor's cloud
-service** (Google for Chrome, Microsoft for Edge, Apple for Safari), not by the operator. The workspace switch
-carries that sentence, and the setting is **off by default**. No provider is called, so stage 1 uses no
-`ai.tokens`.
+The browser records one clip (`MediaRecorder`: WebM/Ogg Opus, MP4 on Safari) and posts it to
+`POST /ai/voice/transcriptions` (`ai.voice.transcribe`). The AI module transcribes it through `AiGateway`:
 
-**Stage 2 (later, optional): transcription through the platform.** The browser records a short clip
-(`MediaRecorder`, at most 30 seconds, size-capped) and posts it to a workspace route; the AI module transcribes it
-through `AiGateway` with the operator's provider, so the operator chooses who hears the audio (including a
-self-hosted, Whisper-compatible server). Rules: a new `transcribe()` capability on the provider contract, offered
-only by drivers that have it (OpenAI-compatible `/audio/transcriptions`; whether the Anthropic API offers
-transcription must be checked when this is built, not assumed); the clip is held in memory only, **never stored,
-logged or audited** (the audit records "transcribed, N seconds"); metered as a new limit `ai.audio_seconds` with an
-idempotency key per clip; honest `not_configured` when the active provider cannot transcribe.
-
-**Both stages belong to the paid AI app (owner decision, 2026-10-15).** A workspace without the `ai` entitlement sees
-no voice control anywhere, the palette included.
+- **Contract.** `App\Modules\Ai\Contracts\Transcriber`, separate from the chat `AiProvider`, because the operator may
+  use a different service for speech. One adapter: `OpenAiTranscriber`, for any server with the OpenAI transcription
+  API (`POST {base_url}/audio/transcriptions`, multipart, `response_format=json`): OpenAI (`whisper-1`,
+  `gpt-4o-transcribe`) and self-hosted Whisper servers that copy it, so audio need not leave servers the operator
+  chose. The Anthropic API has no transcription endpoint that this adapter knows of; Anthropic accounts cannot
+  transcribe.
+- **Resolution** (`TranscriberManager`, the ADR 0018 rules): the enabled account marked as the voice provider; when
+  accounts with a transcription model exist but none is that, `not_configured` (never a silent fall back); otherwise
+  the environment (`AI_TRANSCRIPTION_BASE_URL`, `AI_TRANSCRIPTION_MODEL`, `AI_TRANSCRIPTION_API_KEY`). An
+  OpenAI-compatible account can have a transcription model, a chat model or both; an account without a chat model
+  never becomes the chat default. The first enabled account given a transcription model becomes the voice provider.
+- **Gateway.** `AiGateway::transcriptionState()` / `transcribe()`: the workspace switch, a configured provider, **its
+  own circuit breaker** (a failing speech server does not switch off the assistant), the plan limit
+  `ai.voice_clips`, and the same per-workspace and per-member requests per minute as chat.
+- **Metering per clip.** One `ai.voice_clips` usage record per clip with a server-generated idempotency key. Seconds
+  were considered, but the `json` response carries no duration and the browser's figure cannot be trusted; a clip is
+  at most 30 seconds, so counting clips is honest and cannot be under-reported.
+- **Nothing kept.** The clip is read into memory for the request and dropped. No file, row, queue payload, log line or
+  audit entry holds the audio or the transcript; the usage record holds the provider, model and byte size only. A
+  provider failure is logged by HTTP status alone.
+- **Input checks.** The type is sniffed from the content (`mimetypes`, not the name or the browser's claim), the size is
+  capped (`ai.transcription.max_kilobytes`, 2048), the language is one of the platform locales (default: the interface
+  language). The returned text is reduced to one plain line and capped like a typed message.
 
 ### 4. Settings and permissions
 
-- AI setting `voice_enabled` on `ai_settings` (default `false`), on the AI Settings page under `ai.settings.manage`,
-  audited like the other `ai.settings.*` changes.
-- New permission `ai.voice.use` in the AI manifest (not granted to any system role; the owner holds it), so voice can
-  be given without the assistant. The mic in the assistant box needs it and `ai.assistant.use`; stage 2's
-  transcription route checks it on the server with `can:` and `entitled:ai`.
-- Stage 1 makes no server call, so the permission and the switch decide only whether the control is shown; voice
-  reaches nothing the keyboard does not already reach.
-- Member preference `voice_auto_run` (default `false`), on the member's own profile like the numerals preference.
-  **The workspace cannot override it (owner decision, 2026-10-15)**: it decides only whether voice exists at all.
+- Workspace switch `ai_settings.voice_enabled`, **off by default**, on the AI Settings page (`ai.settings.manage`),
+  audited with the other `ai.settings.*` changes. The page says that each recording goes to the platform's
+  transcription provider and is not kept, and shows whether speech to text is set up.
+- Permission `ai.voice.use` (group `ai_assistant`, not granted to any system role; the owner holds it). The microphone
+  in the assistant box also needs that page's own permission.
+- The workspace shell asks the core contract `App\Core\Ai\Contracts\VoiceInput` whether to offer the microphone; the
+  AI module answers yes only when the workspace is entitled to `ai`, voice is switched on, the member holds
+  `ai.voice.use` and a transcription provider is configured. Without the app the core `NullVoiceInput` offers nothing.
+  The shared prop `voice` (`{maxSeconds, maxBytes, autoRun}` or null) only hides or shows the control: the route checks
+  `entitled:ai`, `can:ai.voice.use` and the gateway state again.
+- A full allowance or an open breaker does not hide the control; the member is told why when they use it.
 
 ### 5. Browser policy
 
-`SecurityHeaders` sends `microphone=()` on every response today, which blocks the microphone outright. The
-workspace host gets `microphone=(self)`; the central site, the Super Admin host and the live-chat frame keep
-`microphone=()`. Microphone access also needs HTTPS (`*.localhost` counts as secure for local development).
-
-**Side finding:** the Telephony softphone (ADR 0036) calls `getUserMedia` on the workspace host, so the current
-header blocks it too; its "microphone refused" message would appear even when the member allowed the microphone.
-The same header change fixes it. It should be checked in a browser either way.
+`SecurityHeaders` sends `microphone=(self)` on workspace hosts and `microphone=()` on the central site and the Super
+Admin host. The live-chat frame is a stateless callback page with its own headers and keeps `microphone=()`. Before
+this change the workspace also sent `microphone=()`, which blocked the Telephony softphone's `getUserMedia` (ADR 0036)
+too; the same change unblocks it. Microphone access also needs HTTPS (`*.localhost` counts as secure).
 
 ## Consequences
 
-- Voice is sold with the AI app; workspaces without it see nothing.
-- A member can move around the workspace and talk to the assistant by voice in Bengali or English, and voice can
-  never do more than the keyboard can.
-- Firefox users see no voice control in stage 1.
-- Stage 1 sends audio to the browser vendor; the workspace owner decides that knowingly. Stage 2 removes that cost
-  at the price of AI usage.
-- Recognition quality for mixed Bengali and English speech ("invoice খোলো") is unknown until tried; the palette's
-  `keywords` may need English and Bengali synonyms per page.
+- A member can move around the workspace and talk to the assistant by voice in Bengali or English, and voice can never
+  do more than the keyboard can.
+- Voice costs the operator a transcription call per clip and is sold with the AI app; without a configured
+  transcription server no microphone appears anywhere.
+- Recognition quality for mixed Bengali and English ("invoice খোলো") and for Bengali suffixes ("কন্টাক্টগুলো") is
+  unknown until tried with a real server; matching needs the whole page name as spoken words.
+- Not verified: the adapter has only run against `Http::fake`; recording, pause detection and the microphone prompt
+  have only run against test doubles in Vitest, not in a real browser.
 
-## Not built (and not planned here)
+## Not built
 
-Dictation into every text field, voice replies (text to speech), wake words, voice in the Super Admin panel, any
-voice path to money, payroll, roles or permissions, storing recordings.
+Dictation into every text field, voice replies (text to speech), wake words, voice in the Super Admin panel, any voice
+path to money, payroll, roles or permissions, storing recordings, voice usage on the AI Usage page (the clips are in
+the usage records under `ai.voice_clips`).
 
 ## Alternatives considered
 
+- **The browser's Web Speech API.** Rejected by the owner: audio to Google, Microsoft or Apple; no Firefox.
 - **Voice that runs any command directly.** Rejected: one misheard word would act. The palette and proposals are the
-  control.
-- **Always listening.** Rejected: privacy and battery cost, accidental triggering in an office.
-- **A JavaScript speech library running in the browser.** Not chosen now: models for Bengali are large downloads,
-  and each library needs the licence and maintenance check. Stage 2's self-hosted option covers "audio never leaves
-  our servers".
-
-## Open questions for the owner
-
-1. **Open.** Is stage 1 (browser recognition, audio processed by Google/Microsoft/Apple, off by default) acceptable,
-   or should only stage 2 be built?
-2. Decided 2026-10-15: part of the paid AI app (both stages).
-3. Decided 2026-10-15: the member's own preference is enough; no workspace override.
+  control, and actions always wait for Enter.
+- **Always listening.** Rejected: privacy, and accidental triggering in an office.
+- **A speech library running in the browser.** Not chosen: Bengali models are large downloads and each library needs
+  the licence and maintenance check; a self-hosted Whisper server gives the same "audio stays with us" property.
+- **Metering seconds of audio.** Rejected for now (see 3).

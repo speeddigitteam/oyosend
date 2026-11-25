@@ -34,10 +34,15 @@ final class ProviderAccountController
                 'label' => $driver->label(),
                 'requiresKey' => $driver->requiresKey(),
                 'requiresBaseUrl' => $driver->requiresBaseUrl(),
+                'supportsTranscription' => $driver->supportsTranscription(),
             ], AiDriver::cases()),
             // Without any account the environment's key (config/ai.php) is what answers.
             'usesEnvironment' => $accounts->isEmpty(),
             'environmentConfigured' => (string) config('ai.providers.anthropic.api_key') !== '',
+            // Voice input (ADR 0038): the environment transcribes only while no account has a transcription model.
+            'transcriptionUsesEnvironment' => $accounts->every(fn (AiProviderAccount $account): bool => $account->transcription_model === null),
+            'transcriptionEnvironmentConfigured' => (string) config('ai.transcription.base_url') !== ''
+                && (string) config('ai.transcription.model') !== '',
         ]);
     }
 
@@ -46,7 +51,8 @@ final class ProviderAccountController
         $input = $request->validate([
             'driver' => ['required', Rule::enum(AiDriver::class)],
             'name' => ['required', 'string', 'max:80', Rule::unique(AiProviderAccount::class, 'name')],
-            'model' => ['required', 'string', 'max:120'],
+            'model' => ['nullable', 'required_without:transcription_model', 'string', 'max:120'],
+            'transcription_model' => ['nullable', 'string', 'max:120'],
             'base_url' => ['nullable', 'string', 'max:255', 'url:http,https'],
             'is_enabled' => ['sometimes', 'boolean'],
             'api_key' => ['nullable', 'string', 'max:2048'],
@@ -67,7 +73,8 @@ final class ProviderAccountController
 
         $input = $request->validate([
             'name' => ['required', 'string', 'max:80', Rule::unique(AiProviderAccount::class, 'name')->ignore($model->id)],
-            'model' => ['required', 'string', 'max:120'],
+            'model' => ['nullable', 'required_without:transcription_model', 'string', 'max:120'],
+            'transcription_model' => ['nullable', 'string', 'max:120'],
             'base_url' => ['nullable', 'string', 'max:255', 'url:http,https'],
             'is_enabled' => ['sometimes', 'boolean'],
             'api_key' => ['nullable', 'string', 'max:2048'],
@@ -97,8 +104,30 @@ final class ProviderAccountController
             throw ValidationException::withMessages(['account' => __('Enable the provider before making it the default.')]);
         }
 
+        if ($model->model === '') {
+            throw ValidationException::withMessages(['account' => __('Give the provider a chat model before making it the default.')]);
+        }
+
         $this->accounts->makeDefault($model);
         Toast::success(__('Default AI provider changed.'));
+
+        return back();
+    }
+
+    public function makeTranscriptionDefault(string $account): RedirectResponse
+    {
+        $model = AiProviderAccount::query()->findOrFail($account);
+
+        if (! $model->is_enabled) {
+            throw ValidationException::withMessages(['account' => __('Enable the provider before using it for voice input.')]);
+        }
+
+        if ($model->transcription_model === null || ! $model->driver->supportsTranscription()) {
+            throw ValidationException::withMessages(['account' => __('Give the provider a transcription model before using it for voice input.')]);
+        }
+
+        $this->accounts->makeTranscriptionDefault($model);
+        Toast::success(__('Voice input now uses this provider.'));
 
         return back();
     }
@@ -132,6 +161,14 @@ final class ProviderAccountController
 
         if ($creating && $driver->requiresKey() && trim((string) ($input['api_key'] ?? '')) === '') {
             $errors['api_key'] = __('The API key is required for this provider.');
+        }
+
+        if (! $driver->supportsTranscription() && trim((string) ($input['transcription_model'] ?? '')) !== '') {
+            $errors['transcription_model'] = __('This provider cannot transcribe speech.');
+        }
+
+        if (! $driver->supportsTranscription() && trim((string) ($input['model'] ?? '')) === '') {
+            $errors['model'] = __('The model is required for this provider.');
         }
 
         if ($errors !== []) {

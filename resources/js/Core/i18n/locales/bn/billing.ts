@@ -76,6 +76,14 @@ const billing: MessageSchema['billing'] = {
         unlimited: 'সীমাহীন',
         notOffered: 'পাওয়া যায় না',
         trialDays: '{count} দিনের বিনামূল্যে ট্রায়াল',
+        // A plan's limited-time offer, and what paying yearly saves.
+        offer: {
+            until: '{date} পর্যন্ত অফার',
+            was: 'নিয়মিত দাম',
+            off: '{percent} ছাড়',
+            yearlySaving: 'বার্ষিকে {percent} সাশ্রয়',
+            keeps: 'অফার শেষ হওয়ার আগে নিলে নবায়নের সময়ও এই দামই থাকবে।',
+        },
     },
 
     // The billing page of a workspace.

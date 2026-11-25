@@ -144,7 +144,7 @@ describe('an article', function () {
 
         $html = (string) $this->get('http://localhost/blog/paying-people-on-time')->getContent();
 
-        expect($html)->not->toContain('hreflang="bn"')
+        expect($html)->not->toContain('<link rel="alternate" hreflang="bn"')
             // The language switch goes to the Bengali website instead of a page that does not exist.
             ->and($html)->toContain('href="http://localhost/bn" hreflang="bn"');
     });

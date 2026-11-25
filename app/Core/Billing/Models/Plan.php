@@ -7,6 +7,7 @@ namespace App\Core\Billing\Models;
 use App\Core\Audit\Concerns\Auditable;
 use App\Core\Billing\Enums\BillingInterval;
 use App\Core\Tenancy\Concerns\UsesCentralConnection;
+use Carbon\CarbonInterface;
 use Database\Factories\PlanFactory;
 use Illuminate\Database\Eloquent\Attributes\UseFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -14,6 +15,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * What a workspace can subscribe to: a price per interval, the optional
@@ -29,6 +31,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $currency
  * @property int|null $monthly_amount
  * @property int|null $yearly_amount
+ * @property int|null $offer_monthly_amount
+ * @property int|null $offer_yearly_amount
+ * @property Carbon|null $offer_ends_at
  * @property int $trial_days
  * @property array<int, string> $modules
  * @property array<string, int> $limits
@@ -51,7 +56,8 @@ class Plan extends Model
      * @var list<string>
      */
     protected $fillable = [
-        'key', 'name', 'name_bn', 'description', 'description_bn', 'currency', 'monthly_amount', 'yearly_amount', 'trial_days',
+        'key', 'name', 'name_bn', 'description', 'description_bn', 'currency', 'monthly_amount', 'yearly_amount',
+        'offer_monthly_amount', 'offer_yearly_amount', 'offer_ends_at', 'trial_days',
         'modules', 'limits', 'is_public', 'is_active', 'sort_order',
     ];
 
@@ -71,6 +77,9 @@ class Plan extends Model
         return [
             'monthly_amount' => 'integer',
             'yearly_amount' => 'integer',
+            'offer_monthly_amount' => 'integer',
+            'offer_yearly_amount' => 'integer',
+            'offer_ends_at' => 'datetime',
             'trial_days' => 'integer',
             'modules' => 'array',
             'limits' => 'array',
@@ -99,14 +108,52 @@ class Plan extends Model
     }
 
     /**
-     * The price for one period, or null when the plan is not sold for that interval.
+     * The price for one period today: the offer's while one runs for that interval, else the list price. Null when the
+     * plan is not sold for that interval. Whatever a workspace takes the plan at, it keeps (`subscriptions.amount`).
      */
     public function amountFor(BillingInterval $interval): ?int
+    {
+        return $this->offerAmountFor($interval) ?? $this->listAmountFor($interval);
+    }
+
+    /**
+     * The plan's own price for one period, offer or not.
+     */
+    public function listAmountFor(BillingInterval $interval): ?int
     {
         return match ($interval) {
             BillingInterval::Monthly => $this->monthly_amount,
             BillingInterval::Yearly => $this->yearly_amount,
         };
+    }
+
+    /**
+     * The offer's price for one period while the offer runs, or null. An offer below nothing, or not below the list
+     * price, is no offer.
+     */
+    public function offerAmountFor(BillingInterval $interval, ?CarbonInterface $at = null): ?int
+    {
+        if (! $this->hasLiveOffer($at)) {
+            return null;
+        }
+
+        $offer = match ($interval) {
+            BillingInterval::Monthly => $this->offer_monthly_amount,
+            BillingInterval::Yearly => $this->offer_yearly_amount,
+        };
+        $list = $this->listAmountFor($interval);
+
+        return $offer !== null && $offer > 0 && $list !== null && $offer < $list ? $offer : null;
+    }
+
+    /**
+     * An offer that has not ended yet, for at least one interval.
+     */
+    public function hasLiveOffer(?CarbonInterface $at = null): bool
+    {
+        return $this->offer_ends_at !== null
+            && $this->offer_ends_at->isAfter($at ?? Carbon::now())
+            && ($this->offer_monthly_amount !== null || $this->offer_yearly_amount !== null);
     }
 
     public function offers(BillingInterval $interval): bool

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { router, useForm } from '@inertiajs/vue3';
 import { Copy, ExternalLink, FileText, Globe, Link2, Mail, Pencil, Pin, Plus, Search, Trash2, Wrench } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Button from '@/Core/Components/Button.vue';
@@ -53,6 +53,8 @@ const { t } = useI18n();
 const format = useFormat();
 const toasts = useToasts();
 
+// An example address, not text to translate (and `@` is message syntax to vue-i18n).
+const EMAIL_EXAMPLE = 'name@example.com';
 const KIND_ICON: Record<LinkKind, Component> = { website: Globe, tool: Wrench, email: Mail, document: FileText, other: Link2 };
 
 const pinned = computed(() => props.links.data.filter((link) => link.isPinned));
@@ -62,20 +64,36 @@ const filtered = computed(() => Boolean(props.filters.search || props.filters.ki
 const totalCount = computed(() => Object.values(props.kindCounts).reduce((sum, count) => sum + (count ?? 0), 0));
 const count = computed(() => t(`links.count.${props.links.total === 1 ? 'one' : 'other'}`, { count: format.number(props.links.total) }));
 
-// Filters.
+// Filters. The search runs as the person types (after a pause) and at once on Enter.
 const search = ref(props.filters.search);
+// What the server was last asked for, which can be ahead of `filters.search`.
+let requested = props.filters.search;
+let debounce: number | undefined;
 function visit(changes: Partial<{ search: string; kind: LinkKind | null; folder: string | null }>): void {
-    const next = { search: search.value, kind: props.filters.kind, folder: props.filters.folder, ...changes };
+    window.clearTimeout(debounce);
+    const next = { search: search.value.trim(), kind: props.filters.kind, folder: props.filters.folder, ...changes };
+    requested = next.search;
     router.get(route('links.index'), {
         search: next.search || undefined,
         kind: next.kind || undefined,
         folder: next.folder || undefined,
-    }, { preserveState: true, replace: true });
+    }, { preserveState: true, preserveScroll: true, replace: true });
 }
 function clearFilters(): void {
+    window.clearTimeout(debounce);
+    requested = '';
     search.value = '';
     router.get(route('links.index'), {}, { preserveState: true, replace: true });
 }
+watch(search, () => {
+    window.clearTimeout(debounce);
+    debounce = window.setTimeout(() => {
+        if (search.value.trim() !== requested) {
+            visit({});
+        }
+    }, 300);
+});
+onBeforeUnmount(() => window.clearTimeout(debounce));
 const folderFilter = computed({
     get: () => props.filters.folder ?? '',
     set: (value: string | number | null) => visit({ folder: value === '' || value === null ? null : String(value) }),
@@ -319,7 +337,7 @@ const sections = computed(() => [
                 :label="isEmailKind ? t('links.field.email') : t('links.field.url')"
                 :hint="isEmailKind ? undefined : t('links.field.urlHint')"
                 :error="form.errors.address"
-                :placeholder="isEmailKind ? t('links.field.emailPlaceholder') : t('links.field.urlPlaceholder')"
+                :placeholder="isEmailKind ? EMAIL_EXAMPLE : t('links.field.urlPlaceholder')"
                 :maxlength="isEmailKind ? 254 : 2048"
                 autocomplete="off"
                 required

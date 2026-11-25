@@ -18,6 +18,8 @@ type Network = 'facebook' | 'linkedin' | 'youtube' | 'instagram' | 'x';
 const props = defineProps<{
     company: {
         name: string | null;
+        legal_name: string | null;
+        founded: string | null;
         email: string | null;
         phone_1: string | null;
         phone_2: string | null;
@@ -40,6 +42,8 @@ const { t } = useI18n();
 
 const form = useForm({
     name: props.company.name ?? '',
+    legal_name: props.company.legal_name ?? '',
+    founded: props.company.founded ?? '',
     email: props.company.email ?? '',
     phone_1: props.company.phone_1 ?? '',
     phone_2: props.company.phone_2 ?? '',
@@ -88,6 +92,26 @@ function save(): void {
                     :error="form.errors.email"
                     maxlength="150"
                     required
+                />
+                <Input
+                    v-model="form.legal_name"
+                    name="legal_name"
+                    :label="t('platformWebsite.company.legalName')"
+                    :hint="t('platformWebsite.company.legalNameHint')"
+                    :error="form.errors.legal_name"
+                    maxlength="150"
+                    optional
+                />
+                <Input
+                    v-model="form.founded"
+                    name="founded"
+                    inputmode="numeric"
+                    control-class="tabular"
+                    :label="t('platformWebsite.company.founded')"
+                    :hint="t('platformWebsite.company.foundedHint')"
+                    :error="form.errors.founded"
+                    maxlength="4"
+                    optional
                 />
             </div>
         </Card>

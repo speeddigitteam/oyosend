@@ -12,6 +12,11 @@ export default {
     keySet: 'Key stored',
     keyMissing: 'No key',
     makeDefault: 'Make default',
+    transcriptionDefault: 'Voice input',
+    makeTranscriptionDefault: 'Use for voice input',
+    transcriptionModel: 'Speech to text: {model}',
+    transcriptionEnvNote: 'No provider has a transcription model, so the transcription server in the server configuration (if any) is used for voice input.',
+    transcriptionEnvMissing: 'Voice input is not configured. Give an OpenAI-compatible provider a transcription model to turn it on.',
     list: {
         title: 'Providers',
         description: 'Add several providers and choose which one answers.',
@@ -42,6 +47,9 @@ export default {
         keyStored: 'A key is stored. Leave empty to keep it.',
         enabled: 'Enabled',
         enabledHint: 'A disabled provider is never used and cannot be the default.',
+        modelOptional: 'Leave empty for a server that only transcribes speech.',
+        transcriptionModel: 'Transcription model',
+        transcriptionModelHint: 'For voice input, for example whisper-1 or the model of a self-hosted Whisper server. Leave empty if this provider does not transcribe.',
     },
     test: {
         action: 'Test connection',

@@ -29,6 +29,7 @@ const form = useForm({
     driver: (props.account?.driver ?? props.drivers[0]?.value ?? 'anthropic') as AiDriver,
     name: props.account?.name ?? '',
     model: props.account?.model ?? '',
+    transcription_model: props.account?.transcriptionModel ?? '',
     base_url: props.account?.baseUrl ?? '',
     is_enabled: props.account?.enabled ?? true,
     api_key: '',
@@ -53,6 +54,8 @@ function submit(): void {
     form.transform((data) => ({
         ...data,
         base_url: data.base_url.trim() === '' ? null : data.base_url.trim(),
+        // Only a driver that can transcribe sends a transcription model.
+        transcription_model: definition.value?.supportsTranscription && data.transcription_model.trim() !== '' ? data.transcription_model.trim() : null,
         api_key: data.api_key.trim() === '' ? null : data.api_key,
     }));
 
@@ -106,10 +109,23 @@ function submit(): void {
                 autocomplete="off"
                 mono
                 :label="t('platformAi.dialog.model')"
-                :hint="t('platformAi.dialog.modelHint')"
+                :hint="definition?.supportsTranscription ? `${t('platformAi.dialog.modelHint')} ${t('platformAi.dialog.modelOptional')}` : t('platformAi.dialog.modelHint')"
                 :error="form.errors.model"
+                :optional="definition?.supportsTranscription"
                 maxlength="120"
-                required
+                :required="!definition?.supportsTranscription"
+            />
+            <Input
+                v-if="definition?.supportsTranscription"
+                v-model="form.transcription_model"
+                name="transcription_model"
+                autocomplete="off"
+                mono
+                optional
+                :label="t('platformAi.dialog.transcriptionModel')"
+                :hint="t('platformAi.dialog.transcriptionModelHint')"
+                :error="form.errors.transcription_model"
+                maxlength="120"
             />
             <Input
                 v-model="form.base_url"

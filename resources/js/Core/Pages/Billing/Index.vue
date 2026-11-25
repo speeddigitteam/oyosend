@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n';
 import Badge from '@/Core/Components/Badge.vue';
 import BillingNotice from '@/Core/Components/Billing/BillingNotice.vue';
 import InvoiceStatusBadge from '@/Core/Components/Billing/InvoiceStatusBadge.vue';
+import { listAmountBeside, yearlySaving } from '@/Core/Components/Billing/offer';
 import { planAmount, planChangeOutcome, planInterval, type OfferedPlan, type PlanChangeOutcome } from '@/Core/Components/Billing/planChange';
 import SubscriptionStatusBadge from '@/Core/Components/Billing/SubscriptionStatusBadge.vue';
 import { useBillingTerms } from '@/Core/Components/Billing/terms';
@@ -372,6 +373,11 @@ interface PlanCard {
     interval: BillingInterval;
     /** The price of one period, or null when the plan is not sold for the interval shown. */
     amount: number | null;
+    /** The plan's own price while a limited-time offer runs below it, and when that offer ends. */
+    listAmount: number | null;
+    offerEndsAt: string | null;
+    /** Whole percent the yearly price saves against twelve months; 0 when it is not shown. */
+    yearlySaving: number;
     outcome: PlanChangeOutcome;
     limits: Array<{ key: string; label: string; value: string }>;
     modules: string[];
@@ -408,6 +414,10 @@ const cards = computed<PlanCard[]>(() =>
             plan,
             interval: asked,
             amount: planAmount(plan, asked),
+            listAmount: listAmountBeside(plan, asked),
+            offerEndsAt: listAmountBeside(plan, asked) === null ? null : (plan.offerEndsAt ?? null),
+            // Shown on the yearly price: what it saves against paying monthly.
+            yearlySaving: asked === 'yearly' ? yearlySaving(planAmount(plan, 'monthly'), planAmount(plan, 'yearly')) : 0,
             outcome,
             // Every limit that exists, so the plans can be compared line by line.
             limits: props.usage.map((entry) => {
@@ -672,10 +682,24 @@ const invoiceColumns = computed<Column[]>(() => [
                         </p>
 
                         <p v-if="card.plan.isFree" class="figure mt-4 text-[1.75rem] text-ink">{{ t('billing.terms.free') }}</p>
-                        <p v-else-if="card.amount !== null" class="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                            <span class="figure text-[1.75rem] text-ink">{{ format.money(card.amount, card.plan.currency) }}</span>
-                            <span class="text-ink-muted">{{ terms.perInterval(card.interval) }}</span>
-                        </p>
+                        <template v-else-if="card.amount !== null">
+                            <p class="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                                <span class="figure text-[1.75rem] text-ink">{{ format.money(card.amount, card.plan.currency) }}</span>
+                                <span class="text-ink-muted">{{ terms.perInterval(card.interval) }}</span>
+                                <!-- A running offer: the plan's own price it takes off from. -->
+                                <span v-if="card.listAmount !== null" class="text-[0.8125rem] text-ink-subtle">
+                                    <span class="sr-only">{{ t('billing.terms.offer.was') }}</span>
+                                    <del class="tabular">{{ format.money(card.listAmount, card.plan.currency) }}</del>
+                                </span>
+                            </p>
+                            <div v-if="card.offerEndsAt || card.yearlySaving > 0" class="mt-2 flex flex-wrap gap-1.5">
+                                <Badge v-if="card.offerEndsAt" tone="accent">{{ t('billing.terms.offer.until', { date: format.date(card.offerEndsAt) }) }}</Badge>
+                                <Badge v-if="card.yearlySaving > 0" tone="ok">
+                                    {{ t('billing.terms.offer.yearlySaving', { percent: format.number(card.yearlySaving / 100, { style: 'percent' }) }) }}
+                                </Badge>
+                            </div>
+                            <p v-if="card.offerEndsAt && !card.plan.current" class="mt-1.5 text-[0.8125rem] text-ink-subtle">{{ t('billing.terms.offer.keeps') }}</p>
+                        </template>
                         <div v-else class="mt-4">
                             <p class="font-medium text-ink-muted">{{ t(`billing.plans.notSold.${card.interval}`) }}</p>
                             <p class="mt-0.5 text-[0.8125rem] text-ink-subtle">

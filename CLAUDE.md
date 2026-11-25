@@ -8,7 +8,7 @@ touching billing; the module's own page (`docs/INDEX.md` lists every page and AD
 State: Phases 1–8 are complete and signed off. Phase 9 Marketing Apps (Email, SMS, WhatsApp, Social) and the
 Automation, AI, Support and Reports modules are built but unreviewed (see `PROGRESS.md`); Phase 13 production
 hardening has begun (health probes, queue/index audits, backup verification, benchmark; ADR 0019) and is not
-signed off. `core` plus 19 optional modules and 275 permissions are registered (`docs/MODULES.md`). CRM, Projects, Invoicing, HRM, Payroll and Talent are production optional apps. One phase per session; stop at the end of the phase and report.
+signed off. `core` plus 20 optional modules and 279 permissions are registered (`docs/MODULES.md`). CRM, Projects, Invoicing, HRM, Payroll and Talent are production optional apps. One phase per session; stop at the end of the phase and report.
 
 ## Stack
 
@@ -24,7 +24,7 @@ Not installed until needed: Sanctum (API tokens), Meilisearch, the S3 driver.
 
 | Decision | Resolution in this repo |
 |---|---|
-| Modular monolith, one shared MySQL DB, `tenant_id` on tenant-owned tables | `app/Core` + `app/Platform`; 19 optional apps in `app/Modules/`, each one provider listed in `config/modules.php`. Platform-wide tables with no `tenant_id` are the documented exceptions (`communication_provider_accounts`, `communication_account_claims`, `ai_provider_accounts`, `payment_gateway_accounts`, `integration_credentials`, the Social Page claims; `docs/DATABASE.md` section 2) |
+| Modular monolith, one shared MySQL DB, `tenant_id` on tenant-owned tables | `app/Core` + `app/Platform`; 20 optional apps in `app/Modules/`, each one provider listed in `config/modules.php`. Platform-wide tables with no `tenant_id` are the documented exceptions (`communication_provider_accounts`, `communication_account_claims`, `ai_provider_accounts`, `payment_gateway_accounts`, `integration_credentials`, the Social Page claims; `docs/DATABASE.md` section 2) |
 | Tenant = subdomain `{tenant}.APP_DOMAIN`; central site on the root; custom domains later | `TenantHost` + `InitializeTenancy`, hostname only. `tenant_domains.type` reserves `custom`; not routed |
 | Local dev on `*.localhost` | Yes. Natively `php artisan serve` on `:8000` |
 | Super Admin: own guard, own host `admin.APP_DOMAIN`, own layout, `platform_users` table | `platform` guard, `routes/platform.php`, `App\Platform`, `PlatformLayout`; 2FA mandatory |
@@ -53,9 +53,9 @@ app/Core/{Tenancy,Identity,Access,Organization,Contacts,Settings,Registration,Bi
           Automation,Events,Audit,Dashboard,Workforce,Communication,Reporting,Ai,Http,Support}
 app/Core/CoreServiceProvider.php     the `core` module: manifest, bindings, Gate::before, gateways, null contracts
 app/Platform/                        Super Admin panel (the only code that reads across tenants), health probes, `ops:*`
-app/Modules/<Module>/                19 optional apps: `CRM`, `Projects`, `Invoicing`, `Hrm`, `Payroll`, `Talent` (production);
+app/Modules/<Module>/                20 optional apps: `CRM`, `Projects`, `Invoicing`, `Hrm`, `Payroll`, `Talent` (production);
                                      `Automation`, `Ai`, `Communication`, `EmailMarketing`, `SmsMarketing`, `WhatsappMarketing`,
-                                     `Social`, `MetaAds`, `Support`, `Reports`, `Notes`, `Telephony`, `Links` (built, unreviewed). Table: `docs/MODULES.md`
+                                     `Social`, `MetaAds`, `Support`, `Reports`, `Notes`, `Telephony`, `Links`, `Calendar` (built, unreviewed). Table: `docs/MODULES.md`
 routes/{central,tenant,tenant-callbacks,platform,console}.php     routes/web.php is NOT loaded
 config/{platform,tenancy,modules,permission,trustedproxy,horizon,ziggy}.php, plus one file per app with settings:
        {ai,automation,communication,email_marketing,sms_marketing,social,whatsapp_marketing}.php

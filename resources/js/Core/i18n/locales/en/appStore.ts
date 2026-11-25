@@ -205,6 +205,16 @@ export default {
             ],
             releaseNotes: 'Initial Links release.',
         },
+        calendar: {
+            name: 'Calendar',
+            description: "Plan your day and your team's: personal and shared calendars, repeating events, guests and reminders, in every time zone.",
+            features: [
+                'Day, week, month, year and schedule views with drag and drop',
+                'Repeating events, guests with replies, and reminders',
+                'Personal and workspace calendars, your own time zone',
+            ],
+            releaseNotes: 'Initial Calendar release.',
+        },
     },
     terms: {
         category: {

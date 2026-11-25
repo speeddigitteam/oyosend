@@ -18,6 +18,11 @@ return [
 
     'company' => [
         'name' => 'Oyosend',
+
+        // For the structured data only, and only once set: the registered name when it differs, and the year founded.
+        'legal_name' => null,
+        'founded' => null,
+
         'email' => 'info@oyosend.com',
 
         // As written on the website; the international form for links and structured data is derived from it.

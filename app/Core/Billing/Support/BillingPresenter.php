@@ -28,8 +28,13 @@ final class BillingPresenter
             'name' => $plan->name,
             'description' => $plan->description,
             'currency' => $plan->currency,
-            'monthlyAmount' => $plan->monthly_amount,
-            'yearlyAmount' => $plan->yearly_amount,
+            // What one period costs today, a running offer included: what a workspace that chooses it is billed.
+            'monthlyAmount' => $plan->amountFor(BillingInterval::Monthly),
+            'yearlyAmount' => $plan->amountFor(BillingInterval::Yearly),
+            // The plan's own price, to strike through beside an offer; equal to the above when there is none.
+            'listMonthlyAmount' => $plan->listAmountFor(BillingInterval::Monthly),
+            'listYearlyAmount' => $plan->listAmountFor(BillingInterval::Yearly),
+            'offerEndsAt' => $plan->hasLiveOffer() ? $plan->offer_ends_at?->toIso8601String() : null,
             'trialDays' => $plan->trial_days,
             'modules' => array_values($plan->modules),
             'limits' => (object) $plan->limits,

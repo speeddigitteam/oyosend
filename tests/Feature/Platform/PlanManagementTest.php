@@ -136,6 +136,7 @@ describe('creating a plan', function () {
                     ['key' => 'notes', 'name' => 'Notes'],
                     ['key' => 'telephony', 'name' => 'Telephony'],
                     ['key' => 'links', 'name' => 'Links'],
+                    ['key' => 'calendar', 'name' => 'Calendar'],
                 ])
                 ->where('limits', [
                     ['key' => 'core.members', 'kind' => 'gauge'],
@@ -148,6 +149,7 @@ describe('creating a plan', function () {
                     ['key' => 'automation.runs', 'kind' => 'metered'],
                     ['key' => 'automation.workflows', 'kind' => 'gauge'],
                     ['key' => 'ai.tokens', 'kind' => 'metered'],
+                    ['key' => 'ai.voice_clips', 'kind' => 'metered'],
                     ['key' => 'communication.messages', 'kind' => 'metered'],
                     ['key' => 'email_marketing.campaigns_per_month', 'kind' => 'metered'],
                     ['key' => 'email_marketing.subscribers', 'kind' => 'gauge'],
@@ -188,6 +190,7 @@ describe('creating a plan', function () {
                 ['key' => 'notes', 'name' => 'Notes'],
                 ['key' => 'telephony', 'name' => 'Telephony'],
                 ['key' => 'links', 'name' => 'Links'],
+                ['key' => 'calendar', 'name' => 'Calendar'],
             ]));
     });
 
@@ -422,6 +425,7 @@ describe('editing a plan', function () {
                     ['key' => 'automation.runs', 'kind' => 'metered'],
                     ['key' => 'automation.workflows', 'kind' => 'gauge'],
                     ['key' => 'ai.tokens', 'kind' => 'metered'],
+                    ['key' => 'ai.voice_clips', 'kind' => 'metered'],
                     ['key' => 'communication.messages', 'kind' => 'metered'],
                     ['key' => 'email_marketing.campaigns_per_month', 'kind' => 'metered'],
                     ['key' => 'email_marketing.subscribers', 'kind' => 'gauge'],

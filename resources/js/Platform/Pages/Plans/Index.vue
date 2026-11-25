@@ -4,6 +4,7 @@ import { Layers, Lock, Plus } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Badge from '@/Core/Components/Badge.vue';
+import { listAmountBeside } from '@/Core/Components/Billing/offer';
 import type { BillingInterval, PlanSummary } from '@/Core/Components/Billing/types';
 import Button from '@/Core/Components/Button.vue';
 import Card from '@/Core/Components/Card.vue';
@@ -13,7 +14,7 @@ import PageHeader from '@/Core/Components/PageHeader.vue';
 import { useFormat } from '@/Core/composables/useFormat';
 import PlatformLayout from '@/Core/Layouts/PlatformLayout.vue';
 import { route } from '@/Core/lib/route';
-import { amountFor } from '@/Platform/Components/Plans/prices';
+import { INTERVALS, amountFor } from '@/Platform/Components/Plans/prices';
 
 defineOptions({ layout: PlatformLayout });
 
@@ -65,6 +66,13 @@ function price(plan: PlanRow, interval: BillingInterval): string | null {
     return amount === 0 ? t('billing.terms.free') : format.money(amount, plan.currency);
 }
 
+/** The plan's own price while an offer runs below it, else null. */
+function listPrice(plan: PlanRow, interval: BillingInterval): string | null {
+    const list = listAmountBeside(plan, interval);
+
+    return list === null ? null : format.money(list, plan.currency);
+}
+
 function trial(days: number): string {
     return t(days === 1 ? 'platformPlans.index.trialDay' : 'platformPlans.index.trialDays', { count: format.number(days) });
 }
@@ -107,15 +115,18 @@ function trial(days: number): string {
                     <template v-else>{{ row.name }}</template>
                 </p>
                 <p class="font-mono text-xs text-ink-subtle">{{ row.key }}</p>
+                <Badge v-if="row.offerEndsAt" tone="accent" class="mt-1">{{ t('billing.terms.offer.until', { date: format.date(row.offerEndsAt) }) }}</Badge>
             </template>
 
-            <template #cell-monthlyAmount="{ row }">
-                <span v-if="price(row, 'monthly') !== null" class="tabular text-ink">{{ price(row, 'monthly') }}</span>
-                <span v-else class="text-ink-subtle">{{ t('billing.terms.notOffered') }}</span>
-            </template>
-
-            <template #cell-yearlyAmount="{ row }">
-                <span v-if="price(row, 'yearly') !== null" class="tabular text-ink">{{ price(row, 'yearly') }}</span>
+            <template v-for="interval in INTERVALS" :key="interval" #[`cell-${interval}Amount`]="{ row }">
+                <template v-if="price(row, interval) !== null">
+                    <span class="tabular text-ink">{{ price(row, interval) }}</span>
+                    <!-- Beside a running offer, the plan's own price it takes off from. -->
+                    <span v-if="listPrice(row, interval) !== null" class="block text-xs text-ink-subtle">
+                        <span class="sr-only">{{ t('billing.terms.offer.was') }}</span>
+                        <del class="tabular">{{ listPrice(row, interval) }}</del>
+                    </span>
+                </template>
                 <span v-else class="text-ink-subtle">{{ t('billing.terms.notOffered') }}</span>
             </template>
 

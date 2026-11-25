@@ -25,6 +25,7 @@ final class SettingsRequest extends FormRequest
             'chat_enabled' => ['required', 'boolean'],
             'drafting_enabled' => ['required', 'boolean'],
             'automation_enabled' => ['required', 'boolean'],
+            'voice_enabled' => ['sometimes', 'boolean'],
             'data_scopes' => ['present', 'array', 'max:20'],
             'data_scopes.*' => ['string', 'max:40'],
             'retention_days' => [

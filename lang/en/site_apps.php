@@ -18,11 +18,11 @@ return [
         ],
         'service' => [
             'name' => 'Customer service',
-            'description' => 'Answer customers from tickets, website chat and one shared inbox, and keep every conversation on the customer\'s timeline.',
+            'description' => 'Answer customers from tickets, website chat and one shared inbox, call them through your own phone system, and keep every conversation on the customer\'s timeline.',
         ],
         'operations' => [
             'name' => 'Operations and productivity',
-            'description' => 'Plan projects, automate routine work, ask an AI assistant, run reports across your apps and keep quick notes.',
+            'description' => 'Plan projects, automate routine work, ask an AI assistant, run reports across your apps, keep quick notes and save the links your team uses.',
         ],
     ],
 
@@ -699,6 +699,62 @@ return [
             ],
         ],
 
+        'telephony' => [
+            'name' => 'Telephony',
+            'meta_title' => 'Browser Softphone, Dialer and Call Log',
+            'meta_description' => 'Oyosend Telephony connects your own phone system to the workspace: a browser softphone, a dialer, click-to-call from contacts and a call log on each customer.',
+            'tagline' => 'A browser softphone, dialer, click-to-call and call log on your own phone system.',
+            'headline' => 'Call customers from the workspace and keep every call on their record',
+            'lede' => 'Oyosend Telephony connects to your company\'s own phone system. Team members call and answer in the browser or through their own phone, and every call is logged against the matching customer.',
+            'answer_q' => 'What is Oyosend Telephony?',
+            'answer' => 'Oyosend Telephony is the calling app of the Oyosend platform. It works with your company\'s own phone system (an Asterisk or FreeSWITCH PBX on a SIP line from a licensed IPTSP) and gives each team member a browser softphone, a dialer and click-to-call from contact records, or rings their own phone first and then the customer. Every call is logged against the matching shared contact, shows on that contact\'s record and is counted in a calls-by-member report. Calls are not recorded.',
+            'features' => [
+                [
+                    'title' => 'Softphone in the browser',
+                    'body' => 'Each member signs in to their own extension and makes or answers calls in the browser, with mute and keypad tones, one call at a time.',
+                ],
+                [
+                    'title' => 'Dialer for Bangladeshi numbers',
+                    'body' => 'A keypad and number box that accept a number in any common spelling, Bengali digits included, and put it in the international format.',
+                ],
+                [
+                    'title' => 'Click-to-call from contacts',
+                    'body' => 'The Call action on a contact\'s record opens the dialer with that contact\'s number already filled in.',
+                ],
+                [
+                    'title' => 'Call through your own phone',
+                    'body' => 'For a member without a headset, the phone system rings their own mobile or desk phone first and then connects the customer.',
+                ],
+                [
+                    'title' => 'Call log on the customer',
+                    'body' => 'Direction, status, number, times and duration of every call, matched to the shared contact and shown on that contact\'s record.',
+                ],
+                [
+                    'title' => 'Reports and automation',
+                    'body' => 'A report counts calls by team member, and a finished call can start a workflow in Workflow Automation.',
+                ],
+            ],
+            'audience' => [
+                'Sales and support teams who phone customers every day.',
+                'Businesses that run, or plan to run, their own office phone system.',
+                'Managers who want each call next to the customer it was with.',
+            ],
+            'faq' => [
+                [
+                    'q' => 'What do I need to make calls with Oyosend Telephony?',
+                    'a' => 'Your own phone system: an Asterisk or FreeSWITCH PBX connected to a SIP line from a licensed IPTSP in Bangladesh. Oyosend does not sell phone lines or run the PBX for you. An administrator enters the phone system\'s details in the Telephony settings and gives each member an extension; until then, no call is placed.',
+                ],
+                [
+                    'q' => 'Does Oyosend record phone calls?',
+                    'a' => 'No. Telephony keeps a log of each call, with its direction, number, status, times, duration and the matching contact, but it stores no audio recording.',
+                ],
+                [
+                    'q' => 'Who can see the call log in Oyosend?',
+                    'a' => 'Each call belongs to the member who made or took it. Each role decides whether people see only their own calls, their department\'s, their branch\'s or everyone\'s, and the same limit applies to calls shown on a contact\'s record.',
+                ],
+            ],
+        ],
+
         'projects' => [
             'name' => 'Project Management',
             'meta_title' => 'Project Management Software for Teams',
@@ -975,6 +1031,117 @@ return [
                 [
                     'q' => 'Does Oyosend Notes work in Bengali?',
                     'a' => 'Yes. You can write notes in Bengali or English, and the Notes screens are available in both languages, like the rest of the Oyosend workspace.',
+                ],
+            ],
+        ],
+
+        'links' => [
+            'name' => 'Links',
+            'meta_title' => 'Shared Links for Your Team',
+            'meta_description' => 'Oyosend Links keeps the websites, tools, email addresses and documents your team uses in one place, with folders, pins, search and filters by kind.',
+            'tagline' => 'The websites, tools, email addresses and documents your team uses, in one place.',
+            'headline' => 'Keep the links your team uses every day in one place',
+            'lede' => 'Oyosend Links is a simple organiser for the websites, online tools, email addresses and documents your team keeps coming back to. Save a link once, put it in a folder, pin the important ones and find any of them by search.',
+            'answer_q' => 'What is Oyosend Links?',
+            'answer' => 'Oyosend Links is the link organiser of the Oyosend platform. Team members save websites, tools, email addresses and documents with a title, an optional description and an optional folder, pin the ones they use most, and find them by search or by filtering on kind and folder. Each link belongs to the person who saved it and follows their access scope. Links has no place for passwords.',
+            'features' => [
+                [
+                    'title' => 'Every kind of link',
+                    'body' => 'Save websites, online tools, email addresses and documents, each with a title and a short description.',
+                ],
+                [
+                    'title' => 'Folders',
+                    'body' => 'Put links in folders. The form suggests the folders already in use, and a link\'s folder label filters the page to that folder.',
+                ],
+                [
+                    'title' => 'Pins, search and filters',
+                    'body' => 'Pinned links stay above the rest. Search titles, addresses, descriptions and folders, or filter by kind with a count for each.',
+                ],
+                [
+                    'title' => 'Safe addresses',
+                    'body' => 'Only web addresses and email addresses are accepted. Web links open in a new tab, and Oyosend fetches nothing from them.',
+                ],
+                [
+                    'title' => 'Ownership and access',
+                    'body' => 'Each link belongs to the person who saved it, and access can cover your own links, a department, a branch or everyone.',
+                ],
+                [
+                    'title' => 'Reports and automation',
+                    'body' => 'A report counts the links saved by kind, and a newly saved link can start a workflow in Workflow Automation.',
+                ],
+            ],
+            'audience' => [
+                'Offices that use the same portals, payment sites and online tools every day.',
+                'New team members who need the important addresses in one place.',
+                'Small teams that want shared links without another tool.',
+            ],
+            'faq' => [
+                [
+                    'q' => 'Can I keep passwords in Oyosend Links?',
+                    'a' => 'No. Links has no password or login field, and the form asks you to keep passwords in a password manager. Save only the address, a title and a short description.',
+                ],
+                [
+                    'q' => 'Who can see the links I save in Oyosend?',
+                    'a' => 'A link belongs to the person who saved it. Each role decides whether people see only their own links, their department\'s, their branch\'s or everyone\'s, so a link is not private from someone whose role covers everyone.',
+                ],
+                [
+                    'q' => 'What kinds of addresses can I save in Oyosend Links?',
+                    'a' => 'Web addresses that start with http or https, for websites, tools and documents, and plain email addresses. Other kinds of addresses are refused, so opening a saved link never runs anything.',
+                ],
+            ],
+        ],
+        'calendar' => [
+            'name' => 'Calendar',
+            'meta_title' => 'Team Calendar with Time Zones',
+            'meta_description' => 'Oyosend Calendar gives every member a personal calendar and the team shared ones, with day, week, month, year and schedule views, repeating events, guests, reminders and time zones.',
+            'tagline' => 'Your day and your team\'s, in one calendar that works in every time zone.',
+            'headline' => 'Plan your day and your team\'s in one calendar',
+            'lede' => 'Oyosend Calendar is the calendar inside your workspace. Everyone has their own, the team has shared ones, and you can see when a colleague is busy without seeing what they are doing. Drag events to move them, repeat them, invite teammates and get a reminder before they start.',
+            'answer_q' => 'What is Oyosend Calendar?',
+            'answer' => 'Oyosend Calendar is the team calendar of the Oyosend platform. Each member has a personal calendar and the workspace can have shared calendars everyone sees. It has day, 4-day, week, month, year and schedule views with drag and drop, repeating events, guests who answer yes, no or maybe, and reminders. Every member can use their own time zone, and personal calendars stay private unless their owner shares them.',
+            'features' => [
+                [
+                    'title' => 'Every view you expect',
+                    'body' => 'Day, 4 days, week, month, year and a schedule list, with a small month to jump to any date and keyboard shortcuts for all of them.',
+                ],
+                [
+                    'title' => 'Drag and drop',
+                    'body' => 'Draw an event by dragging on the grid, drag it to another time or day, or pull its edge to make it longer.',
+                ],
+                [
+                    'title' => 'Repeating events',
+                    'body' => 'Daily, weekly on chosen days, monthly by date or weekday, or yearly, until a date or a number of times. Change one occurrence, this and the following ones, or all of them.',
+                ],
+                [
+                    'title' => 'Guests and reminders',
+                    'body' => 'Invite teammates, who see the event on their own calendar and answer. Reminders arrive in the notification centre before an event starts.',
+                ],
+                [
+                    'title' => 'Private by person',
+                    'body' => 'A personal calendar is yours. Choose whether teammates see nothing, only when you are busy, or the details, and mark single events private.',
+                ],
+                [
+                    'title' => 'Any time zone',
+                    'body' => 'Each member picks a time zone and a first day of the week. A meeting planned in one city shows at the right time everywhere.',
+                ],
+            ],
+            'audience' => [
+                'Teams that plan meetings, visits and deadlines together.',
+                'Companies with people in more than one city or country.',
+                'Offices that want shared calendars for holidays, rooms or events.',
+            ],
+            'faq' => [
+                [
+                    'q' => 'Can my manager see my Oyosend calendar?',
+                    'a' => 'Only as much as you allow. A personal calendar can show nothing, only when you are busy, or the event details, and a role in the workspace does not change that. Workspace calendars are shared with everyone.',
+                ],
+                [
+                    'q' => 'Does Oyosend Calendar work across time zones?',
+                    'a' => 'Yes. Each member chooses a time zone, and every event keeps the zone it was planned in, so a 9:00 meeting in London shows at the right local time in Dhaka and stays at 9:00 London time when the clocks change.',
+                ],
+                [
+                    'q' => 'Does Oyosend Calendar sync with Google Calendar or Outlook?',
+                    'a' => 'Not yet. Events live in your Oyosend workspace. Importing, exporting and syncing with other calendars is planned.',
                 ],
             ],
         ],

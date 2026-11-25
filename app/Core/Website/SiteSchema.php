@@ -45,7 +45,11 @@ final class SiteSchema
             '@type' => 'Organization',
             '@id' => self::organizationId(),
             'name' => $company->name(),
-            'url' => self::root().'/',
+            'legalName' => $company->legalName(),
+            'description' => __('site.meta.description'),
+            'foundingDate' => $company->founded(),
+            // The home page's own address, written as its canonical link writes it.
+            'url' => self::root(),
             // An uploaded logo when there is one, else the built-in mark.
             'logo' => app(SiteBrand::class)->url('logo') !== null
                 ? ['@type' => 'ImageObject', 'url' => app(SiteBrand::class)->url('logo')]
@@ -71,6 +75,9 @@ final class SiteSchema
             'areaServed' => ['@type' => 'Country', 'name' => 'Bangladesh'],
         ];
 
+        // Said only once the operator has given them (Super Admin > Website > Company).
+        $node = array_filter($node, static fn (mixed $value): bool => $value !== null);
+
         // The company's own pages elsewhere tell engines these profiles are the same organisation.
         if ($company->social() !== []) {
             $node['sameAs'] = array_values($company->social());
@@ -87,7 +94,7 @@ final class SiteSchema
         return [
             '@type' => 'WebSite',
             '@id' => self::websiteId(),
-            'url' => self::root().'/',
+            'url' => self::root(),
             'name' => app(SiteCompany::class)->name(),
             'description' => __('site.meta.description', [], $locale),
             'inLanguage' => ['en', 'bn'],
@@ -97,9 +104,10 @@ final class SiteSchema
 
     /**
      * @param  list<array{0: string, 1: string}>  $trail  [name, url] from the home page to this one
+     * @param  string|null  $modified  when the page's words last changed (Y-m-d), for answer engines that weigh freshness
      * @return array<string, mixed>
      */
-    public static function webPage(string $url, string $name, string $description, string $locale, array $trail = [], string $type = 'WebPage'): array
+    public static function webPage(string $url, string $name, string $description, string $locale, array $trail = [], string $type = 'WebPage', ?string $modified = null): array
     {
         $page = [
             '@type' => $type,
@@ -111,6 +119,10 @@ final class SiteSchema
             'isPartOf' => ['@id' => self::websiteId()],
             'about' => ['@id' => self::organizationId()],
         ];
+
+        if ($modified !== null && $modified !== '') {
+            $page['dateModified'] = $modified;
+        }
 
         if ($trail !== []) {
             $page['breadcrumb'] = ['@id' => $url.'#breadcrumb'];

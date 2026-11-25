@@ -98,6 +98,20 @@
     --orb-butter: #edc257;
     --grain-opacity: 0.07;
     --grain-blend: multiply;
+
+    /* Calendar: the palette people pick for calendars and events, each a solid chip under --event-ink. */
+    --event-ink: #ffffff;
+    --event-red: #c62828;
+    --event-pink: #ad1457;
+    --event-orange: #b54708;
+    --event-yellow: #8a6100;
+    --event-sage: #3d7a5c;
+    --event-green: #1b7a3d;
+    --event-teal: #00737a;
+    --event-blue: #1f5fbf;
+    --event-lavender: #5a5fc2;
+    --event-purple: #7b3fb8;
+    --event-graphite: #585f66;
 }
 
 [data-theme='dark'] {
@@ -161,6 +175,19 @@
     --orb-butter: #8c6c1c;
     --grain-opacity: 0.09;
     --grain-blend: soft-light;
+
+    --event-ink: #10201a;
+    --event-red: #f59a92;
+    --event-pink: #f497bb;
+    --event-orange: #f7b27a;
+    --event-yellow: #ecd06a;
+    --event-sage: #a9d4b9;
+    --event-green: #86d39f;
+    --event-teal: #7fd6d6;
+    --event-blue: #93b8f5;
+    --event-lavender: #b8bbf4;
+    --event-purple: #d3b0f5;
+    --event-graphite: #c2c7cc;
 }
 
 @theme inline {
@@ -569,6 +596,39 @@
     transform: translateY(0.22em);
     filter: blur(4px);
     transition: none;
+}
+
+/*
+ * The home page's closing call (components/site/app-orbit): app tiles that lean (`--tilt`) and drift. On wide screens
+ * each one is placed around the headline (`--x`, `--y`); below that they sit in a row. Hovering one straightens it.
+ */
+.site-orbit-tile {
+    rotate: var(--tilt);
+    transition:
+        rotate 0.3s cubic-bezier(0.22, 0.8, 0.26, 1),
+        scale 0.3s cubic-bezier(0.22, 0.8, 0.26, 1);
+    animation: site-float 7s ease-in-out var(--delay) infinite;
+}
+
+.site-orbit-tile:hover,
+.site-orbit-tile:focus-visible {
+    rotate: 0deg;
+    scale: 1.08;
+}
+
+@keyframes site-float {
+    50% {
+        translate: 0 -10px;
+    }
+}
+
+@media (width >= 64rem) {
+    .site-orbit-slot {
+        position: absolute;
+        top: var(--y);
+        left: var(--x);
+        transform: translate(-50%, -50%);
+    }
 }
 
 /*

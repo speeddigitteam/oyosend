@@ -277,7 +277,7 @@ describe('assistant show', () => {
 
 describe('settings', () => {
     const props = {
-        settings: { enabled: true, chatEnabled: true, draftingEnabled: true, automationEnabled: false, dataScopes: ['contacts'], retentionDays: 90, redactPii: false },
+        settings: { enabled: true, chatEnabled: true, draftingEnabled: true, automationEnabled: false, voiceEnabled: false, dataScopes: ['contacts'], retentionDays: 90, redactPii: false },
         options: { dataScopes: ['contacts', 'companies'], retention: { min: 1, max: 365 }, platformRedaction: false },
     };
 

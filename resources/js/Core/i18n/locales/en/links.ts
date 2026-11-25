@@ -50,7 +50,6 @@ export default {
         urlHint: 'Starts with https:// or http://',
         urlPlaceholder: 'https://',
         email: 'Email address',
-        emailPlaceholder: 'name{\'@\'}example.com',
         description: 'Description',
         folder: 'Folder',
         folderHint: 'Type a new folder or pick one you already use.',

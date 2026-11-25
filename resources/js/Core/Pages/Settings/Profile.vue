@@ -5,6 +5,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Button from '@/Core/Components/Button.vue';
 import Card from '@/Core/Components/Card.vue';
+import Checkbox from '@/Core/Components/Checkbox.vue';
 import Field from '@/Core/Components/Field.vue';
 import Input from '@/Core/Components/Input.vue';
 import PageHeader from '@/Core/Components/PageHeader.vue';
@@ -25,6 +26,7 @@ const props = defineProps<{
         /** Interface language code, one of the keys of `app.locales`. */
         locale: string;
         numerals: Numerals;
+        voiceAutoRun: boolean;
     };
 }>();
 
@@ -35,6 +37,7 @@ const form = useForm({
     name: props.profile.name,
     locale: props.profile.locale,
     numerals: props.profile.numerals,
+    voice_auto_run: props.profile.voiceAutoRun,
 });
 
 const languages = computed<SelectOption[]>(() =>
@@ -166,7 +169,21 @@ function submit(): void {
                 </div>
             </Card>
 
-            <!-- One save for both boxes, across the row beneath them. -->
+            <!-- Only where the workspace offers voice input (ADR 0038). -->
+            <Card
+                v-if="page.props.voice"
+                class="lg:col-span-2"
+                :title="t('settings.profile.voice.title')"
+                :description="t('settings.profile.voice.description')"
+            >
+                <Checkbox
+                    v-model="form.voice_auto_run"
+                    :label="t('settings.profile.voice.autoRun')"
+                    :description="t('settings.profile.voice.autoRunHint')"
+                />
+            </Card>
+
+            <!-- One save for every box, across the row beneath them. -->
             <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 px-1 lg:col-span-2">
                 <p v-if="form.isDirty" class="mr-auto text-[0.8125rem] text-ink-muted">{{ t('settings.profile.unsaved') }}</p>
                 <Button type="submit" variant="primary" :loading="form.processing" :disabled="!form.isDirty">

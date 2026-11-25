@@ -28,6 +28,13 @@ export default {
             latn: 'Latin digits',
             beng: 'Bengali digits',
         },
+        voice: {
+            title: 'Voice commands',
+            description: 'How the command palette and the assistant treat what you say.',
+            autoRun: 'Run voice commands without pressing Enter',
+            autoRunHint:
+                'When one page matches what you said, it opens; a message to the assistant is sent when you stop speaking. Actions such as signing out always wait for you, and a change the assistant proposes still needs your confirmation.',
+        },
         preview: {
             title: 'Preview',
             number: 'A number',

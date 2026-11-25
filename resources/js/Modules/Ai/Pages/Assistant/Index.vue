@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { router, useForm } from '@inertiajs/vue3';
+import { router, useForm, usePage } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Badge from '@/Core/Components/Badge.vue';
@@ -8,6 +8,7 @@ import Card from '@/Core/Components/Card.vue';
 import ConfirmDialog from '@/Core/Components/ConfirmDialog.vue';
 import PageHeader from '@/Core/Components/PageHeader.vue';
 import Textarea from '@/Core/Components/Textarea.vue';
+import VoiceButton from '@/Core/Components/VoiceButton.vue';
 import TenantLayout from '@/Core/Layouts/TenantLayout.vue';
 import { route } from '@/Core/lib/route';
 import { canCompose } from '../../Components/aiFormat';
@@ -26,6 +27,7 @@ const props = defineProps<{
 }>();
 
 const { t, te } = useI18n();
+const page = usePage();
 
 const form = useForm({ content: '' });
 const confirmClear = ref(false);
@@ -37,6 +39,15 @@ function start(): void {
     }
 
     form.post(route('ai.assistant.conversations.store'), { preserveScroll: true });
+}
+
+/** Spoken text joins what is already typed; with the member's preference it is sent at once (ADR 0038). */
+function heard(text: string): void {
+    form.content = form.content.trim() === '' ? text : `${form.content.trimEnd()} ${text}`;
+
+    if (page.props.voice?.autoRun === true) {
+        start();
+    }
 }
 
 function clearAll(): void {
@@ -75,7 +86,8 @@ function toolLabel(tool: ToolInfo): string {
                         @keydown.ctrl.enter.prevent="start"
                         @keydown.meta.enter.prevent="start"
                     />
-                    <div class="flex justify-end">
+                    <div class="flex items-center justify-end gap-2">
+                        <VoiceButton v-if="canCompose(availability.state)" class="mr-auto" @transcript="heard" />
                         <Button
                             type="submit"
                             variant="primary"

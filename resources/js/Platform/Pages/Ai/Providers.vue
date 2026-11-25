@@ -23,6 +23,9 @@ defineProps<{
     /** True while no account exists: the environment key (if any) answers. */
     usesEnvironment: boolean;
     environmentConfigured: boolean;
+    /** True while no account has a transcription model: the environment's transcription server (if any) is used. */
+    transcriptionUsesEnvironment: boolean;
+    transcriptionEnvironmentConfigured: boolean;
 }>();
 
 const { t } = useI18n();
@@ -41,7 +44,7 @@ const dialogOpen = computed({
 
 const busy = ref<string | null>(null);
 
-function post(name: 'platform.ai.test' | 'platform.ai.default', account: AiProviderAccount): void {
+function post(name: 'platform.ai.test' | 'platform.ai.default' | 'platform.ai.transcription-default', account: AiProviderAccount): void {
     router.post(
         route(name, { account: account.id }),
         {},
@@ -144,11 +147,17 @@ function testSummary(account: AiProviderAccount): string | null {
                                 <div class="min-w-0">
                                     <p class="text-sm font-medium wrap-break-word text-ink">{{ account.name }}</p>
                                     <p class="mt-0.5 text-[0.8125rem] wrap-break-word text-ink-subtle">
-                                        {{ t(`platformAi.drivers.${account.driver}`) }} · {{ account.model }}
+                                        {{ t(`platformAi.drivers.${account.driver}`) }}<template v-if="account.model"> · {{ account.model }}</template>
+                                    </p>
+                                    <p v-if="account.transcriptionModel" class="mt-0.5 text-[0.8125rem] wrap-break-word text-ink-subtle">
+                                        {{ t('platformAi.transcriptionModel', { model: account.transcriptionModel }) }}
                                     </p>
                                 </div>
                             </div>
-                            <Badge v-if="account.isDefault" class="shrink-0" tone="brand" dot>{{ t('platformAi.default') }}</Badge>
+                            <div class="flex shrink-0 flex-wrap gap-1.5">
+                                <Badge v-if="account.isDefault" tone="brand" dot>{{ t('platformAi.default') }}</Badge>
+                                <Badge v-if="account.isTranscriptionDefault" tone="brand" dot>{{ t('platformAi.transcriptionDefault') }}</Badge>
+                            </div>
                         </div>
 
                         <div class="flex flex-col gap-3 border-t border-line pt-4">
@@ -165,13 +174,22 @@ function testSummary(account: AiProviderAccount): string | null {
 
                             <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
                                 <Button
-                                    v-if="account.enabled && !account.isDefault"
+                                    v-if="account.enabled && !account.isDefault && account.model !== ''"
                                     size="sm"
                                     variant="ghost"
                                     :loading="isBusy('platform.ai.default', account)"
                                     @click="post('platform.ai.default', account)"
                                 >
                                     {{ t('platformAi.makeDefault') }}
+                                </Button>
+                                <Button
+                                    v-if="account.enabled && !account.isTranscriptionDefault && account.transcriptionModel"
+                                    size="sm"
+                                    variant="ghost"
+                                    :loading="isBusy('platform.ai.transcription-default', account)"
+                                    @click="post('platform.ai.transcription-default', account)"
+                                >
+                                    {{ t('platformAi.makeTranscriptionDefault') }}
                                 </Button>
                                 <Button
                                     size="sm"
@@ -193,6 +211,9 @@ function testSummary(account: AiProviderAccount): string | null {
                 </ul>
 
                 <p v-if="usesEnvironment" class="mt-4 text-[0.8125rem] text-ink-subtle">{{ t('platformAi.envNote') }}</p>
+                <p v-if="transcriptionUsesEnvironment" class="mt-2 text-[0.8125rem] text-ink-subtle" data-testid="transcription-env">
+                    {{ transcriptionEnvironmentConfigured ? t('platformAi.transcriptionEnvNote') : t('platformAi.transcriptionEnvMissing') }}
+                </p>
             </Card>
         </div>
 

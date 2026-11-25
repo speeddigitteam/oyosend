@@ -8,6 +8,7 @@ use App\Core\Website\Enums\EnquiryStatus;
 use App\Core\Website\Mail\WebsiteEnquiryMail;
 use App\Core\Website\Models\WebsiteEnquiry;
 use App\Core\Website\Models\WebsiteText;
+use App\Core\Website\SiteApps;
 use App\Platform\Enums\PlatformRole;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
@@ -175,7 +176,26 @@ describe('the company details', function () {
         'a map link without https' => ['map_url', 'http://maps.example.com'],
         'a recipient that is no address' => ['contact_recipient', 'sales'],
         'a page that is no link' => ['social', ['facebook' => 'oyosend'], 'social.facebook'],
+        'a founding year that is no year' => ['founded', '24'],
+        'a founding year still to come' => ['founded', (string) (now()->year + 1)],
     ]);
+
+    it('tells search engines the registered name and founding year only once they are given', function () {
+        $organization = function (): array {
+            preg_match('#<script type="application/ld\+json">(.*?)</script>#s', (string) $this->get('http://localhost/')->getContent(), $json);
+
+            return collect(json_decode($json[1], true)['@graph'])->firstWhere('@type', 'Organization');
+        };
+
+        expect($organization())->not->toHaveKeys(['legalName', 'foundingDate']);
+
+        $this->actingAsPlatformUser($this->admin)->put('http://admin.localhost/website/company', [
+            'name' => 'Oyosend', 'legal_name' => 'Oyosend Technologies Ltd.', 'founded' => '2024', 'email' => 'info@oyosend.com',
+            'phone_1' => '+88 0179 22 88 555', 'street' => 'House 08', 'city' => 'Dhaka', 'contact_recipient' => 'info@oyosend.com',
+        ])->assertSessionHasNoErrors();
+
+        expect($organization())->toMatchArray(['legalName' => 'Oyosend Technologies Ltd.', 'foundingDate' => '2024']);
+    });
 });
 
 describe('the website words', function () {
@@ -232,7 +252,7 @@ describe('the website words', function () {
         ]]])->assertSessionHasNoErrors();
 
         expect(WebsiteText::query()->pluck('value', 'key')->all())->toBe(['site.home.apps_eyebrow' => ':count apps in one place']);
-        $this->get('http://localhost/')->assertSee('17 apps in one place');
+        $this->get('http://localhost/')->assertSee(count(app(SiteApps::class)->all()).' apps in one place');
     });
 });
 

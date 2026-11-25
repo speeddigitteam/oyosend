@@ -22,6 +22,7 @@ const props = defineProps<{
         chatEnabled: boolean;
         draftingEnabled: boolean;
         automationEnabled: boolean;
+        voiceEnabled: boolean;
         dataScopes: string[];
         retentionDays: number;
         redactPii: boolean;
@@ -41,6 +42,7 @@ const form = useForm({
     chat_enabled: props.settings.chatEnabled,
     drafting_enabled: props.settings.draftingEnabled,
     automation_enabled: props.settings.automationEnabled,
+    voice_enabled: props.settings.voiceEnabled,
     data_scopes: [...props.settings.dataScopes],
     retention_days: String(props.settings.retentionDays),
     redact_pii: props.settings.redactPii,
@@ -80,7 +82,7 @@ function save(): void {
          on wide screens. Each box lays out its own content by its own width (container queries). -->
     <form class="grid gap-3 lg:grid-cols-2 xl:grid-cols-3" @submit.prevent="save">
         <Card class="lg:col-span-2 xl:col-span-3" :title="t('ai.settings.provider')" :description="t('ai.settings.providerHint')">
-            <dl class="grid gap-4 sm:grid-cols-3" data-testid="provider">
+            <dl class="grid gap-4 sm:grid-cols-4" data-testid="provider">
                 <div>
                     <dt class="eyebrow">{{ t('ai.settings.credential') }}</dt>
                     <dd class="mt-1.5">
@@ -97,10 +99,18 @@ function save(): void {
                     <dt class="eyebrow">{{ t('ai.settings.model') }}</dt>
                     <dd class="mt-1.5 font-mono text-sm text-ink">{{ availability.model }}</dd>
                 </div>
+                <div v-if="availability.transcription">
+                    <dt class="eyebrow">{{ t('ai.settings.transcription') }}</dt>
+                    <dd class="mt-1.5">
+                        <Badge :tone="availability.transcription.configured ? 'ok' : 'info'" dot>
+                            {{ availability.transcription.configured ? t('ai.settings.credentialYes') : t('ai.settings.credentialNo') }}
+                        </Badge>
+                    </dd>
+                </div>
             </dl>
             <h3 class="eyebrow mt-5 mb-2">{{ t('ai.settings.features') }}</h3>
             <!-- The name and the state wrap onto two lines when they do not fit: a long state never hides the name. -->
-            <ul class="grid gap-2 sm:grid-cols-3" data-testid="features">
+            <ul class="grid gap-2 sm:grid-cols-2 xl:grid-cols-4" data-testid="features">
                 <li
                     v-for="(feature, key) in availability.features"
                     :key="key"
@@ -118,6 +128,7 @@ function save(): void {
                 <Checkbox v-model="form.chat_enabled" :label="t('ai.settings.chat')" :description="t('ai.settings.chatHint')" />
                 <Checkbox v-model="form.drafting_enabled" :label="t('ai.settings.drafting')" :description="t('ai.settings.draftingHint')" />
                 <Checkbox v-model="form.automation_enabled" :label="t('ai.settings.automation')" :description="t('ai.settings.automationHint')" />
+                <Checkbox v-model="form.voice_enabled" :label="t('ai.settings.voice')" :description="t('ai.settings.voiceHint')" />
             </div>
         </Card>
 

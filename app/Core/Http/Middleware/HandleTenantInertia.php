@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Core\Http\Middleware;
 
 use App\Core\Access\AccessChecker;
+use App\Core\Ai\Contracts\VoiceInput;
 use App\Core\Billing\CurrentSubscription;
 use App\Core\Identity\Models\TenantMembership;
 use App\Core\Identity\Models\User;
@@ -14,6 +15,7 @@ use App\Core\Tenancy\TenantContext;
 use App\Platform\Impersonation\ImpersonationManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Throwable;
 
 /**
  * Props every workspace page receives.
@@ -30,6 +32,7 @@ final class HandleTenantInertia extends HandleInertiaRequests
         private readonly NavigationBuilder $navigation,
         private readonly CurrentSubscription $subscription,
         private readonly WorkspaceLogo $logo,
+        private readonly VoiceInput $voiceInput,
     ) {}
 
     protected function area(): string
@@ -52,7 +55,35 @@ final class HandleTenantInertia extends HandleInertiaRequests
             'workspaces' => fn (): array => $this->workspaces($request),
             'subscription' => fn (): ?array => $this->member($request) === null ? null : $this->subscription(),
             'supportSession' => fn (): ?array => $this->supportSession($request),
+            'voice' => fn (): ?array => $this->voice($request),
         ];
+    }
+
+    /**
+     * Voice input for this member (ADR 0038), with their own "run without Enter" preference. Not offered to a
+     * support session: the operator is not the member and does not speak for them.
+     *
+     * @return array{maxSeconds: int, maxBytes: int, autoRun: bool}|null
+     */
+    private function voice(Request $request): ?array
+    {
+        if ($this->member($request) === null || ImpersonationManager::of($request) !== null) {
+            return null;
+        }
+
+        $user = $this->user($request);
+
+        // Every workspace page asks this. An optional app that cannot answer hides the microphone; it never
+        // takes the page down with it.
+        try {
+            $offer = $this->voiceInput->offerFor($user);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return null;
+        }
+
+        return $offer === null ? null : [...$offer, 'autoRun' => $user->preference('voice_auto_run') === true];
     }
 
     protected function regional(Request $request): array

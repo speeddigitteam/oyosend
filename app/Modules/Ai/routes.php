@@ -7,6 +7,7 @@ use App\Modules\Ai\Http\Controllers\DraftController;
 use App\Modules\Ai\Http\Controllers\ProposalController;
 use App\Modules\Ai\Http\Controllers\SettingsController;
 use App\Modules\Ai\Http\Controllers\UsageController;
+use App\Modules\Ai\Http\Controllers\VoiceController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:web', 'auth.session', 'member', 'subscribed'])->prefix('ai')->group(function (): void {
@@ -29,6 +30,10 @@ Route::middleware(['auth:web', 'auth.session', 'member', 'subscribed'])->prefix(
         Route::get('status', [DraftController::class, 'status'])->name('ai.status');
         Route::post('drafts', [DraftController::class, 'store'])->middleware('throttle:30,1')->name('ai.drafts.store');
     });
+
+    // Voice input (ADR 0038): a clip in, its transcript out. Nothing is stored and nothing runs here.
+    Route::post('voice/transcriptions', [VoiceController::class, 'transcribe'])
+        ->middleware(['can:ai.voice.use', 'throttle:30,1'])->name('ai.voice.transcribe');
 
     Route::get('usage', [UsageController::class, 'index'])->middleware('can:ai.usage.view')->name('ai.usage.index');
 

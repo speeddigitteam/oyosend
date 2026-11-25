@@ -73,7 +73,16 @@ describe('every page', function () {
             'telephone' => '+8801792288555',
         ])
             ->and($organization['address'])->toMatchArray(['postalCode' => '1230', 'addressCountry' => 'BD'])
-            ->and(array_column($organization['contactPoint'], 'telephone'))->toBe(['+8801792288555', '+8801829233333']);
+            ->and(array_column($organization['contactPoint'], 'telephone'))->toBe(['+8801792288555', '+8801829233333'])
+            // The home page's address as its canonical link writes it, and what the company does, for answer engines.
+            ->and($organization['url'])->toBe('http://localhost')
+            ->and($organization['description'])->toBe(__('site.meta.description', [], 'en'));
+    });
+
+    it('says when the words of a page last changed, as the sitemap does', function () {
+        $page = collect(jsonLd($this->get('http://localhost/pricing'))['@graph'])->firstWhere('@type', 'WebPage');
+
+        expect($page['dateModified'])->toBe(config('site.content_updated'));
     });
 
     it('answers its questions in the page and in FAQPage structured data', function (string $path) {
@@ -213,8 +222,10 @@ describe('the files crawlers read', function () {
         $urls = array_map('strval', $xml->xpath('//s:url/s:loc'));
         $apps = count(app(SiteApps::class)->all());
 
-        expect($urls)->toHaveCount((count(WEBSITE_PAGES) + $apps) * 2)
+        // Every page but the sign-in page, which is not indexed.
+        expect($urls)->toHaveCount((count(WEBSITE_PAGES) - 1 + $apps) * 2)
             ->and($urls)->toContain('http://localhost', 'http://localhost/bn', 'http://localhost/apps/crm', 'http://localhost/bn/apps/crm', 'http://localhost/bn/refund-policy')
+            ->and($urls)->not->toContain('http://localhost/signin', 'http://localhost/bn/signin')
             ->and($xml->xpath('//x:link'))->toHaveCount(count($urls) * 3);
     });
 
@@ -243,6 +254,14 @@ describe('signing in from the website', function () {
 
         // The browser's policy has to allow the form to land on the workspace's address.
         expect($this->get('http://localhost/signin')->headers->get('Content-Security-Policy-Report-Only'))->toContain("form-action 'self' http://*.localhost");
+    });
+
+    it('keeps the sign-in page out of search results', function () {
+        foreach (['http://localhost/signin', 'http://localhost/bn/signin'] as $url) {
+            $this->get($url)->assertOk()->assertSee('<meta name="robots" content="noindex, follow">', escape: false);
+        }
+
+        $this->get('http://localhost/pricing')->assertSee('<meta name="robots" content="index, follow', escape: false);
     });
 
     it('says so on the page when the address is unknown', function () {
@@ -360,6 +379,8 @@ describe('starting a workspace from the home page', function () {
 
         preg_match('#<h1[^>]*>(.*?)</h1>#s', $html, $h1);
 
-        expect(trim(preg_replace('/\s+/', ' ', strip_tags($h1[1]))))->toBe('Run your whole company from one workspace.');
+        // Said once in the text, for search engines; screen readers read the same words from the label.
+        expect(trim(preg_replace('/\s+/', ' ', strip_tags($h1[1]))))->toBe('Run your whole company from one workspace.')
+            ->and($html)->toContain('<h1 id="hero-title" aria-label="Run your whole company from one workspace."');
     });
 });

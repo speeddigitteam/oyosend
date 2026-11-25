@@ -29,6 +29,7 @@ export default {
         notes: 'Notes',
         telephony: 'Telephony',
         links: 'Links',
+        calendar: 'Calendar',
     },
     permissionGroups: {
         members: 'Members',
@@ -140,6 +141,7 @@ export default {
         telephony_calls: 'Calls',
         telephony_settings: 'Telephony settings',
         links: 'Links',
+        calendar: 'Calendar',
     },
     permissions: {
         'core.members.view': {
@@ -467,6 +469,9 @@ export default {
         'telephony.settings.manage': { label: 'Manage telephony', description: 'Connect the phone system, and give members extensions and SIP passwords.' },
         'links.links.view': { label: 'View links', description: 'See saved links within the granted record scope.' },
         'links.links.manage': { label: 'Add and edit links', description: 'Save, edit, pin and delete links.' },
+        'calendar.events.view': { label: 'Use the calendar', description: 'See your own calendars, the workspace calendars, and what teammates choose to share.' },
+        'calendar.events.manage': { label: 'Add and edit events', description: 'Create, change and delete events and calendars of your own, and invite guests.' },
+        'calendar.shared.manage': { label: 'Manage workspace calendars', description: 'Create workspace calendars everyone sees, and add and change their events.' },
     },
     // How far a grant reaches, for permissions that can be narrowed.
     scopes: {
@@ -536,6 +541,9 @@ export default {
         'company.created': 'Added a company',
         'company.updated': 'Updated a company',
         'company.deleted': 'Deleted a company',
+        'contact_address.created': 'Added an address',
+        'contact_address.updated': 'Updated an address',
+        'contact_address.deleted': 'Deleted an address',
         'workspace.registered': 'Signed up for the workspace',
         'workspace.created': 'Workspace created by support',
         'workspace.approved': 'Workspace approved',
@@ -934,6 +942,13 @@ export default {
         'links.link.created': 'Saved a link',
         'links.link.updated': 'Updated a link',
         'links.link.deleted': 'Deleted a link',
+        'calendar.event.created': 'Added a calendar event',
+        'calendar.event.updated': 'Changed a calendar event',
+        'calendar.event.deleted': 'Deleted a calendar event',
+        'calendar.event.responded': 'Answered an invitation',
+        'calendar.calendar.created': 'Created a calendar',
+        'calendar.calendar.updated': 'Changed a calendar',
+        'calendar.calendar.deleted': 'Deleted a calendar',
     },
     // Automation triggers and actions registered by modules, by definition key.
     automation: {

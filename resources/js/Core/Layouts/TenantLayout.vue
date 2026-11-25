@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { router, usePage } from '@inertiajs/vue3';
-import { KeyRound, LogOut, Moon, UserRound } from 'lucide-vue-next';
+import { Link, router, usePage } from '@inertiajs/vue3';
+import { KeyRound, Link as LinkIcon, LogOut, Moon, UserRound } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import DropdownItem from '@/Core/Components/DropdownItem.vue';
@@ -190,6 +190,17 @@ const commands = computed<Command[]>(() => [
         <template #topbar-end>
             <LocaleSwitch v-if="!inSupportSession" />
             <ThemeToggle />
+            <!-- A shortcut to the team's saved links, for whoever may read them; under `sm` the sidebar has it. -->
+            <Link
+                v-if="can('links.links.view')"
+                :href="route('links.index')"
+                class="hidden size-9 shrink-0 items-center justify-center rounded-control text-ink-muted transition-colors hover:bg-hover hover:text-ink sm:flex"
+                :aria-label="t('shell.nav.links')"
+                :title="t('shell.nav.links')"
+                :aria-current="isCurrentRoute('links.*') ? 'page' : undefined"
+            >
+                <LinkIcon class="size-[1.125rem]" aria-hidden="true" />
+            </Link>
             <!-- The member's own notifications; a support session is not that member, so it sees none. -->
             <NotificationBell v-if="!inSupportSession && can('communication.notifications.view')" />
             <UserMenu

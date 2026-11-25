@@ -17,6 +17,7 @@ use Illuminate\Support\Carbon;
  * @property bool $chat_enabled
  * @property bool $drafting_enabled
  * @property bool $automation_enabled
+ * @property bool $voice_enabled
  * @property list<string> $data_scopes
  * @property int $retention_days
  * @property bool $redact_pii
@@ -32,7 +33,7 @@ class Setting extends Model
     protected $table = 'ai_settings';
 
     /** @var list<string> */
-    protected $fillable = ['enabled', 'chat_enabled', 'drafting_enabled', 'automation_enabled', 'data_scopes', 'retention_days', 'redact_pii'];
+    protected $fillable = ['enabled', 'chat_enabled', 'drafting_enabled', 'automation_enabled', 'voice_enabled', 'data_scopes', 'retention_days', 'redact_pii'];
 
     /** @return array<string, string> */
     protected function casts(): array
@@ -42,6 +43,7 @@ class Setting extends Model
             'chat_enabled' => 'boolean',
             'drafting_enabled' => 'boolean',
             'automation_enabled' => 'boolean',
+            'voice_enabled' => 'boolean',
             'data_scopes' => 'array',
             'retention_days' => 'integer',
             'redact_pii' => 'boolean',

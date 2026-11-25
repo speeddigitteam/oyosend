@@ -32,6 +32,7 @@ final class AiSettings
                 'chat_enabled' => true,
                 'drafting_enabled' => true,
                 'automation_enabled' => false,
+                'voice_enabled' => false,
                 'data_scopes' => self::DEFAULT_SCOPES,
                 'retention_days' => (int) config('ai.retention.default_days', 90),
                 'redact_pii' => false,
@@ -71,10 +72,12 @@ final class AiSettings
             return false;
         }
 
+        // Strictly true: a switch that is missing or unreadable is off, never an error.
         return match ($feature) {
-            Feature::Chat => $setting->chat_enabled,
-            Feature::Drafting => $setting->drafting_enabled,
-            Feature::Automation => $setting->automation_enabled,
+            Feature::Chat => $setting->chat_enabled === true,
+            Feature::Drafting => $setting->drafting_enabled === true,
+            Feature::Automation => $setting->automation_enabled === true,
+            Feature::Voice => $setting->voice_enabled === true,
         };
     }
 

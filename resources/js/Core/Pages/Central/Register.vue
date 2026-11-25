@@ -3,6 +3,8 @@ import { Head, useForm, usePage } from '@inertiajs/vue3';
 import { Hourglass } from 'lucide-vue-next';
 import { computed, ref, useId, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import Badge from '@/Core/Components/Badge.vue';
+import { listAmountBeside, yearlySaving } from '@/Core/Components/Billing/offer';
 import Button from '@/Core/Components/Button.vue';
 import {
     ADDRESS_MAX_LENGTH,
@@ -130,6 +132,16 @@ const offers = computed(() =>
         trialDays: trialDaysFor(plan, form.interval),
     })),
 );
+
+/** When the offer on this price ends, while one runs below the plan's own price. */
+function offerUntil(plan: PlanOffer, interval: BillingInterval): string | null {
+    return listAmountBeside(plan, interval) === null ? null : (plan.offerEndsAt ?? null);
+}
+
+/** What the yearly price saves against twelve months, shown on the yearly price only. */
+function savingOf(plan: PlanOffer, interval: BillingInterval): number {
+    return interval === 'yearly' ? yearlySaving(plan.monthlyAmount, plan.yearlyAmount) : 0;
+}
 
 const planHeadingId = useId();
 const planError = computed(() => form.errors.plan ?? form.errors.interval);
@@ -308,6 +320,11 @@ function submit(): void {
                             <span class="font-medium wrap-break-word text-ink">{{ plan.name }}</span>
 
                             <span v-if="price" class="text-[0.8125rem] text-ink-muted">
+                                <!-- A running offer: the plan's own price it takes off from. -->
+                                <template v-if="listAmountBeside(plan, price.interval) !== null">
+                                    <span class="sr-only">{{ t('billing.terms.offer.was') }}</span>
+                                    <del class="tabular mr-1">{{ format.money(listAmountBeside(plan, price.interval) ?? 0, plan.currency) }}</del>
+                                </template>
                                 <span class="tabular text-sm font-medium text-ink">{{ format.money(price.amount, plan.currency) }}</span>
                                 {{ t(`billing.terms.perInterval.${price.interval}`) }}
                             </span>
@@ -319,6 +336,14 @@ function submit(): void {
                         </span>
                         <span v-if="trialDays > 0" class="tabular mt-0.5 block text-[0.8125rem] text-ink-muted">
                             {{ t('billing.terms.trialDays', { count: format.number(trialDays) }) }}
+                        </span>
+                        <span v-if="price && (offerUntil(plan, price.interval) || savingOf(plan, price.interval) > 0)" class="mt-1.5 flex flex-wrap gap-1.5">
+                            <Badge v-if="offerUntil(plan, price.interval)" tone="accent">
+                                {{ t('billing.terms.offer.until', { date: format.date(offerUntil(plan, price.interval)) }) }}
+                            </Badge>
+                            <Badge v-if="savingOf(plan, price.interval) > 0" tone="ok">
+                                {{ t('billing.terms.offer.yearlySaving', { percent: format.number(savingOf(plan, price.interval) / 100, { style: 'percent' }) }) }}
+                            </Badge>
                         </span>
                     </span>
                 </label>

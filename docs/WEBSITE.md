@@ -59,7 +59,13 @@ Every page exists in English at the root and in Bengali under `/bn` (`/pricing` 
   not built is left out. Prices are never written in copy: plans come from the database and app prices from offers.
 - **Every page** has one H1, a canonical address, `hreflang` for both languages and `x-default`, a description, Open
   Graph and Twitter tags, and JSON-LD with the Organization and WebSite. A page that shows questions also carries them
-  as FAQPage. Pages that answer a question open with the "In short" box (`<x-site.answer>`).
+  as FAQPage. Pages that answer a question open with the "In short" box (`<x-site.answer>`). The Organization says
+  what the company does (`site.meta.description`) and, once an operator gives them, its registered name (`legalName`)
+  and founding year (`foundingDate`); every `url` in it is written as the canonical link writes it (no trailing slash
+  on the home page). The pages' WebPage carries `dateModified` from `config('site.content_updated')`, the date the
+  sitemap gives them; the blog's pages leave it to their BlogPosting.
+- **The sign-in page** (`/signin`, "find my workspace") is `noindex, follow` and is not in the sitemap: a form with
+  nothing to answer a search with.
 - **A new optional module** gets an entry in `SiteApps::APPS` and in `site_apps.php` (both languages); the website test
   fails until it has both.
 - **Links into the website from an Inertia page** (sign-up) are plain links (`<a>`, or `Button` with `native`): an
@@ -67,7 +73,9 @@ Every page exists in English at the root and in Bengali under `/bn` (`/pricing` 
 
 ## The home page's hero
 
-The H1 (`site.home.title`, whose `:highlight` is the underlined phrase `site.home.title_highlight`), true figures only
+The H1 (`site.home.title`, whose `:highlight` is the underlined phrase `site.home.title_highlight`; the phrase takes
+turns with `site.home.title_rotate` in `site.ts`, so the H1 carries the whole heading as written in `aria-label` for
+screen readers, and its text says the phrase once for search engines), true figures only
 (the number of apps, two languages, the longest trial of the plans on sale or "0 automatic charges"), and the **start
 card**: company name and email posted to `central.register.start`, which carries them to the sign-up form in the
 session (flashed once, never in the address, a malformed email dropped) and redirects to `/register`. While sign-up is
@@ -95,7 +103,7 @@ dropped. Five messages per ten minutes per route.
 | Tab | Who | What |
 |---|---|---|
 | Messages | `platform.website.view` (Super Admin, Support Admin) | Every contact-form message (`website_enquiries`), new or answered, searchable; reply by email or phone from the card. Marking answered, moving back and deleting need `platform.website.manage` (Super Admin) and are audited (`platform.website.enquiry_*`) |
-| Company | `platform.website.manage` | Name, email, two phones, the address in English (also the structured data) and in Bengali, map link, where contact-form mail goes, and the company's Facebook, LinkedIn, YouTube, Instagram and X pages (footer icons and `sameAs`). Stored as `website.*` platform settings over `config/site.php` (`SiteCompany`) |
+| Company | `platform.website.manage` | Name, registered name and year founded (structured data only, left out until given), email, two phones, the address in English (also the structured data) and in Bengali, map link, where contact-form mail goes, and the company's Facebook, LinkedIn, YouTube, Instagram and X pages (footer icons and `sameAs`). Stored as `website.*` platform settings over `config/site.php` (`SiteCompany`) |
 | Blog | `platform.website.manage` | Articles in English, Bengali or both: draft, publish now or at a time, take off the website, feature one, delete; pictures; a preview drawn by the website from the unsaved form (section "Blog" below) |
 | Words | `platform.website.manage` | Every word of every page, both languages, by part (home, frame, each page, each app, each legal page). Only words: icons, anchors, sections and the number of questions stay as the code has them. A word must keep the placeholders the page fills in (`:count`, `:price`); one equal to the website's own or empty is not stored. "Use the website's own words" clears a part. Stored in `website_texts`, laid over the language files by `WebsiteTextLoader` (the translation loader), cached in the central cache, audited (`platform.website.texts_*`) |
 

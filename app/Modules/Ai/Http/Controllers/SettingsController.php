@@ -32,6 +32,7 @@ final class SettingsController
                 'chatEnabled' => $setting->chat_enabled,
                 'draftingEnabled' => $setting->drafting_enabled,
                 'automationEnabled' => $setting->automation_enabled,
+                'voiceEnabled' => $setting->voice_enabled,
                 'dataScopes' => $setting->data_scopes,
                 'retentionDays' => $setting->retention_days,
                 'redactPii' => $setting->redact_pii,

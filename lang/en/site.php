@@ -199,13 +199,14 @@ return [
             ['q' => 'Can I use Oyosend in Bengali?', 'a' => 'Yes. Every screen of Oyosend works in Bengali and English, and each person chooses their own language. Bengali payslips, Bengali-aware SMS counting and Bengali email templates are part of the apps.'],
             ['q' => 'Is my company\'s data separate from other companies?', 'a' => 'Yes. Each company has its own workspace at its own address, and the application keeps every record inside the workspace that owns it. People in one workspace cannot see another workspace\'s data.'],
             ['q' => 'Do you charge my card automatically?', 'a' => 'No. Oyosend bills by invoice in taka. A paid plan or app starts only after its invoice is paid and the payment is confirmed with the payment gateway, or recorded by our team.'],
-            ['q' => 'Which apps can I use?', 'a' => 'Seventeen apps cover sales, invoicing, HR, payroll, recruitment, projects, customer support, WhatsApp, email, SMS and social media marketing, Meta ads, workflow automation, reports, notes and an AI assistant. You add them from the App Store in your workspace.'],
+            ['q' => 'Which apps can I use?', 'a' => 'Twenty apps cover sales, invoicing, HR, payroll, recruitment, projects, customer support, business calling, WhatsApp, email, SMS and social media marketing, Meta ads, workflow automation, reports, notes, shared links, a team calendar and an AI assistant. You add them from the App Store in your workspace.'],
             ['q' => 'Can I try Oyosend before paying?', 'a' => 'Yes. Plans that offer a free trial can be used before the first invoice, and the pricing page shows each plan\'s trial. Nothing is charged automatically when a trial ends; you decide whether to pay the invoice.'],
             ['q' => 'Where is Oyosend based?', 'a' => 'Oyosend is based at 1st Floor, House 08, Road 13/A, Sector 06, Uttara, Dhaka-1230, Bangladesh. You can reach us at info@oyosend.com or on +88 0179 22 88 555.'],
         ],
 
         'cta_title' => 'Bring your whole company into one workspace',
         'cta_body' => 'Create your workspace in a few minutes, or tell us what you need and we will help you choose.',
+        'orbit_label' => 'Some of the apps in your workspace',
     ],
 
     'signin' => [
@@ -232,6 +233,10 @@ return [
         'core_only' => 'The core workspace: members, roles, contacts and companies, and the App Store.',
         'choose' => 'Choose :plan',
         'popular' => 'Most complete',
+        'offer_until' => 'Offer until :date',
+        'usual_price' => 'Usual price',
+        'yearly_saving' => 'Save :percent% yearly',
+        'offer_keeps' => 'Sign up before the offer ends and you keep this price when you renew.',
         'apps_heading' => 'App prices',
         'app_name' => 'App',
         'app_price' => 'Price',
@@ -250,7 +255,7 @@ return [
         'summary' => 'Oyosend is a multi-tenant business platform for small and growing companies in Bangladesh. Each company gets its own workspace at its own subdomain and installs the apps it needs from an in-product App Store. The interface is in English and Bengali; prices are in Bangladeshi taka (BDT).',
         'facts' => 'Key facts',
         'fact_list' => [
-            'Seventeen apps: CRM & Sales, Invoicing, HR Management, Payroll, Talent & Performance, WhatsApp Business, Email Marketing, SMS Marketing, Social Media, Meta Ads, Customer Support, Communication, Project Management, Workflow Automation, AI Assistant, Reports & Analytics and Notes.',
+            'Twenty apps: CRM & Sales, Invoicing, HR Management, Payroll, Talent & Performance, WhatsApp Business, Email Marketing, SMS Marketing, Social Media, Meta Ads, Customer Support, Communication, Telephony, Project Management, Workflow Automation, AI Assistant, Reports & Analytics, Notes, Links and Calendar.',
             'Every screen is available in English and Bengali; each person chooses their own language.',
             'Billing is by invoice in BDT. Nothing is charged automatically; a paid plan starts only after a confirmed payment.',
             'Each workspace\'s data is kept separate by the application; roles and record scopes decide what each person sees.',

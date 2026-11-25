@@ -31,4 +31,10 @@ enum AiDriver: string
     {
         return $this === self::OpenAiCompatible;
     }
+
+    /** Whether accounts of this driver can transcribe speech (`POST {base_url}/audio/transcriptions`, ADR 0038). */
+    public function supportsTranscription(): bool
+    {
+        return $this === self::OpenAiCompatible;
+    }
 }

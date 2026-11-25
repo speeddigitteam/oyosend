@@ -224,6 +224,19 @@ describe.each(Object.keys(themes))('contrast on glass, %s theme', (name) => {
         expect(failed).toEqual([]);
     });
 
+    it('keeps calendar event titles readable on every event colour', () => {
+        const colours = [...tokens.keys()].filter((token) => token.startsWith('event-') && token !== 'event-ink');
+
+        expect(colours).toHaveLength(11);
+
+        const failed = colours
+            .map((token) => [token, contrast(solid('event-ink'), solid(token))] as const)
+            .filter(([, ratio]) => ratio < AA)
+            .map(([token, ratio]) => `--event-ink on --${token}: ${ratio.toFixed(2)}`);
+
+        expect(failed).toEqual([]);
+    });
+
     it('keeps an unread count readable on its solid accent pill', () => {
         expect(contrast(solid('accent-ink'), solid('accent'))).toBeGreaterThanOrEqual(AA);
     });

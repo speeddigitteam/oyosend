@@ -3,6 +3,7 @@
 use App\Core\CoreServiceProvider;
 use App\Modules\Ai\AiServiceProvider;
 use App\Modules\Automation\AutomationServiceProvider;
+use App\Modules\Calendar\CalendarServiceProvider;
 use App\Modules\Communication\CommunicationServiceProvider;
 use App\Modules\CRM\CRMServiceProvider;
 use App\Modules\EmailMarketing\EmailMarketingServiceProvider;
@@ -58,6 +59,7 @@ return [
         NotesServiceProvider::class,
         TelephonyServiceProvider::class,
         LinksServiceProvider::class,
+        CalendarServiceProvider::class,
     ],
 
 ];

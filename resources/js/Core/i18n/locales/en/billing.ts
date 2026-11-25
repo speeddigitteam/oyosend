@@ -79,6 +79,14 @@ export default {
         unlimited: 'Unlimited',
         notOffered: 'Not offered',
         trialDays: '{count}-day free trial',
+        // A plan's limited-time offer, and what paying yearly saves.
+        offer: {
+            until: 'Offer until {date}',
+            was: 'Usual price',
+            off: '{percent} off',
+            yearlySaving: 'Save {percent} yearly',
+            keeps: 'Take it before the offer ends and you keep this price when you renew.',
+        },
     },
 
     // The billing page of a workspace.

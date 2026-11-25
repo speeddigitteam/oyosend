@@ -42,6 +42,7 @@ final readonly class SitePages
      * @param  list<array{0: string, 1: string}>  $trail  from the first page under home to this one
      * @param  list<array<string, mixed>>  $schema
      * @param  array<string, string>|null  $alternates  the languages the page exists in, when not both
+     * @param  string|null  $modified  when its words last changed; the blog's pages say it on the article instead
      */
     public function meta(
         string $page,
@@ -53,6 +54,7 @@ final readonly class SitePages
         bool $fullTitle = false,
         string $pageType = 'WebPage',
         ?array $alternates = null,
+        ?string $modified = null,
     ): PageMeta {
         $locale = app()->getLocale();
         $url = SiteUrls::to($page, $locale, $parameters);
@@ -63,7 +65,7 @@ final readonly class SitePages
         $graph = [
             SiteSchema::organization(),
             SiteSchema::website($locale),
-            SiteSchema::webPage($url, $name, $description, $locale, $crumbs, $pageType),
+            SiteSchema::webPage($url, $name, $description, $locale, $crumbs, $pageType, $modified),
         ];
 
         if ($crumbs !== []) {

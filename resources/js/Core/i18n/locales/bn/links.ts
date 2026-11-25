@@ -52,7 +52,6 @@ const links: MessageSchema['links'] = {
         urlHint: 'https:// বা http:// দিয়ে শুরু হবে',
         urlPlaceholder: 'https://',
         email: 'ইমেইল ঠিকানা',
-        emailPlaceholder: 'name{\'@\'}example.com',
         description: 'বিবরণ',
         folder: 'ফোল্ডার',
         folderHint: 'নতুন ফোল্ডারের নাম লিখুন বা আগের একটি বেছে নিন।',

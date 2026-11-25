@@ -346,9 +346,8 @@ Frontend and operations:
 7. A native Bengali speaker's review of the complete interface wording.
 8. Final name and brand mark approval.
 9. Production support-access policy and whether tenants must explicitly approve a session.
-10. Voice commands (ADR 0038, proposed, not built): whether stage 1 may use the browser's recognition (audio
-    processed by the browser vendor). Decided: part of the paid AI app; "run without Enter" is the member's own
-    preference with no workspace override.
+10. Voice commands (ADR 0038, built): a transcription server for voice input (an OpenAI-compatible account with a
+    transcription model, for example `whisper-1` or a self-hosted Whisper server), and a browser check by a person.
 
 ## Phase 8 completion
 
@@ -933,15 +932,26 @@ checked in a browser.**
   (the 2026-10-14 snapshot, which every later change was checked against: only a no-op pint run came after it), and
   the blog's two lines were then added with the Edit tool. No other file was affected (checked for empty files).
 
-## Voice commands proposal (2026-10-15)
+## Voice commands (2026-10-15)
 
-The owner asked for voice commands. ADR 0038 proposes them (not built; no code changed): speech becomes a transcript
-for the command palette or the AI assistant box and never acts on its own; per the owner, "run without pressing
-Enter" is a member preference (off by default). Stage 1 uses the browser's Web Speech API, stage 2 transcription
-through `AiGateway`. Side finding recorded in the ADR: `SecurityHeaders` sends `microphone=()` on every response,
-which also blocks the Telephony softphone's `getUserMedia`. The owner then decided that voice is part of the paid AI app (new permission
-`ai.voice.use`, switch on `ai_settings`) and that the member preference needs no workspace override. Still waiting
-for the stage 1 engine decision before building.
+Built in the AI app on the owner's decisions (ADR 0038, `docs/AI.md` section 11): transcription only through the
+operator's own provider (no browser speech service), voice part of the paid AI app, and "run without pressing Enter" as
+the member's own profile preference with no workspace override. Speech becomes a transcript in the command palette
+(matched by the page names it contains) or the assistant box; with the preference on, a single matching page opens
+and an assistant message is sent, but palette actions (sign out, switch workspace) always wait for Enter.
+
+- Backend: core contract `VoiceInput` (+ `NullVoiceInput`), shared prop `voice`; `Transcriber` contract,
+  `OpenAiTranscriber`, `FakeTranscriber`, `TranscriberManager`; `AiGateway::transcribe()` with its own breaker and the
+  `ai.voice_clips` limit (one per clip); route `ai.voice.transcribe`; permission `ai.voice.use` (274 permissions now);
+  `ai` module 1.1.0; transcription model and voice-provider choice on Super Admin > AI providers; profile preference
+  `voice_auto_run`; AI Settings switch `voice_enabled` (off by default).
+- New migration `2026_11_22_000100_add_voice_input_to_ai_tables` (no migration edited in place). The development
+  database still needs `php artisan migrate` for it.
+- Fix: `SecurityHeaders` sent `microphone=()` on every response, which also blocked the Telephony softphone's
+  `getUserMedia`; workspace hosts now get `microphone=(self)`, the central and admin hosts keep it off.
+- Tests: `tests/Feature/Ai/VoiceTest.php`, `tests/js/voice.test.ts`, the header test; permission counts updated.
+- Not verified: never run against a live transcription server, never tried with a real microphone in a browser;
+  recognition of mixed Bengali and English unknown.
 
 ## Whole-app check and fixes (2026-10-15)
 
@@ -988,6 +998,15 @@ initialised and the 37 dumps imported; table and row counts match the dumps. The
 carried over (tests recreate them); MySQL accounts other than `root` would need recreating. Lesson: never start
 `mysqld` from an agent session; let Laragon own it.
 
+**Home page closing section (2026-10-17, owner's request from a reference design).** The home page's last call to
+action is now `components/site/app-orbit`: the headline, start and contact buttons in the middle and twelve app tiles
+(our own icons, never third-party logos) scattered around it on wide screens, leaning and drifting slightly, each
+linking to its app page; below `lg` the tiles sit in a row above the headline; still under reduced motion. Styles
+`.site-orbit-*` in `app.css`, one new string `site.home.orbit_label` (en + bn). Other pages keep `x-site.cta`.
+Checked in a browser at 1440/820/380 px, light and dark, English and Bengali: no tile overlaps the text or leaves the
+panel, no horizontal scroll. Website feature tests pass except `WebsiteAdminTest` "a plan in Bengali", which fails on
+another session's unfinished plan changes.
+
 ## Links app (2026-10-15)
 
 New optional app `links` (owner's request: one organised place for the team's tools, email addresses and useful
@@ -1008,3 +1027,95 @@ website links). Free, Productivity, depends on `core` only; same shape as Notes 
 - Demo Business and Enterprise plans include `links`. Count tests updated (module lists, permission total, catalogue
   app total, plan module list, trigger list, `DECLARED_BY_LINKS`).
 - Not verified in a browser.
+- Follow-up (owner's requests, same day): `DemoSeeder` seeds 17 starter links per demo workspace in its language
+  (once; `DemoSeederTest` covers it), also applied to the development database; a link icon to the page in the
+  workspace top bar for `links.links.view` (from `sm` up); the page search now runs as the person types (300 ms
+  debounce) instead of only on Enter; the email placeholder moved out of the catalogue, which fixes the failing
+  `locales.test.ts` syntax check. The starter government addresses were not opened to confirm they resolve.
+
+## Website SEO / AEO / GEO pass (2026-10-17)
+
+Owner's request: what the home page needs for search, answer and generative engines, then do it. The audit found the
+basics in place (server-rendered pages, canonical, hreflang, OG/Twitter, Organization/WebSite/WebPage/
+SoftwareApplication/FAQPage JSON-LD, robots.txt welcoming AI crawlers, sitemap with hreflang, llms.txt). Changed:
+
+- **Telephony and Links on the website**: `SiteApps` entries, `site_apps.php` pages in both languages (Telephony says
+  plainly it needs the company's own Asterisk/FreeSWITCH PBX and an IPTSP SIP line, and records nothing), a `link`
+  icon in `SiteIcons`, and every "seventeen apps" (home FAQ, llms facts, apps overview, FAQ page) now nineteen.
+- **Sign-in page** `noindex, follow` and out of the sitemap.
+- **Home H1** said the rotating phrase twice in its text (visible span plus an `sr-only` copy); now once, with the whole
+  heading in `aria-label` for screen readers.
+- **Structured data**: Organization gains `description`, and `legalName` / `foundingDate` once an operator gives them
+  (new optional fields "Registered name" and "Year founded" in Super Admin > Website > Company, settings
+  `website.legal_name` / `website.founded`); its and the WebSite's `url` match the canonical (no trailing slash);
+  website pages' WebPage carries `dateModified` = `config('site.content_updated')`, as the sitemap does.
+- Tests: `WebsiteTest` (sitemap without sign-in, sign-in noindex, Organization url/description, dateModified, H1
+  label), `WebsiteAdminTest` (founded validation, legal name and year reach the JSON-LD only once set),
+  `platformWebsite.test.ts` (the two new fields).
+- **Not done, needs the owner's decision**: serving first-visit website pages without a session or cookies (no session
+  row per crawler hit, CDN-cacheable). It relies on the framework's `Sec-Fetch-Site` check instead of the token for
+  the pages' forms; the auto-mode classifier stopped it as a security change. An unwired draft
+  `app/Core/Website/Http/Middleware/StartWebsiteSession.php` is in the tree (registered nowhere); delete it if the idea
+  is dropped.
+- **Off-site work for the owner**: social profile URLs in Super Admin (feeds `sameAs`, currently empty), Google Search
+  Console and Bing Webmaster Tools with the sitemap, a Google Business Profile matching the address, listings and
+  genuine reviews, more question-led articles (Bengali especially), and `APP_URL=https://…` in production.
+- Product screenshots were not added: the home page's HTML-drawn workspace already shows the product as readable text.
+
+## Calendar app (2026-10-17)
+
+Owner's request: a calendar like Google Calendar, built properly so the product can be used anywhere in the world.
+New optional app `calendar` (free, Productivity, depends on `core` only), documented in `docs/CALENDAR.md`.
+
+- **Data**: `calendar_calendars` (personal, one primary per member created on first visit, or workspace-wide),
+  `calendar_events` (single events, series roots with a declarative RRULE subset, exceptions per occurrence),
+  `calendar_event_attendees`, `calendar_preferences`. New migration `2026_11_24_000100_create_calendar_tables`
+  (nothing edited in place).
+- **Privacy by person, not by scope** (a deliberate exception to the record-scope pattern, explained in the doc): a
+  personal calendar is `private`, `busy` (the default) or `team`; teammates see it only after adding the person; a
+  private event on a team calendar shows as busy; guests see what they were invited to. Search, audit labels, the
+  automation trigger and the report never expose a personal calendar. Permissions `calendar.events.view|manage`,
+  `calendar.shared.manage` (not scopable); 279 permissions now.
+- **Time**: UTC instants plus the planning zone for timed events (series repeat in that zone, DST-safe), floating
+  dates for all-day; every member has their own zone, week start (Sat/Sun/Mon) and 12/24-hour clock; the page gets
+  wall-clock text in the viewer's zone and converts with `Intl` only in the editor.
+- **Repeats**: daily / weekly on days / monthly by date, nth or last weekday / yearly, interval, count or end date;
+  "this event", "this and following" (series split) and "all events" for change, move and delete.
+- **Guests and reminders** through the core `Notifier` (invitations, answers to the organiser, reminders by the
+  every-minute scheduled job `calendar.reminders` on the `notifications` queue, deduplicated per occurrence and lead).
+- **Page** (`Modules/Calendar/Pages/Index`, full height): Google-style toolbar and side panel (Create, mini month,
+  "Search for people", calendars with show/hide), day / 4-day / week / month / year / schedule views, drag to create,
+  move (across days) and resize, overlapping events in columns, now line, event card with "Going?", full editor with
+  custom repeat, guests, notifications, colour and privacy, keyboard shortcuts, drawer below 1024px; en + bn. 11 event
+  colour tokens in both themes with a contrast test.
+- **Also changed for the new module**: `config/modules.php`, demo Business/Enterprise plans, count tests (module
+  lists, permissions, catalogue apps, plan modules, triggers, `DECLARED_BY_CALENDAR`, `PlatformPagesTest`
+  `stats.modules` now 21), and the website: a Calendar app page in both languages and "twenty apps" in the copy that
+  counts them (`SiteApps`, `site_apps.php`, `site.php`, `site_pages.php`).
+- Tests: `tests/Feature/Calendar/CalendarTest.php` (25), `tests/Unit/Calendar/RecurrenceExpanderTest.php` (21),
+  `tests/js/calendar.test.ts`, contrast test for the event colours. Feature tests ran on a separate database
+  `oyosend_calendar_testing`.
+- Not built (planned, in the doc): other apps' dates as overlays (Projects due dates, HRM leave and holidays), public
+  holiday calendars, ICS import/export, Google/Outlook sync, per-guest reminders, booking pages.
+- Gates on 2026-10-17: full Pest (4 processes, on `oyosend_calendar_testing`) 4,898 passed; Vitest 1,012 passed;
+  Pint clean; Larastan and vue-tsc clean for everything this change touched (their only findings were in another
+  session's unfinished plan-offer work: `BillingPresenter`, `PlanController`, `Platform/Pages/Plans/Edit.vue`).
+- Development database: the calendar migration was applied with `--path`, and `permissions:sync` / `apps:sync` run;
+  a workspace installs the app from its App Store (it is free).
+- Not verified in a browser.
+
+## Plan limited-time offers (2026-10-17)
+
+Owner's request: discounts on plans, "every way to give one" (coupons and per-workspace discounts to follow, after
+the owner sees their design). First kind built, ADR 0040:
+
+- New migration `2026_11_24_000200_add_offer_to_plans_table` (`offer_monthly_amount`, `offer_yearly_amount`,
+  `offer_ends_at`). **The development database needs it**: `php artisan migrate --path=database/migrations/2026_11_24_000200_add_offer_to_plans_table.php`
+  (another session's calendar migration is also pending there). Until then plans simply have no offer; the plan form
+  cannot save one.
+- `Plan::amountFor()` is the offer price while it runs; a workspace that takes the plan meanwhile is billed it and
+  keeps it on renewal (owner's choice). Super Admin plan form: "Limited-time offer" card (monthly / yearly price, last
+  day, percent off shown, clear). Plan list, workspace billing page, sign-up page and website show the offer price with
+  the list price struck through, "Offer until …", and a "Save N% yearly" badge on yearly prices.
+- Tests: `PlanOfferTest` (15), `tests/js/planOffer.test.ts`; plan, billing page, registration and website suites
+  pass (249). Not checked in a browser.

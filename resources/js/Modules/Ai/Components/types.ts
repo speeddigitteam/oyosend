@@ -13,6 +13,8 @@ export interface Availability {
     provider: string;
     model: string;
     features: Record<string, FeatureState>;
+    /** Speech to text for voice input (ADR 0038); may be a different service from the chat provider. */
+    transcription?: { configured: boolean; model: string };
 }
 
 export interface ConversationSummary {

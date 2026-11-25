@@ -23,7 +23,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $cover_alt
  * @property string|null $meta_title
  * @property string|null $meta_description
- * @property array<int, array<string, mixed>>|null $faq  as stored; {@see questions()} reads it
+ * @property array<int, array<string, mixed>>|null $faq as stored; {@see questions()} reads it
  * @property Carbon $created_at
  * @property Carbon $updated_at
  */

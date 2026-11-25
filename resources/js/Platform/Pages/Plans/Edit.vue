@@ -3,6 +3,7 @@ import { useForm, usePage } from '@inertiajs/vue3';
 import { ArrowLeft, CircleAlert } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { percentOff } from '@/Core/Components/Billing/offer';
 import { useBillingTerms } from '@/Core/Components/Billing/terms';
 import type { BillingInterval, PlanSummary } from '@/Core/Components/Billing/types';
 import Button from '@/Core/Components/Button.vue';
@@ -21,7 +22,17 @@ defineOptions({ layout: PlatformLayout });
 
 const props = defineProps<{
     /** `null` when creating a plan. */
-    plan: (PlanSummary & { subscribers: number; nameBn?: string | null; descriptionBn?: string | null }) | null;
+    plan:
+        | (PlanSummary & {
+              subscribers: number;
+              nameBn?: string | null;
+              descriptionBn?: string | null;
+              /** The offer as stored, ended or not; `offerEndsAt` is set only while it runs. */
+              offerMonthlyAmount?: number | null;
+              offerYearlyAmount?: number | null;
+              offerEndsOn?: string | null;
+          })
+        | null;
     /** The optional modules of this build: what a plan can include. */
     modules: { key: string; name: string }[];
     /** Everything a plan can cap in this build. */
@@ -52,6 +63,9 @@ const form = useForm({
     currency: startCurrency,
     monthly_amount: fromMinorUnits(props.plan?.monthlyAmount, fractionDigits(startCurrency)),
     yearly_amount: fromMinorUnits(props.plan?.yearlyAmount, fractionDigits(startCurrency)),
+    offer_monthly_amount: fromMinorUnits(props.plan?.offerMonthlyAmount, fractionDigits(startCurrency)),
+    offer_yearly_amount: fromMinorUnits(props.plan?.offerYearlyAmount, fractionDigits(startCurrency)),
+    offer_ends_on: props.plan?.offerEndsOn ?? '',
     trial_days: String(props.plan?.trialDays ?? 0),
     // A module or a limit this build no longer has cannot be kept: the server would refuse it.
     modules: (props.plan?.modules ?? []).filter((key) => props.modules.some((module) => module.key === key)),
@@ -82,10 +96,10 @@ const parsed = computed<Record<BillingInterval, ParsedAmount>>(() => ({
 function amountError(interval: BillingInterval): string | undefined {
     const result = parsed.value[interval];
 
-    if (result.ok) {
-        return undefined;
-    }
+    return result.ok ? undefined : amountErrorFor(result);
+}
 
+function amountErrorFor(result: Exclude<ParsedAmount, { ok: true }>): string {
     if (result.reason === 'range') {
         return t('platformPlans.editor.amountTooLarge');
     }
@@ -105,6 +119,66 @@ function amountHint(interval: BillingInterval): string {
     const amount = result.value === 0 ? t('billing.terms.free') : `${format.money(result.value, form.currency)} ${terms.perInterval(interval)}`;
 
     return t('platformPlans.editor.shownAs', { amount });
+}
+
+/*
+ * The limited-time offer: a lower price per interval until the end of a day. Parsed like the prices; the line under
+ * each field says what the offer takes off the plan's own price.
+ */
+const parsedOffer = computed<Record<BillingInterval, ParsedAmount>>(() => ({
+    monthly: toMinorUnits(form.offer_monthly_amount, digits.value),
+    yearly: toMinorUnits(form.offer_yearly_amount, digits.value),
+}));
+
+function offerError(interval: BillingInterval): string | undefined {
+    const result = parsedOffer.value[interval];
+
+    if (!result.ok) {
+        return amountErrorFor(result);
+    }
+
+    const list = parsed.value[interval];
+
+    if (result.value !== null && list.ok && (list.value === null || result.value >= list.value)) {
+        return t('platformPlans.editor.offer.notBelow');
+    }
+
+    return undefined;
+}
+
+function offerHint(interval: BillingInterval): string {
+    const result = parsedOffer.value[interval];
+    const list = parsed.value[interval];
+
+    if (!result.ok || result.value === null || !list.ok || list.value === null || result.value >= list.value) {
+        return t('platformPlans.editor.offer.none');
+    }
+
+    return t('platformPlans.editor.offer.saves', {
+        amount: `${format.money(result.value, form.currency)} ${terms.perInterval(interval)}`,
+        percent: format.number(percentOff(list.value, result.value) / 100, { style: 'percent' }),
+    });
+}
+
+/** Whether the saved offer is running or has ended, for the line under the box. */
+const offerState = computed(() => {
+    const endsOn = props.plan?.offerEndsOn;
+
+    if (!endsOn || form.isDirty) {
+        return null;
+    }
+
+    return props.plan?.offerEndsAt
+        ? t('platformPlans.editor.offer.running', { date: format.date(endsOn) })
+        : t('platformPlans.editor.offer.ended', { date: format.date(endsOn) });
+});
+
+const hasOffer = computed(() => form.offer_monthly_amount !== '' || form.offer_yearly_amount !== '' || form.offer_ends_on !== '');
+
+function clearOffer(): void {
+    form.offer_monthly_amount = '';
+    form.offer_yearly_amount = '';
+    form.offer_ends_on = '';
 }
 
 /** Asked for once the form has been sent without a price: a plan needs one for at least one interval. */
@@ -136,6 +210,9 @@ function payload(): Record<string, unknown> {
         // Integer minor units, or null for "not sold for this interval".
         monthly_amount: monthly.ok ? monthly.value : null,
         yearly_amount: yearly.ok ? yearly.value : null,
+        offer_monthly_amount: parsedOffer.value.monthly.ok ? parsedOffer.value.monthly.value : null,
+        offer_yearly_amount: parsedOffer.value.yearly.ok ? parsedOffer.value.yearly.value : null,
+        offer_ends_on: form.offer_ends_on === '' ? null : form.offer_ends_on,
         trial_days: toWholeNumber(form.trial_days),
         modules: form.modules,
         // Only the limits that are set; a key the plan does not name is not limited.
@@ -154,7 +231,7 @@ function submit(): void {
     attempted.value = true;
 
     // Nothing is sent while a price cannot be read as an amount: the field says why.
-    if (!parsed.value.monthly.ok || !parsed.value.yearly.ok || unpriced.value) {
+    if (!parsed.value.monthly.ok || !parsed.value.yearly.ok || unpriced.value || offerError('monthly') || offerError('yearly')) {
         return;
     }
 
@@ -307,6 +384,47 @@ const subscribersNote = computed(() => {
                             maxlength="3"
                             required
                         />
+                    </div>
+                </div>
+            </Card>
+
+            <Card class="lg:col-span-2 xl:col-span-3" :title="t('platformPlans.editor.offer.title')" :description="t('platformPlans.editor.offer.description')">
+                <div class="@container flex flex-col gap-4">
+                    <div class="grid content-start gap-4 @lg:grid-cols-3">
+                        <Input
+                            v-model="form.offer_monthly_amount"
+                            name="offer_monthly_amount"
+                            inputmode="decimal"
+                            autocomplete="off"
+                            :label="t('platformPlans.editor.offer.monthly')"
+                            :hint="offerHint('monthly')"
+                            :error="offerError('monthly') ?? form.errors.offer_monthly_amount"
+                            optional
+                        />
+                        <Input
+                            v-model="form.offer_yearly_amount"
+                            name="offer_yearly_amount"
+                            inputmode="decimal"
+                            autocomplete="off"
+                            :label="t('platformPlans.editor.offer.yearly')"
+                            :hint="offerHint('yearly')"
+                            :error="offerError('yearly') ?? form.errors.offer_yearly_amount"
+                            optional
+                        />
+                        <Input
+                            v-model="form.offer_ends_on"
+                            name="offer_ends_on"
+                            type="date"
+                            :label="t('platformPlans.editor.offer.endsOn')"
+                            :hint="t('platformPlans.editor.offer.endsOnHint')"
+                            :error="form.errors.offer_ends_on"
+                            optional
+                        />
+                    </div>
+
+                    <div v-if="offerState || hasOffer" class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                        <p class="text-[0.8125rem] text-ink-muted" role="status">{{ offerState }}</p>
+                        <Button v-if="hasOffer" variant="ghost" size="sm" @click="clearOffer">{{ t('platformPlans.editor.offer.clear') }}</Button>
                     </div>
                 </div>
             </Card>

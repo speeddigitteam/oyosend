@@ -32,6 +32,29 @@ return [
     ],
 
     /*
+    | Speech to text for voice input (ADR 0038). Used only while no provider
+    | account in the Super Admin panel has a transcription model. Any server
+    | with the OpenAI transcription API (`POST {base_url}/audio/transcriptions`),
+    | including a self-hosted Whisper server, so audio need not leave servers
+    | the operator chose. No endpoint or no model means `not_configured` and no
+    | microphone is offered. `fake` is honoured only in `local` and `testing`.
+    | Audio is held in memory for one request and never stored or logged.
+    */
+    'transcription' => [
+        'driver' => env('AI_TRANSCRIPTION_PROVIDER', 'openai_compatible'),
+        'base_url' => env('AI_TRANSCRIPTION_BASE_URL'),
+        'api_key' => env('AI_TRANSCRIPTION_API_KEY'),
+        'model' => env('AI_TRANSCRIPTION_MODEL'),
+        'timeout' => (int) env('AI_TRANSCRIPTION_TIMEOUT_SECONDS', 30),
+        // Longest clip the browser records and the server accepts.
+        'max_seconds' => 30,
+        // Largest upload accepted, in kilobytes (30 seconds of Opus is well under this).
+        'max_kilobytes' => 2048,
+        // What the fake transcriber "hears".
+        'fake_text' => 'Contacts',
+    ],
+
+    /*
     | Cost guardrails. Every provider call is bounded before it is made.
     */
     'limits' => [

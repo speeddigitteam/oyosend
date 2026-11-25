@@ -10,7 +10,7 @@ return [
         'title' => 'One workspace, and the apps your business needs',
         'lede' => 'Every Oyosend workspace starts with the core: your team, roles, shared contacts and companies, branches and departments, an audit trail and billing. Add apps from the App Store when you need them. They work on the same contacts and under the same permissions, so each customer is one record across the apps that use it.',
         'answer_q' => 'What apps does Oyosend include?',
-        'answer' => 'Oyosend offers 17 optional apps that you add from the App Store inside your workspace: CRM & Sales, Invoicing, HR Management, Payroll, Talent & Performance, Project Management, Email Marketing, SMS Marketing, WhatsApp Business, Social Media, Meta Ads, Customer Support, Communication, Workflow Automation, AI Assistant, Reports & Analytics and Notes. Most of them are free to add.',
+        'answer' => 'Oyosend offers 20 optional apps that you add from the App Store inside your workspace: CRM & Sales, Invoicing, HR Management, Payroll, Talent & Performance, Project Management, Email Marketing, SMS Marketing, WhatsApp Business, Social Media, Meta Ads, Customer Support, Communication, Telephony, Workflow Automation, AI Assistant, Reports & Analytics, Notes, Links and Calendar. Most of them are free to add.',
         'cta_title' => 'Start with the apps you need today',
         'cta_body' => 'Create your workspace, add one app or several, and add more as your business grows. Removing an app later keeps its data, so you can add it back at any time.',
     ],
@@ -203,7 +203,7 @@ return [
                 'items' => [
                     [
                         'q' => 'Which apps can I add?',
-                        'a' => 'There are 17: CRM & Sales, Invoicing, HR Management, Payroll, Talent & Performance, Project Management, Email Marketing, SMS Marketing, WhatsApp Business, Social Media, Meta Ads, Customer Support, Communication, Workflow Automation, AI Assistant, Reports & Analytics and Notes. You add them from the App Store inside your workspace.',
+                        'a' => 'There are 20: CRM & Sales, Invoicing, HR Management, Payroll, Talent & Performance, Project Management, Email Marketing, SMS Marketing, WhatsApp Business, Social Media, Meta Ads, Customer Support, Communication, Telephony, Workflow Automation, AI Assistant, Reports & Analytics, Notes, Links and Calendar. You add them from the App Store inside your workspace.',
                     ],
                     [
                         'q' => 'Do apps cost extra?',

@@ -111,6 +111,17 @@ export interface SharedProps {
     subscription?: SubscriptionNotice | null;
     /** Workspace area only. */
     supportSession?: SupportSession | null;
+    /** Workspace area only; null when voice input is not offered to this member (ADR 0038). */
+    voice?: VoiceOffer | null;
+}
+
+export interface VoiceOffer {
+    /** Longest clip the server accepts, in seconds. */
+    maxSeconds: number;
+    /** Largest clip the server accepts, in bytes. */
+    maxBytes: number;
+    /** The member's own preference: a navigation match opens and an assistant message is sent without Enter. */
+    autoRun: boolean;
 }
 
 /** Laravel's length-aware paginator, as serialised for Inertia. */

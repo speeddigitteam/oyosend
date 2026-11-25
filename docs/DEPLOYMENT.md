@@ -355,7 +355,7 @@ Audited in Phase 13; covered by `tests/Feature/Hardening/SecurityHeadersTest.php
 
 | Item | State |
 |---|---|
-| `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (camera, microphone, geolocation, payment off) | Sent on every `web` response by `App\Core\Http\Middleware\SecurityHeaders`, on all three areas |
+| `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (camera, geolocation, payment off; microphone allowed to the workspace itself only) | Sent on every `web` response by `App\Core\Http\Middleware\SecurityHeaders`, on all three areas |
 | `Strict-Transport-Security` | Only when the request arrived over HTTPS (behind a TLS-terminating proxy that needs `TRUSTED_PROXIES`). One year, `includeSubDomains`, no `preload` |
 | Content-Security-Policy | `report-only` by default, `SECURITY_CSP=enforce` to block, `off` to disable. Per-response script nonce, `frame-ancestors 'none'`, `object-src 'none'`, `base-uri` and `form-action` self; the Vite dev server is allowed only while `npm run dev` runs. **There is no `report-uri`/`report-to`**: violations are visible only in a browser console, and the policy has not been watched in a real browser across every page |
 | Session cookie | Host-only (`SESSION_DOMAIN` null), `HttpOnly`, `SameSite=Lax`, `Secure` defaults to true when `APP_ENV=production`. The test asserts configuration, not a `Set-Cookie` over real TLS |
