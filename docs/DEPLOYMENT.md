@@ -4,7 +4,7 @@
 (Laragon) with `php artisan serve`. Production hardening is Phase 13 (sections 8 and 10 to 12, `docs/BACKUP_RESTORE.md` and `docs/PERFORMANCE.md` record what
 was exercised). Section 9 lists what is unverified.
 
-Target stack (spec section 2): Nginx, PHP-FPM 8.4, MySQL 8, Redis, Horizon under Supervisor or systemd, cron,
+Target stack (spec section 2): Nginx, PHP-FPM 8.3 or newer (ADR 0041), MySQL 8, Redis, Horizon under Supervisor or systemd, cron,
 S3-compatible storage, GitHub Actions.
 
 ## 1. Environment variables
@@ -106,7 +106,7 @@ server {
     location ~ ^/index\.php(/|$) {
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
-        fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
         fastcgi_hide_header X-Powered-By;
     }
 

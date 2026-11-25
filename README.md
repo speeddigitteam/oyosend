@@ -49,14 +49,14 @@ an offline payment in the Super Admin panel. See [`docs/BILLING.md`](docs/BILLIN
 
 | | |
 |---|---|
-| Backend | PHP 8.4, Laravel 13, MySQL 8, Redis (predis), Horizon, Scout (`database` driver) |
+| Backend | PHP 8.3 or newer (production runs 8.3; ADR 0041), Laravel 13, MySQL 8, Redis (predis), Horizon, Scout (`database` driver) |
 | Tenancy / RBAC | stancl/tenancy 3.10 (single database), spatie/laravel-permission 8 (teams mode) |
 | Frontend | Inertia 3, Vue 3 (`<script setup lang="ts">`), TypeScript (strict), Tailwind CSS 4, vue-i18n, reka-ui |
-| Quality | Pest 5, Vitest 5, Pint, Larastan (level 6), vue-tsc |
+| Quality | Pest 4, Vitest 5, Pint, Larastan (level 6), vue-tsc |
 
 ## Prerequisites
 
-Either Docker (for Laravel Sail), or natively: PHP 8.4 with `pdo_mysql`, Composer 2, Node 24 with npm (CI uses
+Either Docker (for Laravel Sail), or natively: PHP 8.3 or 8.4 with `pdo_mysql`, Composer 2, Node 24 with npm (CI uses
 Node 22), MySQL 8 and Redis. On Windows, Laragon provides all of these; this is the setup the project has been
 run on.
 
