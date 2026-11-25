@@ -1119,3 +1119,16 @@ the owner sees their design). First kind built, ADR 0040:
   the list price struck through, "Offer until …", and a "Save N% yearly" badge on yearly prices.
 - Tests: `PlanOfferTest` (15), `tests/js/planOffer.test.ts`; plan, billing page, registration and website suites
   pass (249). Not checked in a browser.
+
+## PHP 8.3 runtime (2026-11-25)
+
+Owner's request, ADR 0041: the production server runs PHP 8.3.37 and `composer install` refused the `^8.4` lock.
+
+- `composer.json`: `php ^8.3`, `config.platform.php 8.3.0`, Pest `^4.0` and pest-plugin-laravel `^4.0`. Lock file
+  updated only for `pestphp/*`, `phpunit/*`, `sebastian/*`, `symfony/*`, `brianium/paratest`, `laravel/sail` and their
+  dependencies: Symfony 8.1 to 7.4, Pest 5.3 to 4.7, PHPUnit 13.4 to 12.5; `laravel/framework` unchanged at v13.35.0.
+  No production package in the lock needs PHP 8.4.
+- No application code change: nothing uses a PHP 8.4 feature (checked by search and by Larastan analysing for 8.3).
+- CI on PHP 8.3; `CLAUDE.md`, `README.md`, `docs/DEPLOYMENT.md`, `docs/TESTING.md` updated (the stack line said 8.4 and
+  Pest 5).
+- Not verified: running the code on a PHP 8.3 interpreter (none on this machine); the server is the first.

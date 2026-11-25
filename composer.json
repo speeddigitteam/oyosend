@@ -10,7 +10,7 @@
     ],
     "license": "proprietary",
     "require": {
-        "php": "^8.4",
+        "php": "^8.3",
         "bacon/bacon-qr-code": "^3.1",
         "inertiajs/inertia-laravel": "^3.5",
         "laravel/framework": "^13.0",
@@ -32,8 +32,8 @@
         "laravel/sail": "^1.68",
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
-        "pestphp/pest": "^5.3",
-        "pestphp/pest-plugin-laravel": "^5.0"
+        "pestphp/pest": "^4.0",
+        "pestphp/pest-plugin-laravel": "^4.0"
     },
     "autoload": {
         "psr-4": {
@@ -107,7 +107,8 @@
         },
         "platform": {
             "ext-pcntl": "8.4.13",
-            "ext-posix": "8.4.13"
+            "ext-posix": "8.4.13",
+            "php": "8.3.0"
         }
     },
     "minimum-stability": "dev",

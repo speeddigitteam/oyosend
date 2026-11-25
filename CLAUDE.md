@@ -12,9 +12,9 @@ signed off. `core` plus 20 optional modules and 279 permissions are registered (
 
 ## Stack
 
-PHP 8.4 · Laravel 13 · MySQL 8 · Redis (predis) · Horizon · Scout (`database`) · stancl/tenancy 3.10 ·
+PHP 8.3+ (production 8.3, developed on 8.4; ADR 0041) · Laravel 13 · MySQL 8 · Redis (predis) · Horizon · Scout (`database`) · stancl/tenancy 3.10 ·
 spatie/laravel-permission 8 · Inertia 3 · Vue 3 `<script setup lang="ts">` · TypeScript strict · Tailwind 4 ·
-vue-i18n 11 · reka-ui · lucide · Pest 5 · Vitest 5 · Pint · Larastan level 6 · vue-tsc.
+vue-i18n 11 · reka-ui · lucide · Pest 4 · Vitest 5 · Pint · Larastan level 6 · vue-tsc.
 Realtime: the inbox broadcasts content-free `inbox.changed` signals through Laravel's `reverb` driver
 (`pusher/pusher-php-server`, `laravel-echo`, `pusher-js`; ADR 0035); the `laravel/reverb` server package itself is not
 installed yet (its release forces a Guzzle downgrade), so realtime stays off and the inbox polls.
@@ -34,7 +34,7 @@ Not installed until needed: Sanctum (API tokens), Meilisearch, the S3 driver.
 | Scout, `database` driver first, Meilisearch later | Installed; no searchable model yet |
 | Credentials in the environment, never the database | Owner decision (ADR 0028): an operator configures every integration from the Super Admin panel, stored encrypted and write-only, with the environment as the fallback default. Covers **messaging** provider accounts (ADR 0013), **payment gateways** (ADR 0028, `payment_gateway_accounts`) and the **Social** platform and **Meta Ads** app credentials (ADR 0029, `integration_credentials`, overlaid on the config at boot). Operator **AI** provider accounts (`ai_provider_accounts`, ADR 0018) were approved by the owner on 2026-10-14. `APP_KEY`, the database/cache/session/queue connections and `APP_DOMAIN` stay environment-only by necessity (the floor that cannot move) |
 | Communication through providers behind interfaces, honest `not_configured` | Marketing apps send only through `App\Core\Communication` contracts (ADR 0014); no adapter has been run against a live provider |
-| Backend tests: Pest | Pest 5 on a real MySQL database `oyosend_testing` |
+| Backend tests: Pest | Pest 4 on a real MySQL database `oyosend_testing` |
 | Frontend tests: Vitest; Playwright from Phase 2 | Vitest in `tests/js`. Playwright: see `PROGRESS.md` |
 | Local env: Laravel Sail | `compose.yaml` committed but **unverified** (no Docker here); verified natively on Laragon — ADR 0004 |
 | English default + Bengali; BDT; Asia/Dhaka; per tenant | `config/platform.php` defaults, `tenants.locale/timezone/currency`, user `locale` + numerals preference. Bengali is complete: `lang/bn*`, `Core/i18n/locales/bn` (glossary in `bn/index.ts`) |

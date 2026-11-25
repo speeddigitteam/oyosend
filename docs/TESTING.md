@@ -431,7 +431,7 @@ it as unverified until the first run is green.
 
 | Job | Environment | Steps |
 |---|---|---|
-| `php` | PHP 8.4, MySQL 8.0 service with database `oyosend_testing`, Redis 7 service | `cp .env.example .env`, `composer install`, `key:generate`, `vendor/bin/pint --test`, `vendor/bin/phpstan analyse`, `php artisan test` |
+| `php` | PHP 8.3 (the production minimum, ADR 0041), MySQL 8.0 service with database `oyosend_testing`, Redis 7 service | `cp .env.example .env`, `composer install`, `key:generate`, `vendor/bin/pint --test`, `vendor/bin/phpstan analyse`, `php artisan test` |
 | `js` | Node 22 | `npm ci`, `npm run typecheck`, `npm run test`, `npm run build` |
 
 The workflow points the Sail-flavoured `.env.example` at its service containers through real environment
